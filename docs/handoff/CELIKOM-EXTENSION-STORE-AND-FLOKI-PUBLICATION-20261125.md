@@ -2,16 +2,16 @@
 
 Updated 2026-11-25. Source: `main`. Do not alter extension audio logic or host permissions for release transport.
 
-## Existing owner-only release
+## Owner-only release mechanism (0.4.82 withdrawn)
 
-- Approved candidate: **0.4.82**, build run `45666962945`, source `2532f18acacfe246bf7c57bfb299338430b32754`.
+- **Withdrawn candidate, NOT approved for publication:** **0.4.82**, build run `45666962945`, source `2532f18acacfe246bf7c57bfb299338430b32754`.
 - Size **2491981** bytes, SHA-256 `f8c03532c26d6465191779229f414554b86ff01b19fa71cb849f4fdc0992d3ac`.
 - Spool: `/srv/celikom/ci-runner/runner/celikom-build-spool`, shared by both Floki CI runners.
 - Permanent trusted consumer: `.github/scripts/floki-extension-owner-consumer.py`.
 - One-time trusted installation: `.github/scripts/floki-extension-owner-install.sh`.
-- **Declarative approval:** `.github/release/extension-owner-promotions.json`. The developer updates it only after a successfully built and checked new candidate, using the exact source commit, run, attempt, file size and SHA-256. The trusted host reads the approved main ref from the private mirror. Ordinary CI cannot write the release directory. Adding a candidate to this manifest is owner-channel approval only; it is not a customer-store release.
+- **Declarative approval:** `.github/release/extension-owner-promotions.json`. The approval array is currently **empty** after 0.4.82 was withdrawn for a real playback regression. The developer updates it only after a successfully built and checked new candidate, using the exact source commit, run, attempt, file size and SHA-256. The trusted host reads the approved main ref from the private mirror. Ordinary CI cannot write the release directory. Adding a candidate to this manifest is owner-channel approval only; it is not a customer-store release.
 - Publisher runs through `celikom-extension-owner.timer`; it validates the ZIP and signed-off digest/identity, requires `https://api.celikom.com`, checks each HTTPS 401 anonymous / 200 authorized download and full SHA-256, then records trusted `current-owner.json`. Immutable older ZIP files remain available.
-- Planned owner URLs once **verified active on host**: `https://celikom.com/downloads/extension/celikom-extension-0.4.82.zip` and `https://celikom.com/downloads/extension/celikom-extension-latest.zip`. Both inherit the site's existing private Basic authentication. DO NOT report as functioning until real host promotion and full HTTPS check succeed.
+- Planned permanent owner route once a new accepted candidate is actually promoted: `https://celikom.com/downloads/extension/celikom-extension-latest.zip`. Versioned URLs also exist when released. The withdrawn `0.4.82` URL MUST NOT be published. Before an approved candidate, preserve the existing site version unchanged.
 - Downloading a ZIP and loading an unpacked extension does **not** provide automatic browser updates. These private ZIPs are for owner testing only, not the customer download/install channel.
 
 ## Future public customer distribution — Chrome Web Store
@@ -32,7 +32,7 @@ https://developer.chrome.com/docs/webstore/using-api/
 
 ## Next extension developer handoff
 
-1. Continue modifying the extension in `main`, build via existing Floki runner. Tests/checksum must pass.
+1. Resolve the 0.4.82 regression and continue modifying the extension in `main`, build via existing Floki runner. Tests/checksum must pass.
 2. Append the new exact candidate to `extension-owner-promotions.json` and ensure main mirror receives it; the trusted timer independently deploys approved owner ZIP when source spool is present. Inspect trusted receipt and verify site GET before giving owner the real `celikom.com` link.
 3. Wait for owner's acceptance of browser behavior before sending this version to the future store stable channel.
 4. Never introduce manifest `update_url` as a fake self-update method for Chrome Web Store items. Never distribute GitHub draft ZIP links to owner/customers.
