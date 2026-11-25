@@ -96,9 +96,9 @@ fi
 systemctl is-active celikom-windows-signed-owner.timer
 systemctl is-active celikom-extension-owner.timer
 # Runner2 must see the same DATA-ONLY signed spools; never grant host SSH.
-fetch_exact 59bd979db70ba7a47f045a37efea28442a143dd0 \
+fetch_exact c3e904bbce4f2de2c1cdd022697d43e7ea88dd82 \
   .github/scripts/floki-runner2-signed-spool-parity.sh \
-  90429aff5f16ba1acb5f50e1b43ff99bf54d306d \
+  a98ecaf1e0841846c687026336686a9a72680bcd \
   "$INTAKE/floki-runner2-signed-spool-parity.sh" 0600
 if bash "$INTAKE/floki-runner2-signed-spool-parity.sh"; then
   echo CELIKOM_BOTH_RUNNER_DATA_SPOOL_PARITY_VERIFIED
