@@ -10,12 +10,25 @@ MIRROR=/home/celikom-mirror/github-mirror.git
 systemctl start celikom-mirror-sync.service
 
 # Preflight first: no alteration to working services on an unexpected host.
-[[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.55 ]]
+WIN_CURRENT=$(readlink /srv/celikom-releases/windows/stable/current)
+case "$WIN_CURRENT" in
+  versions/0.24.55)
+    [[ ! -e /etc/systemd/system/celikom-windows-signed-owner.service &&
+       ! -e /etc/systemd/system/celikom-windows-signed-owner.timer ]] ;;
+  versions/0.24.56)
+    [[ -f /etc/systemd/system/celikom-windows-signed-owner.service &&
+       -f /etc/systemd/system/celikom-windows-signed-owner.timer ]] ;;
+  *) echo "CELIKOM_WINDOWS_UNEXPECTED_CURRENT_VERSION $WIN_CURRENT"; exit 1 ;;
+esac
 [[ -d /srv/celikom/ci-runner/runner/celikom-windows-signed-spool ]]
 [[ -d /srv/celikom/ci-runner/runner/celikom-build-spool ]]
 [[ -d /srv/celikom-releases/owner-downloads ]]
-[[ ! -e /etc/systemd/system/celikom-windows-signed-owner.timer ]]
-[[ ! -e /etc/systemd/system/celikom-extension-owner.timer ]]
+if [[ -e /etc/systemd/system/celikom-extension-owner.timer ]]; then
+  [[ -f /etc/systemd/system/celikom-extension-owner.service &&
+     -f /srv/celikom-releases/private/extension/current-owner.json ]]
+else
+  [[ ! -e /etc/systemd/system/celikom-extension-owner.service ]]
+fi
 [[ "$(sha256sum /root/celikom-secrets/windows-stable-public.der | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]]
 nginx -t
 for cmd in git python3 node systemctl; do command -v "$cmd" >/dev/null; done
@@ -54,17 +67,28 @@ fetch_exact 1f438a88bca19cbdec95c44dd03b4c3285435046 \
   ab1750213b98ae8c3ff4e4c901d1edf7c33623bf \
   "$INTAKE/floki-windows-root-consumer-install.sh" 0600
 
-# The first promoter is already prepared and cryptographically checks v56.
-bash "$INTAKE/floki-windows-root-consumer-install.sh"
-echo CELIKOM_WINDOWS_INITIAL_PROMOTION_RETURNED
+# A prior successful Windows activation must survive a later extension failure.
+# Re-running this bootstrap never tries to re-import an accepted version.
+if [[ "$WIN_CURRENT" == versions/0.24.55 ]]; then
+  bash "$INTAKE/floki-windows-root-consumer-install.sh"
+  echo CELIKOM_WINDOWS_INITIAL_PROMOTION_RETURNED
+else
+  systemctl is-active celikom-windows-signed-owner.timer
+  echo CELIKOM_WINDOWS_PREVIOUS_PROMOTION_PRESERVED
+fi
 
 # Independent extension publisher; no new version-specific Nginx change later.
 fetch_exact 0ab4f261dcc744d150262339a8b2fede34f8c68b \
   .github/scripts/floki-extension-owner-install.sh \
   59f79307212195715695c52d2fc1a2eed3522b15 \
   "$INTAKE/floki-extension-owner-install.sh" 0600
-bash "$INTAKE/floki-extension-owner-install.sh"
-echo CELIKOM_EXTENSION_INITIAL_PROMOTION_RETURNED
+if [[ ! -e /etc/systemd/system/celikom-extension-owner.timer ]]; then
+  bash "$INTAKE/floki-extension-owner-install.sh"
+  echo CELIKOM_EXTENSION_INITIAL_PROMOTION_RETURNED
+else
+  systemctl is-active celikom-extension-owner.timer
+  echo CELIKOM_EXTENSION_PREVIOUS_PROMOTION_PRESERVED
+fi
 
 [[ "$(readlink /srv/celikom-releases/windows/stable/current)" == versions/0.24.56 ]]
 [[ -f /srv/celikom-releases/owner-downloads/CELIKOM-Windows-latest.exe ]]
