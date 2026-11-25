@@ -21,3 +21,10 @@ Local full extension suite389/389 PASS; manifest/security pass. ZIP `celikom-ext
 0.4.82 was removed from `.github/release/extension-owner-promotions.json` in33de3505041c3abbeaa3127d7ce2f3c481d16b3a after the owner failure. Do not restore its approval. This did not delete already delivered files or change an existing site latest pointer. Approve0.4.83 only after its exact Floki build succeeds. Record CI source/run/receipt and delivery after execution; do not assert a website link or owner acceptance from this checkpoint alone.
 
 Owner next check: reload the same unpacked extension and Yandex tab, ordinary positive tracks first, then VPN/Next. A slower connection may still delay initial verified bytes; this correction removes the unnecessary second full download rather than promising zero network latency.
+
+## Verified Floki build and owner candidate
+
+- Source `96b62a902ac6cc005f4889d5976412c3f5901a61`; build run `45679555946`, job `139436140361`: SUCCESS,389/389 extension tests,4 spool tests, production manifest/security and byte-exact ZIP SHA pass. Server receipt matches local2,491,815byte package and digest above.
+- Primary spool `/srv/celikom/ci-runner/runner/celikom-build-spool/96b62a902ac6cc005f4889d5976412c3f5901a61-45679555946-1/`.
+-0.4.83 is approved for the existing private OWNER test channel in `.github/release/extension-owner-promotions.json`;0.4.82 remains withdrawn. `public_stable` stays null. Existing central publisher implementation and host services are managed by the infrastructure thread; no new admin script or CI secret is introduced here. Approval is not proof of active host machinery, HTTPS delivery or customer publication.
+- ZIP delivered privately through this conversation: Library `libfile_93be02094aa48191ac73f6ee3386343b`. Do not give a0.4.83 site download link until the trusted publisher's full HTTPS receipt has actually been observed. No live audible browser acceptance yet. Full hosted CI45679555863 failed before runner steps; do not equate the isolated extension pass with full repository CI.
