@@ -73,7 +73,7 @@ test("W175 unknown song or stopped bridge cannot force initial reload",async()=>
  assert.deepEqual(r.player.reasons,[]);
  r.handlers.beforeunload();
 });
-\n
+
 test("W178: next current song with cached original gets exactly one approved source-only reload",async()=>{
  const r=harness(),w=r.window;
  r.clock.now+=4000;
