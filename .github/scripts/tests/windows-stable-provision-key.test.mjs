@@ -35,8 +35,9 @@ test("W155 release derives the public pin from the protected private key", () =>
   assert.ok(releaseWorkflow.includes("default: '" + version + "'"));
   assert.ok(releaseWorkflow.includes(".github/release/owner-bootstrap-" + version + ".trigger"));
   assert.ok(releaseWorkflow.includes("inputs.version || '" + version + "'"));
-  assert.match(releaseWorkflow, /inputs\.sequence \|\| '2'/);
-  assert.match(releaseWorkflow, /default: '2'/);
+  const sequence = releaseWorkflow.match(/RELEASE_SEQUENCE:\\s*\\$\\{\\{\\s*inputs\\.sequence \\|\\| '([1-9]\\d*)'\\s*\\}\\}/)?.[1];
+  assert.ok(sequence && Number(sequence) >= 2, "signed release sequence stays monotonic");
+  assert.ok(releaseWorkflow.includes("default: '" + sequence + "'"));
   assert.match(releaseWorkflow, /FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED/);
   assert.match(releaseWorkflow, /Preserve signed feed metadata in a separate unpublished draft/);
   assert.match(releaseWorkflow, /Leave blank to use an automatic 7-day UTC expiry/);
