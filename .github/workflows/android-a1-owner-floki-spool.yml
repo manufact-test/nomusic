@@ -14,7 +14,7 @@ permissions:
   actions: read
 concurrency:
   group: celikom-a1-verified-private-spool
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   stage-verified-signed-apk:
     if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event.workflow_run.conclusion == 'success')
