@@ -186,9 +186,33 @@ jobs:
           sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes
             -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts"
             -o GlobalKnownHostsFile=/dev/null -o ClearAllForwardings=yes -o ConnectTimeout=20)
+          target=95.133.160.111
+          if ! python3 - "$target" <<'PY'
+import socket,sys
+try:
+    socket.create_connection((sys.argv[1],22),timeout=3).close()
+except OSError:
+    sys.exit(1)
+PY
+          then
+            target=$(python3 - <<'PY'
+import socket,struct
+from pathlib import Path
+for line in Path('/proc/net/route').read_text().splitlines()[1:]:
+    fields=line.split()
+    if len(fields)>3 and fields[1]=='00000000':
+        print(socket.inet_ntoa(struct.pack('<L',int(fields[2],16))))
+        break
+else:
+    raise SystemExit('No Docker network gateway')
+PY
+            )
+            sshargs+=(-o HostKeyAlias=95.133.160.111)
+            echo A1_DEPLOY_VIA_PINNED_LOCAL_GATEWAY
+          fi
           name=$(cat "$d/filename")
           cat "$d/metadata.json" "$d/$name" |
-            ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 receive-a1-apk > "$d/intake.txt"
+            ssh "${sshargs[@]}" "celikom-deploy@$target" receive-a1-apk > "$d/intake.txt"
           rm "$tmp/key" "$tmp/known_hosts"
           python3 - "$d" <<'PY'
           import json,re,sys
