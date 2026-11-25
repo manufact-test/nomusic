@@ -2,29 +2,40 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-# Read-only media parity and newest SQL staging inventory; no change to public routes.
-snapshot=/root/celikom-cutover-snapshot-Cvt6DJjh/intake
-for kind in api cms; do
-  test -f "$snapshot/$kind.sql.gz" && test ! -L "$snapshot/$kind.sql.gz"
-  gzip -t "$snapshot/$kind.sql.gz"
-done
-printf 'NEWEST_API_SQL_HASH=%s\n' "$(sha256sum "$snapshot/api.sql.gz" | cut -d' ' -f1)"
-printf 'NEWEST_CMS_SQL_HASH=%s\n' "$(sha256sum "$snapshot/cms.sql.gz" | cut -d' ' -f1)"
-test -z "$(find /etc/nginx/conf.d -maxdepth 1 -name 'celikom-cutover-probe.conf' -print)"
-mapfile -t boots < <(find /srv/celikom-site -maxdepth 5 -type f -path '*/app/bootstrap.php')
-[[ "${#boots[@]}" == 1 ]]
-siteboot="${boots[0]}"
-audio=/srv/celikom/data/candidate-20261124/audio
-media=$(runuser -u celikom-site -- php -r 'require $argv[1];$m=getenv("CELIKOM_SITE_MEDIA_DIR");if(!is_string($m)||!is_dir($m))exit(2);echo realpath($m);' "$siteboot")
-[[ "$media" == /srv/celikom-site/* && -d "$audio" ]]
-file_fingerprint(){
-  cd "$1"
-  find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | awk -v kind="$2" '{print "FILE_FINGERPRINT",kind,$1}'
-}
-(file_fingerprint "$audio" audio)
-(file_fingerprint "$media" cms-media)
-
-
-
-echo CELIKOM_TARGET_FINGERPRINT_OK
-
+# Read-only pre-activation contract audit; never emit credentials or env contents.
+python3 - <<'PY'
+import pathlib,re
+d=pathlib.Path("/root/celikom-cutover-prepared")
+names=["api-https.conf","api-staging.conf","site-https.conf","website-preview.conf","api.env","website-staging-config.php"]
+for n in names:
+ p=d/n
+ assert p.is_file() and not p.is_symlink() and p.stat().st_uid==0,n
+ s=p.read_text()
+ if n.endswith(".conf"):
+  print("CONFIG_CANDIDATE",n,"bytes",p.stat().st_size)
+  print("  server",re.findall(r"server_name\s+([^;]+);",s))
+  print("  listen",re.findall(r"\blisten\s+([^;]+);",s))
+  print("  routes",sorted(set(re.findall(r"\blocation\s+([^\{\n]+)\{",s))))
+ elif n=="api.env":
+  m=re.findall(r"(?m)^\s*DB_NAME\s*=\s*([A-Za-z0-9_]+)\s*$",s)
+  print("API_PREPARED_DB",m)
+  assert m==["celikom_cutover_20261124"]
+  flags={k:int(v) for k,v in re.findall(r"(?m)^([A-Z][A-Z0-9_]+)=(0|1)\s*$",s)}
+  for k in ["FEATURE_ADMIN","FEATURE_REPLACEMENTS","FEATURE_USER_AUTH","FEATURE_USER_ENTITLEMENT","FEATURE_OWNER_UPLOADS","FEATURE_UPLOADS","FEATURE_REWARD_ELIGIBILITY"]:
+   assert flags.get(k)==1,k
+  for k in ["CELIKOM_APP_DEBUG","FEATURE_ANALYTICS","FEATURE_BILLING_VIEWS","FEATURE_PAID_ENTITLEMENT","FEATURE_REFERRAL_ATTRIBUTION","FEATURE_OWNER_REPORTS"]:
+   assert flags.get(k)==0,k
+  print("API_PREPARED_FEATURE_FLAGS_VALID")
+ else:
+  assert "celikom_website_cutover_20261124" in s,n
+  print("CMS_PREPARED_CONFIG_CONTAINS_CANDIDATE")
+for name in ["celikom-api-https","celikom-api-staging","celikom-site-https","celikom-website-preview"]:
+ p=pathlib.Path("/etc/nginx/sites-enabled")/name
+ dst=p.resolve()
+ assert str(dst).startswith("/etc/nginx/sites-available/") and dst.is_file() and dst.stat().st_uid==0,name
+ print("ACTIVE_VHOST",name,dst)
+PY
+nginx -t
+runuser -u www-data -- php -r 'require "/srv/celikom/app/staging-20261122/bootstrap.php";$c=require "/srv/celikom/app/staging-20261122/config/app.php";$p=Celikom\Database\Connection::open($c);echo "CURRENT_API_DB=",$p->query("SELECT DATABASE()")->fetchColumn(),PHP_EOL;'
+runuser -u www-data -- env DB_NAME=celikom_cutover_20261124 php -r 'require "/srv/celikom/app/staging-20261122/bootstrap.php";$c=require "/srv/celikom/app/staging-20261122/config/app.php";$p=Celikom\Database\Connection::open($c);echo "PRIVATE_API_DB=",$p->query("SELECT DATABASE()")->fetchColumn(),PHP_EOL;'
+echo CELIKOM_PREACTIVATION_CONFIG_READONLY_OK
