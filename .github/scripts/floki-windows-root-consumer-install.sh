@@ -13,7 +13,7 @@ consumer="$SRC/floki-windows-signed-root-consumer.py"
 route="$SRC/floki-windows-owner-download-bootstrap.sh"
 [[ "$(stat -c '%u:%a:%h' "$consumer")" == 0:600:1 ]]
 [[ "$(stat -c '%u:%a:%h' "$route")" == 0:600:1 ]]
-[[ "$(git hash-object "$consumer")" == c9a78d4eb144562a3c34317b6a63325d51632f70 ]]
+[[ "$(git hash-object "$consumer")" == 4f629e109adb0c33a0b9ca63f4090a0b5402ecc9 ]]
 [[ "$(git hash-object "$route")" == aa974b6f7052ce0da2397fe24f93f19555e4907a ]]
 python3 -m py_compile "$consumer"
 bash -n "$route"
@@ -27,7 +27,7 @@ bash "$route"
 target="$DEST/floki-windows-signed-root-consumer.py"
 if [[ -e "$target" || -L "$target" ]]; then
   [[ ! -L "$target" ]]
-  [[ "$(git hash-object "$target")" == c9a78d4eb144562a3c34317b6a63325d51632f70 ]]
+  [[ "$(git hash-object "$target")" == 4f629e109adb0c33a0b9ca63f4090a0b5402ecc9 ]]
 else
   install -o root -g root -m 0644 "$consumer" "$target"
 fi
