@@ -249,6 +249,27 @@ def probe_website(version):
                   "OWNER_DOWNLOAD_HASH_MISMATCH")
         print("WINDOWS_ROOT_PRIVATE_OWNER_DOWNLOAD_FULL_HASH_OK",path,expected_size)
 
+def record_verified_owner(version, sequence):
+    # Do not expose a candidate as confirmed until BOTH owner HTTPS downloads
+    # have passed exact-size and full SHA256 verification.
+    manifest=json.loads((ROOT/"versions"/version/"manifest.json").read_bytes())
+    check(manifest["version"]==version and
+          manifest["sequence"]==sequence,"OWNER_RECEIPT_IDENTITY")
+    payload=(json.dumps({
+        "version":version,"sequence":sequence,"sha256":manifest["sha256"],
+        "https_verified":True
+    },sort_keys=True,separators=(",",":"))+"\n").encode()
+    out=ROOT/"owner-verified.json"
+    fd,tmp=tempfile.mkstemp(prefix=".windows-owner-verified-",dir=ROOT)
+    try:
+        with os.fdopen(fd,"wb") as f:
+            f.write(payload);f.flush();os.fsync(f.fileno())
+        os.chown(tmp,0,0);os.chmod(tmp,0o644)
+        os.replace(tmp,out)
+    finally:
+        if os.path.lexists(tmp):os.unlink(tmp)
+
+
 def main():
     verify_installed_tools()
     lockpath=IMPORT_ROOT/".windows-signed-spool.lock"
@@ -263,6 +284,7 @@ def main():
                 publish_signed_root(version,sequence)
                 owner_copy(version)
                 probe_website(version)
+                record_verified_owner(version,sequence)
                 # Never consume an unverified artifact, and never unlink by
                 # name before independently confirming inode and dev.
                 now=path.lstat()
