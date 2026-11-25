@@ -103,10 +103,18 @@ class A1SpoolContract(unittest.TestCase):
         fake = CompletedProcess(args=[], returncode=1, stdout="",
             stderr=("A1_INTAKE_REJECTED https://celikom.com/downloads/a1/"
                     + token + "/example.apk"))
-        with mock.patch.object(ROOT.subprocess, "run", return_value=fake):
-            with contextlib.redirect_stderr(log):
-                with self.assertRaisesRegex(RuntimeError, "RECEIVER_PROCESS_FAILED"):
-                    ROOT.hand_to_existing_receiver(self.apk, self.meta, self.dir)
+        from types import SimpleNamespace
+        identity = SimpleNamespace(pw_uid=993, pw_gid=985)
+        with mock.patch.object(ROOT.pwd, "getpwnam", return_value=identity):
+            with mock.patch.object(ROOT.subprocess, "run", return_value=fake) as run:
+                with contextlib.redirect_stderr(log):
+                    with self.assertRaisesRegex(RuntimeError, "RECEIVER_PROCESS_FAILED"):
+                        ROOT.hand_to_existing_receiver(self.apk, self.meta, self.dir)
+                args, kwargs = run.call_args
+                self.assertEqual(args[0], [str(ROOT.RECEIVER)])
+                self.assertEqual(kwargs["user"], 993)
+                self.assertEqual(kwargs["group"], 985)
+                self.assertEqual(kwargs["extra_groups"], [])
         self.assertIn("A1_ROOT_RECEIVER_EXIT 1", log.getvalue())
         self.assertIn("A1_INTAKE_REJECTED", log.getvalue())
         self.assertNotIn(token, log.getvalue())
