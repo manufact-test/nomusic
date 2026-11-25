@@ -1,0 +1,48 @@
+name: CELIKOM live FlokiNET independent HTTP acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/floki-live-acceptance.yml'
+permissions:
+  contents: read
+jobs:
+  remote-http-smoke:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Independent live public API and protected delivery checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          base=https://api.celikom.com
+          site=https://celikom.com
+          test "$(curl -sS --max-time 20 -o "$tmp/health" -w '%{http_code}' "$base/api/v1/health")" = 200
+          test "$(curl -sS --max-time 20 -o "$tmp/config.json" -w '%{http_code}' "$base/api/v1/config")" = 200
+          python3 - "$tmp/config.json" <<'PY'
+          import json,sys
+          v=json.load(open(sys.argv[1]))
+          f=v['features']
+          assert all(f[k] for k in ('replacements','auth','entitlement','rewards'))
+          assert not any(f[k] for k in ('analytics','billing_views','referrals'))
+          assert v['upload_enabled'] is True and v['max_upload_size']==31457280
+          print('LIVE_API_FEATURE_FLAGS_AND_30M_UPLOAD_ENABLED')
+          PY
+          test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$base/api/v1/auth/me")" = 401
+          test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$base/api/v1/resolve?service=yandex&track_id=144530503")" = 401
+          admin=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$base/admin/")
+          case "$admin" in 200|301|302|303|401) ;; *) echo "LIVE_API_ADMIN_NOT_ROUTEABLE_$admin"; exit 1 ;; esac
+          echo "LIVE_API_ADMIN_ROUTE_HTTP_$admin"
+          for path in / /admin/ /downloads/windows/CELIKOM-Windows-0.24.55.exe /downloads/extension/celikom-extension-0.4.73.zip /updates/android/stable.json; do
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$site$path")
+            test "$code" = 401 || { echo "SITE_PROTECTED_GATE_CHANGED $path HTTP_$code"; exit 1; }
+            echo "LIVE_SITE_PROTECTED_ANONYMOUS_401 $path"
+          done
+          echo CELIKOM_LIVE_FLOKI_PUBLIC_HTTP_ACCEPTANCE_OK
