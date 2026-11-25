@@ -41,6 +41,9 @@ cleanup(){
   exit "$rc"
 }
 trap cleanup EXIT
+# Repeat syntax/POST checks against the exact live source bytes before any site change.
+ssh "${source_ssh[@]}" u235811320@92.113.19.189 'bash -s -- preflight' < .github/scripts/floki-cutover-source-freeze.sh
+echo CELIKOM_FINAL_SOURCE_PHP_FENCE_PRIVATE_PREFLIGHT_OK
 # Safe verified owner-only source freeze for the exact two sites.
 ssh "${source_ssh[@]}" u235811320@92.113.19.189 'bash -s -- freeze' < .github/scripts/floki-cutover-source-freeze.sh
 frozen=1
