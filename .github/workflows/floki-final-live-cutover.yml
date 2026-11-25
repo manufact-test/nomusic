@@ -60,3 +60,4 @@ jobs:
 # Retry only after correcting the source tempfile path; live source hashes were unchanged after aborted pre-freeze setup.
 # Retry with verified Apache rewrite denial using unauthenticated routes, not Basic-protected CMS login.
 # Retry only with seven tested PHP front-controller write fences; rollback on any real HTTP mismatch.
+# Execute only if real API POST=503 and separate harmless PHP probe POST returns exact marker; retain rollback.
