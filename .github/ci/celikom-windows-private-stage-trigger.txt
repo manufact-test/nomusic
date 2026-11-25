@@ -2,3 +2,4 @@
 2026-11-25: verify deterministic protected draft pack after real server-side root consumption; network send remains disabled until enrollment.
 2026-11-25: owner confirmed dedicated Windows intake credential enrollment; one-time exact 0.24.55 transport and independent root import, no publication.
 2026-11-25: validate enrolled clipboard format without printing secret; retry exact signed private transfer.
+2026-11-25: owner confirmed corrected clipboard enrollment; verify exact signed 0.24.55 transfer.
