@@ -30,7 +30,8 @@ class RootConsumerContractTests(unittest.TestCase):
             sha=hashlib.sha256(raw).hexdigest()
             name=f"windows-0.24.56-3-{sha}.zip"
             path=spool/name;path.write_bytes(raw);path.chmod(0o600)
-            old=core["SPOOL"];core["SPOOL"]=spool
+            source_globals=core["list_pending"].__globals__
+            old=source_globals["SPOOL"];source_globals["SPOOL"]=spool
             try:
                 pending=core["list_pending"]()
                 self.assertEqual(len(pending),1)
@@ -44,14 +45,15 @@ class RootConsumerContractTests(unittest.TestCase):
                 path.chmod(0o644)
                 with self.assertRaises(RuntimeError):core["list_pending"]()
             finally:
-                core["SPOOL"]=old
+                source_globals["SPOOL"]=old
 
     def test_unknown_members_or_world_access_are_rejected(self):
         if os.getuid()==0:
             self.skipTest("The isolated runner must not execute tests as root")
         with tempfile.TemporaryDirectory() as d:
             root=pathlib.Path(d);spool=root/"spool";spool.mkdir(mode=0o700)
-            old=core["SPOOL"];core["SPOOL"]=spool
+            source_globals=core["list_pending"].__globals__
+            old=source_globals["SPOOL"];source_globals["SPOOL"]=spool
             try:
                 (spool/"unexpected").write_text("x")
                 with self.assertRaises(RuntimeError):core["list_pending"]()
@@ -59,7 +61,7 @@ class RootConsumerContractTests(unittest.TestCase):
                 spool.chmod(0o755)
                 with self.assertRaises(RuntimeError):core["list_pending"]()
             finally:
-                core["SPOOL"]=old
+                source_globals["SPOOL"]=old
 
 
     def test_nginx_bootstrap_pythons_and_installer_hash_pins_match(self):
