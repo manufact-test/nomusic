@@ -63,6 +63,7 @@ rules=r'''    # CELIKOM LEGACY ANDROID PUBLIC VERIFIED STABLE OTA
     # No public manifest exists until the owner accepts a release.
     location = /updates/android/stable.json {
         auth_basic off;
+        allow all;
         alias /srv/celikom-releases/public/android/stable.json;
         default_type application/json;
         add_header Cache-Control "no-store" always;
@@ -70,6 +71,7 @@ rules=r'''    # CELIKOM LEGACY ANDROID PUBLIC VERIFIED STABLE OTA
     }
     location ~ "^/releases/android/(?<celikomlegacyapk>[1-9][0-9]{0,8}-[a-f0-9]{64}\.apk)$" {
         auth_basic off;
+        allow all;
         alias /srv/celikom-releases/public/android/$celikomlegacyapk;
         default_type application/vnd.android.package-archive;
         add_header Cache-Control "public, max-age=300, immutable" always;
