@@ -1,3 +1,4 @@
+import { startAccessError } from "../auth/start-access.js";
 import { redactDiagnostics, publicPlaybackState } from "../auth/diagnostic-access.js";
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
 import { createControllerBootstrap } from "./controller-bootstrap.js";
@@ -312,7 +313,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
           const result = await userAuth.entitlement(true);
           if (!result.allowed && result.reason !== "service_incident") { sendResponse({ ...await readState(), accessError: result.reason }); return; }
           if (result.reason === "service_incident") await musicTabs.send({ type: "CELIKOM_ACCESS_STATE", state: "incident" });
-        } catch (error) { sendResponse({ ...await readState(), accessError: (error as Error)?.message === "invalid_session" ? "sign_in_required" : "auth_unavailable" }); return; }
+        } catch (error) { sendResponse({ ...await readState(), accessError: startAccessError((error as Error)?.message) }); return; }
       }
       // A delayed Start must never undo a later Stop/login/logout.
       if (generation !== intentGeneration) { sendResponse(await readState()); return; }

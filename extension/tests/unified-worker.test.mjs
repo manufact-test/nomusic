@@ -1,3 +1,4 @@
+import {startAccessError} from '../dist/unpacked/auth/start-access.js';
 import {publicPlaybackState,redactDiagnostics} from "../dist/unpacked/auth/diagnostic-access.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ function fixture() {
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={withDiagnosticsAccess:async()=>{throw Error('access_denied')},installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
  return {setController:(value,error=null)=>{controller=value;connectionError=error},send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
@@ -256,4 +257,12 @@ test('upload journal is exported only after fresh administrative authorization',
  f.auth.withDiagnosticsAccess=async callback=>callback();
  const full=await f.send('CELIKOM_DIAGNOSTICS_GET');assert.equal(full.state.uploads[0].events[0].httpStatus,429);
  const normal=await f.send('CELIKOM_STATUS_GET');assert.equal(normal.uploads,undefined);
+});
+
+test('Start preserves actionable public failures and never enables playback on a failed access check',async()=>{
+ for(const [error,expected] of [['auth_timeout','auth_timeout'],['auth_network_error','auth_network_error'],['auth_route_blocked','auth_route_blocked'],['invalid_session','sign_in_required'],['account_disabled','account_disabled'],['private server detail','auth_unavailable']]){
+  const f=fixture();f.auth.entitlement=async()=>{throw Error(error);};
+  const result=await f.send('CELIKOM_ENABLED_SET',{enabled:true});
+  assert.equal(result.accessError,expected);assert.equal(f.local.enabled,false);assert.equal(f.sent.length,0);
+ }
 });

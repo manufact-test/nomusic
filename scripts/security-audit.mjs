@@ -23,7 +23,6 @@ assert.ok(!manifest.externally_connectable);
 assert.ok(!manifest.content_security_policy.extension_pages.includes("unsafe-eval"));
 assert.ok(manifest.permissions.every(value => ["storage", "scripting", "offscreen"].includes(value)));
 assert.ok(manifest.host_permissions.every(value => value === "https://music.yandex.ru/*"
-  || value === "https://darkred-camel-588676.hostingersite.com/*"
   || value === "https://api.celikom.com/*"));
 const forbidden = [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\bghp_[A-Za-z0-9]{30,}\b/, /\bgithub_pat_[A-Za-z0-9_]{40,}\b/,

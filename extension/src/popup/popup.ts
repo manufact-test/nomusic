@@ -1,3 +1,4 @@
+import { startAccessMessage } from "../auth/start-access.js";
 import { initDiagnosticsButton } from "./diagnostics-button.js";
 import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
@@ -96,10 +97,7 @@ startButton?.addEventListener("click", async () => {
     else render(state);
     if (access && state.accessError) {
       access.dataset.kind = "error";
-      access.textContent = state.accessError === "track_required"
-        ? "Сначала запустите песню в Яндекс Музыке."
-        : state.accessError === "sign_in_required" ? "Войдите в аккаунт, чтобы включить подмену музыки."
-        : "Нет связи с сервером CELIKOM. Попробуйте «Старт» после восстановления связи.";
+      access.textContent = startAccessMessage(state.accessError);
     } else { if (access) delete access.dataset.kind; await refreshAccess(); }
   } catch (_) {
     if (generation === startGeneration && access) { access.dataset.kind = "error"; access.textContent = "Проверка не завершена. Повторите «Старт»."; }

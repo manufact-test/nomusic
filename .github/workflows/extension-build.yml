@@ -33,10 +33,12 @@ jobs:
 
       - name: Test and build extension
         env:
-          CELIKOM_API_BASE_URL: ${{ github.ref == 'refs/heads/main' && 'https://api.celikom.com' || '' }}
+          CELIKOM_API_BASE_URL: https://api.celikom.com
         run: |
           npm run test:extension
           npm run build:extension
+          npm --prefix extension run validate
+          npm run security
 
       - name: Verify checksum
         run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
