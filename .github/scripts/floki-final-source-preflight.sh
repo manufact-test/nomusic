@@ -94,8 +94,16 @@ if(!preg_match("/^u235811320_celikom_stage[a-zA-Z0-9_]*$/D",$c["dbname"]))exit(2
 fingerprint(Celikom\Website\Database::connect($c),"cms");
 ' "$WEB"
 file_fingerprint(){
-  cd "$1"
-  find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | awk -v kind="$2" '{print "FILE_FINGERPRINT",kind,$1}'
+  local actual expected
+  case "$2" in
+    audio) expected=9240eeba545d433d2fec25690c8d740de729d614db4c28f40ca91bea6b6c24ed ;;
+    cms-media) expected=567dddbeb64aa8707bf9d54f9569313685652d058f6731cee06c3e2acecd9ed6 ;;
+    *) exit 64 ;;
+  esac
+  actual=$(cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum | sha256sum | awk '{print $1}')
+  echo "FILE_FINGERPRINT $2 $actual"
+  [[ "$actual" == "$expected" ]] || { echo "SOURCE_MEDIA_DIFFERS_FROM_TARGET $2"; return 1; }
+  echo "SOURCE_MEDIA_MATCHES_FLOKI $2"
 }
 (file_fingerprint "$API/celikom/shared/audio" audio)
 (file_fingerprint "$WEB/celikom-private/media" cms-media)
