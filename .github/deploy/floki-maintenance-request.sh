@@ -10,7 +10,7 @@ gate=P('/usr/local/sbin/celikom-deploy-gateway')
 conf=P('/etc/nginx/sites-available/celikom-site-https')
 receiver=P('/usr/local/sbin/celikom-a1-apk-receive')
 base=P('/srv/celikom-a1-downloads')
-state=P('/root/celikom-a1-delivery-bootstrap')
+state=P('/root/celikom-a1-delivery-bootstrap-v2')
 for p in [gate,conf]:
  st=p.lstat(); assert stat.S_ISREG(st.st_mode) and st.st_uid==0 and not(st.st_mode&0o022)
 assert not state.exists() and not receiver.exists() and not base.exists()
@@ -23,7 +23,7 @@ assert not re.search(r'location\s+\^~\s+/downloads(?:/|\s)',old_conf)
 entry='    location = /downloads/extension/celikom-extension-0.4.73.zip {'
 assert old_conf.count(entry)==1
 route=r'''    # A1 owner capability links; APK-only, no GitHub login, no listing.
-    location ~ ^/downloads/a1/(?<a1token>[0-9a-f]{48})/(?<a1file>CELIKOM-A1-[A-Za-z0-9_-]{1,100}\.apk)$ {
+    location ~ "^/downloads/a1/(?<a1token>[0-9a-f]{48})/(?<a1file>CELIKOM-A1-[A-Za-z0-9_-]{1,100}\.apk)$" {
         auth_basic off;
         alias /srv/celikom-a1-downloads/files/$a1token/$a1file;
         disable_symlinks on from=/srv/celikom-a1-downloads;
