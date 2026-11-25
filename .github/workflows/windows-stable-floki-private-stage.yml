@@ -71,6 +71,7 @@ jobs:
           python3 .github/scripts/tests/floki-windows-signed-root-consumer.test.py
           python3 -m py_compile .github/scripts/floki-windows-signed-root-consumer.py
           bash -n .github/scripts/floki-windows-owner-download-bootstrap.sh
+          bash -n .github/scripts/floki-windows-root-consumer-install.sh
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
       - name: Download exact P-256 signed draft and persist in isolated Floki runner spool
         env:
