@@ -5,9 +5,9 @@ set -Eeuo pipefail
 umask 077
 [[ "$(id -u)" == 0 ]]
 MIRROR=/home/celikom-mirror/github-mirror.git
-COMMIT=a1ba53cbd8ae6bb7aef73250978c2583fd0faad3
+COMMIT=1a1d660e167e670424436d5166a3287e5d52f056
 SOURCE=.github/scripts/floki-windows-customer-stable-consumer.py
-BLOB=a6d85df38d6c62023fdc5070ed83d93c2e4079ae
+BLOB=8aa6f8241cb8fb0b1b8697da9de24c5e056ef97d
 SITE=/etc/nginx/sites-enabled/celikom-site-https
 APP=/usr/local/lib/celikom-windows-intake/customer-stable-consumer.py
 SERVICE=/etc/systemd/system/celikom-windows-customer-stable.service
@@ -74,8 +74,23 @@ a=json.load(open(sys.argv[1]))
 assert a=={"schema":1,"channel":"customer-stable","approved":None},"CUSTOMER_WINDOWS_UNEXPECTED_APPROVAL"
 PY
 
-install -d -o root -g root -m 0755 /srv/celikom-releases/windows/customer-stable
-install -d -o root -g root -m 0755 /srv/celikom-releases/windows/customer-stable/versions
+# Public bytes must be traversable by nginx, unlike signed private source
+# /srv/celikom-releases/windows. Never change permissions on that source.
+if [[ ! -e /srv/celikom-releases/public ]]; then
+  install -d -o root -g root -m 0755 /srv/celikom-releases/public
+fi
+[[ -d /srv/celikom-releases/public &&
+   ! -L /srv/celikom-releases/public &&
+   "$(stat -c '%u:%a' /srv/celikom-releases/public)" == 0:755 ]]
+install -d -o root -g root -m 0755 /srv/celikom-releases/public/windows-customer-stable
+install -d -o root -g root -m 0755 /srv/celikom-releases/public/windows-customer-stable/versions
+for d in /srv/celikom-releases /srv/celikom-releases/public \
+         /srv/celikom-releases/public/windows-customer-stable /srv/celikom-releases/public/windows-customer-stable/versions; do
+  if ! runuser -u www-data -- test -x "$d"; then
+    echo "CUSTOMER_WINDOWS_NGINX_PARENT_NOT_TRAVERSABLE $d" >&2
+    exit 1
+  fi
+done
 install -o root -g root -m 0644 "$tmp/consumer.py" "$APP"
 
 cp -a "$REAL" "$tmp/site.conf"
@@ -95,9 +110,10 @@ routes=r'''    # CELIKOM CUSTOMER SIGNED WINDOWS UPDATER
     # Public read-only metadata ONLY from separately accepted P-256 releases.
     # Customer store starts at accepted 0.24.55; later versions require approval.
     location = /downloads/windows/CELIKOM-Windows-stable.exe {
-        # Public installer is absent until the exact signed build is accepted.
+        # Only previously owner-accepted, P-256 verified signed EXE.
         auth_basic off;
-        alias /srv/celikom-releases/windows/customer-stable/CELIKOM-Windows-stable.exe;
+        allow all;
+        alias /srv/celikom-releases/public/windows-customer-stable/CELIKOM-Windows-stable.exe;
         default_type application/octet-stream;
         add_header Cache-Control "no-cache" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -105,21 +121,24 @@ routes=r'''    # CELIKOM CUSTOMER SIGNED WINDOWS UPDATER
     }
     location = /CELIKOM/Windows/Updates/stable/latest.json {
         auth_basic off;
-        alias /srv/celikom-releases/windows/customer-stable/latest.json;
+        allow all;
+        alias /srv/celikom-releases/public/windows-customer-stable/latest.json;
         default_type application/json;
         add_header Cache-Control "no-store" always;
         limit_except GET { deny all; }
     }
     location = /CELIKOM/Windows/Updates/stable/latest.json.sig {
         auth_basic off;
-        alias /srv/celikom-releases/windows/customer-stable/latest.json.sig;
+        allow all;
+        alias /srv/celikom-releases/public/windows-customer-stable/latest.json.sig;
         default_type application/octet-stream;
         add_header Cache-Control "no-store" always;
         limit_except GET { deny all; }
     }
     location ~ "^/CELIKOM/Windows/Updates/stable/(?<celikomstableversion>(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4}))/(?<celikomstablefilename>manifest\.json(?:\.sig)?|CELIKOM-Windows-[0-9]+\.[0-9]+\.[0-9]+\.exe)$" {
         auth_basic off;
-        alias /srv/celikom-releases/windows/customer-stable/versions/$celikomstableversion/$celikomstablefilename;
+        allow all;
+        alias /srv/celikom-releases/public/windows-customer-stable/versions/$celikomstableversion/$celikomstablefilename;
         default_type application/octet-stream;
         add_header Cache-Control "public, max-age=300, immutable" always;
         limit_except GET { deny all; }
@@ -166,7 +185,7 @@ cat > "$SERVICE" <<'UNIT'
 [Unit]
 Description=CELIKOM approved P-256 Windows customer updater publisher
 After=local-fs.target
-ConditionPathIsDirectory=/srv/celikom-releases/windows/customer-stable
+ConditionPathIsDirectory=/srv/celikom-releases/public/windows-customer-stable
 
 [Service]
 Type=oneshot
@@ -203,9 +222,9 @@ chmod 0644 "$SERVICE" "$TIMER"
 systemctl daemon-reload
 systemctl start celikom-mirror-sync.service
 systemctl start celikom-windows-customer-stable.service
-[[ -f /srv/celikom-releases/windows/customer-stable/latest.json &&
-   -f /srv/celikom-releases/windows/customer-stable/accepted.json &&
-   -f /srv/celikom-releases/windows/customer-stable/CELIKOM-Windows-stable.exe ]]
+[[ -f /srv/celikom-releases/public/windows-customer-stable/latest.json &&
+   -f /srv/celikom-releases/public/windows-customer-stable/accepted.json &&
+   -f /srv/celikom-releases/public/windows-customer-stable/CELIKOM-Windows-stable.exe ]]
 systemctl enable --now celikom-windows-customer-stable.timer
 systemctl is-active celikom-windows-customer-stable.timer
 ready=1
