@@ -269,10 +269,14 @@ def publish(a):
     versions = CUSTOMER / "versions"
     secure_directory(versions)
     version_dir = versions / v
-    if version_dir.exists():
+    if version_dir.exists() or version_dir.is_symlink():
         secure_directory(version_dir)
     else:
         version_dir.mkdir(mode=0o755)
+        # Publisher executes with UMask=0077: mkdir(mode=0755) alone
+        # actually creates mode 0700 and nginx returns 403.
+        os.chmod(version_dir, 0o755)
+        secure_directory(version_dir)
     src = SIGNED_ROOT / v
     for name, content in m.items():
         if content is None:
