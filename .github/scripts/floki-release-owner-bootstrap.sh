@@ -79,9 +79,9 @@ fi
 # Preinstall the separate customer-signed Windows update channel. It stays
 # EMPTY until a checked owner-acceptance record is approved on main.
 # Never expose the owner candidate 'stable/current' directly.
-fetch_exact 35c75df51bcb8fafddb8ceebda186faa27663d23 \
+fetch_exact 4e81a271472c5ee915d72794e9c114f721bdfd43 \
   .github/scripts/floki-windows-customer-stable-install.sh \
-  1348cff24025fc112a59a21303ad00cd0cb8788c \
+  4088d0e4631cb2ae2c1a492c895f07a17fd2c1dc \
   "$INTAKE/floki-windows-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-windows-customer-stable.timer ]]; then
   bash "$INTAKE/floki-windows-customer-stable-install.sh"
@@ -118,9 +118,9 @@ fi
 
 # Prepare stable Android public OTA routes. Public manifest remains ABSENT until
 # owner acceptance; legacy installed app still uses Hostinger during the bridge.
-fetch_exact d5488aad4aaa01594f9adc0c5a5827d6651ef1cf \
+fetch_exact 351e855cf43b642450c888ff5679030c6d8ce54a \
   .github/scripts/floki-android-customer-stable-install.sh \
-  1634eb8eb3bfe1c395c53105b1ee84914e15ebce \
+  16d4d3d411e6395e2c42de82ed071dd78ec3a044 \
   "$INTAKE/floki-android-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-android-customer-stable.timer ]]; then
   bash "$INTAKE/floki-android-customer-stable-install.sh"
@@ -155,9 +155,9 @@ else
 fi
 # Publish ONLY SHA-256 proofs (no private URLs or identities) so future ChatGPT
 # development chats can verify server publication without an operator SSH visit.
-fetch_exact 6ad7e70db4a4cbee1ee4e1bf0fb2d40d339a87ff \
+fetch_exact 4d569e5cc13935a9b6e0ec9baaa4b95769e6c68a \
   .github/scripts/floki-release-status-install.sh \
-  dd861ca68b28fe27fb088f5085ed4414c6c0a61b \
+  a22c4102a9cf1e4af8579381592d1d2ec52fe5e9 \
   "$INTAKE/floki-release-status-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-release-status.timer ]]; then
   bash "$INTAKE/floki-release-status-install.sh"
