@@ -76,49 +76,75 @@ def field_from_local_backtrace(dex,code,ins,index,reg):
 def inspect_dex(payload):
     dex=Dex(payload)
     child_refs=set()
-    code_map={}
     for idx in range(dex.method_count):
         owner,name,proto=dex.method_signature(idx)
         if owner==CHILD_OWNER and name=="if" and params_for(dex,proto)==CHILD_TYPES:
             child_refs.add(idx)
-    for mid,code in dex.code_methods():
-        if mid in code_map:continue
-        owner,name,proto=dex.method_signature(mid)
-        if owner==SOURCE_OWNER and (
-                name=="invokeSuspend" or name=="<init>" and params_for(dex,proto)==CTOR_TYPES):
-            code_map[mid]=(name,code)
+
+    # Pass 1: capture only the field identity in the *exact* original iLb
+    # constructor. Do not assume that iLb itself owns invokeSuspend or the
+    # lLb.if callsite (the first static run disproved that assumption).
+    ctor_present=False
     ctor_fields=set()
-    call_fields=[]
-    call_unresolved=0
-    for mid,(name,code) in code_map.items():
-        try: ins=decode_instructions(code)
+    i_lb_resume=False
+    for mid,code in dex.code_methods():
+        owner,name,proto=dex.method_signature(mid)
+        if owner!=SOURCE_OWNER:continue
+        if name=="invokeSuspend":i_lb_resume=True
+        if name!="<init>" or params_for(dex,proto)!=CTOR_TYPES:continue
+        ctor_present=True
+        try:ins=decode_instructions(code)
         except FlowDecodeError:continue
-        if name=="<init>":
-            for pc,op,_ in ins:
-                if op==0x5b: # iput-object vA,vB,field@CCCC
-                    fid=struct.unpack_from("<H",code,pc+2)[0]
-                    if of6_field(dex,fid):ctor_fields.add(fid)
+        for pc,op,_ in ins:
+            if op==0x5b:  # original iput-object vA,vB,field@CCCC
+                fid=struct.unpack_from("<H",code,pc+2)[0]
+                if of6_field(dex,fid):ctor_fields.add(fid)
+
+    # Pass 2: locate *all* exact static callers, no matter which private
+    # continuation class owns them. The earlier narrow owner-only scan
+    # incorrectly reported no calls when the source coroutine was in a
+    # separate owner. No vendor method/class identities leave this function.
+    calls=0
+    from_ctor_field=0
+    from_other_field=0
+    unresolved=0
+    caller_source=0
+    caller_child=0
+    caller_other=0
+    for mid,code in dex.code_methods():
+        if not child_refs or (b"\\x71" not in code and b"\\x77" not in code):
             continue
+        try:ins=decode_instructions(code)
+        except FlowDecodeError:continue
+        owner,_,_=dex.method_signature(mid)
         for i,(pc,op,_) in enumerate(ins):
             if op not in (0x71,0x77):continue
-            method=struct.unpack_from("<H",code,pc+2)[0]
-            if method not in child_refs:continue
+            ref=struct.unpack_from("<H",code,pc+2)[0]
+            if ref not in child_refs:continue
+            calls+=1
+            if owner==SOURCE_OWNER:caller_source+=1
+            elif owner==CHILD_OWNER:caller_child+=1
+            else:caller_other+=1
             reg=source_argument_register(code,pc,op)
             fid=field_from_local_backtrace(dex,code,ins,i,reg)
-            if fid is None:call_unresolved+=1
-            else:call_fields.append(fid)
-    comparable=[f for f in call_fields if of6_field(dex,f)]
-    definite_same=sum(f in ctor_fields for f in comparable)
+            if fid is None:unresolved+=1
+            elif of6_field(dex,fid):
+                if fid in ctor_fields:from_ctor_field+=1
+                else:from_other_field+=1
+            else:unresolved+=1
+
     return {
-        "exact_original_constructor_present":any(
-            name=="<init>" for name,_ in code_map.values()),
+        "exact_original_constructor_present":ctor_present,
         "exact_original_child_reference_present":bool(child_refs),
-        "coroutine_body_present":any(name=="invokeSuspend" for name,_ in code_map.values()),
+        "coroutine_body_present":i_lb_resume,
         "constructor_original_item_field_count":min(len(ctor_fields),8),
-        "original_child_calls_bounded":min(len(call_fields)+call_unresolved,16),
-        "child_item_from_constructor_field":min(definite_same,16),
-        "child_item_from_other_original_item_field":min(len(comparable)-definite_same,16),
-        "child_item_origin_unresolved":min(call_unresolved+len(call_fields)-len(comparable),16),
+        "original_child_calls_bounded":min(calls,16),
+        "child_item_from_constructor_field":min(from_ctor_field,16),
+        "child_item_from_other_original_item_field":min(from_other_field,16),
+        "child_item_origin_unresolved":min(unresolved,16),
+        "callers_in_constructor_owner":min(caller_source,16),
+        "callers_in_child_owner":min(caller_child,16),
+        "callers_in_other_owner":min(caller_other,16),
     }
 
 def inspect_xapk(path):
@@ -150,6 +176,9 @@ def inspect_xapk(path):
         "child_item_from_constructor_field":min(sum(v["child_item_from_constructor_field"] for v in records),16),
         "child_item_from_other_original_item_field":min(sum(v["child_item_from_other_original_item_field"] for v in records),16),
         "child_item_origin_unresolved":min(sum(v["child_item_origin_unresolved"] for v in records),16),
+        "callers_in_constructor_owner":min(sum(v["callers_in_constructor_owner"] for v in records),16),
+        "callers_in_child_owner":min(sum(v["callers_in_child_owner"] for v in records),16),
+        "callers_in_other_owner":min(sum(v["callers_in_other_owner"] for v in records),16),
         "static_only_no_runtime_source_or_audio_proof":True,
     }
 
