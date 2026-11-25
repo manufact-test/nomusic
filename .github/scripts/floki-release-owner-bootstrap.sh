@@ -108,7 +108,8 @@ fetch_exact c3e904bbce4f2de2c1cdd022697d43e7ea88dd82 \
 if bash "$INTAKE/floki-runner2-signed-spool-parity.sh"; then
   echo CELIKOM_BOTH_RUNNER_DATA_SPOOL_PARITY_VERIFIED
 else
-  echo CELIKOM_RUNNER2_SPOOL_PARITY_NEEDS_SAFE_FOLLOWUP
+  echo CELIKOM_RUNNER2_SPOOL_PARITY_INCOMPLETE_KEEP_PREVIOUS_RELEASES
+  exit 1
 fi
 # Android is not changed; print only its service status, never capability tokens.
 systemctl is-active celikom-a1-signed-owner.timer || true
