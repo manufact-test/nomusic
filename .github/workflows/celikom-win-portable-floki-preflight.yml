@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   portable-build-ci:
-    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]') && !contains(github.event.head_commit.message, '[android-legacy-signature]') && !contains(github.event.head_commit.message, '[windows-protected-source]'))
+    if: github.event_name != 'push' || (!contains(github.event.head_commit.message, '[windows-feed-transfer]') && !contains(github.event.head_commit.message, '[android-feed-prepare]') && !contains(github.event.head_commit.message, '[android-legacy-signature]') && !contains(github.event.head_commit.message, '[windows-protected-source]') && !contains(github.event.head_commit.message, '[windows-private-handoff-quota]'))
     name: Linux extension and server package build
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 25
@@ -238,3 +238,37 @@ jobs:
             --version 0.24.55 --sequence 2
           echo CELIKOM_WINDOWS_PROTECTED_SOURCE_BUNDLE_VERIFIED
           # No artifact upload, no server credentials, no release mutation.
+
+  windows-private-handoff-quota-probe:
+    if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[windows-private-handoff-quota]')
+    name: Check existing private Actions transfer capacity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Create nonsecret disposable transfer probe
+        run: printf 'CELIKOM private handoff probe v1\n' > "$RUNNER_TEMP/celikom-handoff-probe.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: celikom-private-handoff-quota-probe
+          path: ${{ runner.temp }}/celikom-handoff-probe.txt
+          if-no-files-found: error
+          retention-days: 1
+  windows-private-handoff-receive-probe:
+    needs: windows-private-handoff-quota-probe
+    name: Verify separate hosted transfer receiver
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: celikom-private-handoff-quota-probe
+          path: ${{ runner.temp }}/handoff
+      - name: Verify exact payload without using deployment secrets
+        run: |
+          printf 'CELIKOM private handoff probe v1\n' | cmp - "$RUNNER_TEMP/handoff/celikom-handoff-probe.txt"
+          echo CELIKOM_PRIVATE_ACTIONS_HANDOFF_OK

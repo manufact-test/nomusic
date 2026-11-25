@@ -7,3 +7,4 @@ No deployment, signing, or production secrets.
 2026-11-25 verify exact original legacy Android APK against Floki candidate digest.
 2026-11-25 verify legacy identity with original v2-or-v3 policy and run contract together.
 2026-11-25: verify exact signed Windows draft source only on the existing protected hosted signing environment, no new storage or remote access.
+2026-11-25: test existing private Actions handoff capacity with a nonsecret 32-byte disposable probe, no deployment.
