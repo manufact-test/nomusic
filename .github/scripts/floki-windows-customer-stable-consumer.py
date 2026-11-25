@@ -222,6 +222,20 @@ def verify_public(v, m, a):
 
 def publish(a):
     v = a["version"]
+    # Normal timer checks must not download an 85 MB installer every two minutes.
+    # An accepted version is immutable and a full HTTPS proof was recorded at
+    # first promotion; re-check only when an explicitly newer approval appears.
+    existing_latest = CUSTOMER / "latest.json"
+    existing_sig = CUSTOMER / "latest.json.sig"
+    if existing_latest.exists():
+        current = json.loads(regular(existing_latest, 16384))
+        require(existing_sig.exists(), "INCOMPLETE_EXISTING_SIGNATURE")
+        require(version_tuple(v) >= version_tuple(current["version"]) and
+                a["sequence"] >= current["sequence"], "DOWNGRADE_REFUSED")
+        if (current["version"] == v and current["sequence"] == a["sequence"]
+                and current["sha256"] == a["sha256"]):
+            print("CELIKOM_CUSTOMER_WINDOWS_ALREADY_ACCEPTED",v)
+            return
     m = verify_signed(v, a)
     versions = CUSTOMER / "versions"
     secure_directory(versions)
