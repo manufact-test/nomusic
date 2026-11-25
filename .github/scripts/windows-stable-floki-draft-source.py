@@ -47,7 +47,7 @@ class SafeAssetRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def github_request(path, accept="application/vnd.github+json"):
-    need(path.startswith("/repos/" + REPO + "/"), "UNEXPECTED_GITHUB_ENDPOINT")
+    need(path == "/repos/" + REPO or path.startswith("/repos/" + REPO + "/"), "UNEXPECTED_GITHUB_ENDPOINT")
     token = os.environ.get("GH_TOKEN", "")
     need(len(token) >= 20, "GITHUB_DRAFT_READ_TOKEN_MISSING")
     return urllib.request.Request(API + path, headers={
@@ -60,14 +60,14 @@ def github_request(path, accept="application/vnd.github+json"):
 
 def github_json(path):
     with urllib.request.urlopen(github_request(path), timeout=40) as response:
-        need(response.url.startswith(API + "/repos/" + REPO + "/"), "GITHUB_API_ORIGIN_MISMATCH")
+        need(response.url == API + "/repos/" + REPO or response.url.startswith(API + "/repos/" + REPO + "/"), "GITHUB_API_ORIGIN_MISMATCH")
         raw = response.read(2_000_001)
         need(len(raw) <= 2_000_000, "GITHUB_API_RESPONSE_TOO_LARGE")
         return json.loads(raw)
 
 
 def private_release_records():
-    repo = github_json("/repos/" + REPO + "/")
+    repo = github_json("/repos/" + REPO)
     need(repo.get("private") is True, "PRIVATE_REPO_REQUIRED")
     records = []
     for page in range(1, 12):
