@@ -76,6 +76,9 @@ final class StageBAudioEvidence {
     private final AtomicLong childCallerOwnerOnly = new AtomicLong();
     private final AtomicLong childCallerConfigOnly = new AtomicLong();
     private final AtomicLong childCallerNoMatch = new AtomicLong();
+    private final AtomicLong childCoroutineScopeMatch = new AtomicLong();
+    private final AtomicLong childCoroutineScopeReject = new AtomicLong();
+    private final AtomicLong childCoroutineDescriptorLinks = new AtomicLong();
     private final AtomicLong exoOpenResults = new AtomicLong();
     private final AtomicLong exoPositiveReads = new AtomicLong();
     private final AtomicLong exoEndOfSource = new AtomicLong();
@@ -134,9 +137,7 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
-    // One original cA9 selection constructs a signed iLb MediaSource with an
-    // immutable Of6 MediaItem. The later lLb child factory consumes that SAME
-    // Of6 across a coroutine boundary, outside cA9's ThreadLocal scope.
+    // Original iLb source anchor; child Of6 may be a different Java object.
     // No global/latest wrapper, value-based equality or vendor fields.
     private static final class OriginalMediaSourceItemLink {
         final WeakReference<Object> source,item,wrapper,owner,configuration;
@@ -152,6 +153,18 @@ final class StageBAudioEvidence {
     }
     private final ArrayList<OriginalMediaSourceItemLink>
         originalMediaSourceItems = new ArrayList<>();
+    private static final class OriginalChildCoroutineCapture {
+        final WeakReference<Object> coroutine,source;
+        boolean conflict;
+        OriginalChildCoroutineCapture(Object coroutine,Object source) {
+            this.coroutine=new WeakReference<>(coroutine);
+            this.source=new WeakReference<>(source);
+        }
+    }
+    private final ArrayList<OriginalChildCoroutineCapture> originalChildCaptures =
+        new ArrayList<>();
+    private final ThreadLocal<ArrayList<WeakReference<Object>>>
+        activeOriginalChildSourceScopes = new ThreadLocal<>();
     // First open/read/close permanently disqualifies this Java instance as a
     // *fresh* candidate even if a later factory links that SAME instance.
     // Weak, bounded, identity-only; saturation fails closed.
@@ -1267,6 +1280,10 @@ final class StageBAudioEvidence {
                 expiredItem?childOnlyExpiredItems:childNoAnchors);
             return null;
         }
+        return originalCreatorFromAnchor(unique);
+    }
+
+    private Object[] originalCreatorFromAnchor(OriginalMediaSourceItemLink unique) {
         if(unique.conflicted) {
             mark(childConflictedItemAnchor);
             return null;
@@ -1303,6 +1320,61 @@ final class StageBAudioEvidence {
         return new Object[]{wrapper,creator[0],creator[1],source};
     }
 
+    // Actual constructor argument must be the identical final source field.
+    synchronized void onOriginalChildCoroutineConstructed(Object coroutine,
+            Object argument,Object captured) {
+        if(coroutine==null)return;
+        for(int i=originalChildCaptures.size()-1;i>=0;i--) {
+            OriginalChildCoroutineCapture prior=originalChildCaptures.get(i);
+            Object instance=prior.coroutine.get();
+            if(instance==null) {originalChildCaptures.remove(i);continue;}
+            if(instance==coroutine) {prior.conflict=true;return;}
+        }
+        if(argument==null || argument!=captured || originalChildCaptures.size()>=32)
+            return;
+        originalChildCaptures.add(new OriginalChildCoroutineCapture(coroutine,argument));
+    }
+
+    synchronized void enterOriginalChildCoroutineResume(Object coroutine,Object captured) {
+        Object source=null;
+        if(coroutine!=null && captured!=null) {
+            for(OriginalChildCoroutineCapture prior:originalChildCaptures) {
+                if(prior.coroutine.get()!=coroutine)continue;
+                if(!prior.conflict && prior.source.get()==captured)source=captured;
+                break;
+            }
+        }
+        pushScope(activeOriginalChildSourceScopes,source);
+        mark(source!=null?childCoroutineScopeMatch:childCoroutineScopeReject);
+    }
+
+    void exitOriginalChildCoroutineResume() {
+        popScope(activeOriginalChildSourceScopes);
+    }
+
+    synchronized Object[] exactOriginalChildCoroutineCreator(Object item) {
+        Object source=currentScope(activeOriginalChildSourceScopes);
+        if(source==null || item==null)return null;
+        OriginalMediaSourceItemLink unique=null;
+        for(OriginalMediaSourceItemLink anchor:originalMediaSourceItems) {
+            Object anchoredSource=anchor.source.get(),anchoredItem=anchor.item.get();
+            if(anchoredItem==item && anchoredSource!=source)return null;
+            if(anchoredSource!=source)continue;
+            if(unique!=null || anchoredItem==null)return null;
+            unique=anchor;
+        }
+        return unique==null?null:originalCreatorFromAnchor(unique);
+    }
+
+    synchronized boolean onOriginalChildCoroutineDescriptor(Object item,
+            Object wrapper,Object descriptor) {
+        Object[] creator=exactOriginalChildCoroutineCreator(item);
+        if(creator==null || creator[0]!=wrapper || descriptor==null)return false;
+        if(!bindOriginalDescriptor(wrapper,descriptor))return false;
+        mark(childCoroutineDescriptorLinks);
+        return true;
+    }
+
     synchronized void onOriginalChildHookRegistered() {
         mark(originalChildHookRegistered);
     }
@@ -1324,6 +1396,10 @@ final class StageBAudioEvidence {
             Object wrapper,Object descriptor) {
         Object[] creator=exactOriginalMediaItemCreator(item);
         if(creator==null || creator[0]!=wrapper || descriptor==null)return false;
+        return bindOriginalDescriptor(wrapper,descriptor);
+    }
+
+    private boolean bindOriginalDescriptor(Object wrapper,Object descriptor) {
         NativeTrackSourceLink link=findByWrapper(wrapper);
         if(link==null || link.factoryResult!=null || link.sourceInstance!=null
                 || link.descriptor!=null && link.descriptor.get()!=descriptor)
@@ -1827,6 +1903,9 @@ final class StageBAudioEvidence {
             event("ORIGINAL_CHILD_CALLER_OWNER_ONLY", childCallerOwnerOnly),
             event("ORIGINAL_CHILD_CALLER_CONFIG_ONLY", childCallerConfigOnly),
             event("ORIGINAL_CHILD_CALLER_NO_MATCH", childCallerNoMatch),
+            event("ORIGINAL_CHILD_COROUTINE_SOURCE_SCOPE_MATCH", childCoroutineScopeMatch),
+            event("ORIGINAL_CHILD_COROUTINE_SOURCE_SCOPE_REJECT", childCoroutineScopeReject),
+            event("ORIGINAL_CHILD_COROUTINE_DESCRIPTOR_LINK", childCoroutineDescriptorLinks),
             event("ORIGINAL_CHILD_SETTER_MATCH", originalChildSetterMatched),
             event("ORIGINAL_CHILD_SETTER_MISSING", originalChildSetterMissing),
             event("ORIGINAL_CHILD_SETTER_SOURCE_DIFFERENT",

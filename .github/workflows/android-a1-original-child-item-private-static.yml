@@ -64,7 +64,9 @@ jobs:
           set -Eeuo pipefail
           d="$RUNNER_TEMP/a1-original-child-item-static"
           python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py \
-            --xapk "$d/yandex-music-2025-10-4-120-1gpr.xapk"
+            --xapk "$d/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$d/PrivateOriginalChildSourceTarget.java"
+          test -s "$d/PrivateOriginalChildSourceTarget.java"
           echo A1_STATIC_ONLY_NO_PHONE_OR_AUDIO_PROOF
       - name: Wipe ephemeral vendor archive
         if: always()

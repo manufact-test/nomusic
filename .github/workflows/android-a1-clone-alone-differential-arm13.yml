@@ -166,6 +166,12 @@ jobs:
             --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
             --private-java "$media_target"
           test -s "$media_target"
+          child_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateOriginalChildSourceTarget.java"
+          test ! -e "$child_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$child_target"
+          test -s "$child_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
       - name: Prepare exact separate own signature and test-only native tooling

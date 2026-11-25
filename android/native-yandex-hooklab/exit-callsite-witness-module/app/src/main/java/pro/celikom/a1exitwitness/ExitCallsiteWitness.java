@@ -197,6 +197,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoSourceInstanceHookReady;
     private boolean originalMediaItemSourceAnchorHookReady;
     private boolean originalMediaItemChildDescriptorHookReady;
+    private boolean originalChildCoroutineConstructorHookReady;
+    private volatile boolean originalChildCoroutineSourceHookReady;
     private boolean exactExoDataOpenWitnessReady;
     // Original signed UC2 DataSpec constructor stores position in the
     // SECOND post-header long, private field "else" (strict 2025 gate).
@@ -4250,12 +4252,74 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+    private void installExactOriginalChildCoroutineSourceWitness(ClassLoader loader) {
+        if(originalChildCoroutineSourceHookReady)return;
+        try {
+            Class<?> targets=Class.forName("pro.celikom.a1exitwitness.PrivateOriginalChildSourceTarget",
+                false,ExitCallsiteWitness.class.getClassLoader());
+            Field ownerName=targets.getDeclaredField("OWNER"),fieldName=targets.getDeclaredField("SOURCE_FIELD");
+            Field parameterNames=targets.getDeclaredField("CTOR_TYPES"),parameterIndex=targets.getDeclaredField("SOURCE_PARAMETER_INDEX");
+            ownerName.setAccessible(true);fieldName.setAccessible(true);
+            parameterNames.setAccessible(true);parameterIndex.setAccessible(true);
+            Class<?> coroutine=Class.forName((String)ownerName.get(null),false,loader);
+            Class<?> source=Class.forName("iLb",false,loader);
+            Field capture=coroutine.getDeclaredField((String)fieldName.get(null));
+            if(capture.getType()!=source || java.lang.reflect.Modifier.isStatic(capture.getModifiers())
+                    || !java.lang.reflect.Modifier.isFinal(capture.getModifiers()))
+                throw new NoSuchFieldException("SIGNED_CHILD_SOURCE_CAPTURE_REQUIRED");
+            capture.setAccessible(true);
+            String[] expected=(String[])parameterNames.get(null);
+            int index=parameterIndex.getInt(null);
+            java.lang.reflect.Constructor<?> exact=null;
+            for(java.lang.reflect.Constructor<?> candidate:coroutine.getDeclaredConstructors()) {
+                Class<?>[] actual=candidate.getParameterTypes();
+                if(actual.length!=expected.length)continue;
+                boolean same=true;
+                for(int i=0;i<actual.length;i++)
+                    if(!actual[i].getName().equals(expected[i]))same=false;
+                if(!same)continue;
+                if(exact!=null || index<0 || index>=actual.length || actual[index]!=source)
+                    throw new NoSuchMethodException("SIGNED_CHILD_SOURCE_CTOR_AMBIGUOUS");
+                exact=candidate;
+            }
+            if(exact==null)throw new NoSuchMethodException("SIGNED_CHILD_SOURCE_CTOR_REQUIRED");
+            Method resume=coroutine.getDeclaredMethod("invokeSuspend",Object.class);
+            if(resume.getReturnType()!=Object.class || java.lang.reflect.Modifier.isStatic(resume.getModifiers()))
+                throw new NoSuchMethodException("SIGNED_CHILD_RESUME_REQUIRED");
+            exact.setAccessible(true);resume.setAccessible(true);
+            if(!originalChildCoroutineConstructorHookReady) {
+                hook(exact).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                    .intercept(chain -> {
+                        Object result=chain.proceed();
+                        try {
+                            Object instance=chain.getThisObject();
+                            STAGE_B_AUDIO.onOriginalChildCoroutineConstructed(
+                                instance,chain.getArg(index),capture.get(instance));
+                        } catch(Throwable ignored) { }
+                        return result;
+                    });
+                originalChildCoroutineConstructorHookReady=true;
+            }
+            hook(resume).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object instance=chain.getThisObject(),captured=null;
+                    try {captured=capture.get(instance);} catch(Throwable ignored) { }
+                    STAGE_B_AUDIO.enterOriginalChildCoroutineResume(instance,captured);
+                    try {return chain.proceed();}
+                    finally {STAGE_B_AUDIO.exitOriginalChildCoroutineResume();}
+                });
+            originalChildCoroutineSourceHookReady=true;
+            emit("AUDIO_ORIGINAL_CHILD_COROUTINE_HOOK","SOURCE_CAPTURE","REGISTERED");
+        } catch(Throwable ignored) {
+            emit("AUDIO_ORIGINAL_CHILD_COROUTINE_HOOK","SOURCE_CAPTURE","NO_HOOK");
+        }
+    }
+
     private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
         if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
         installNativeTrackSourceContinuityWitness(loader);
-        // Signed cA9 constructs iLb(original Of6 MediaItem) before the Player
-        // source setter. A later iLb coroutine calls lLb.if with that exact
-        // original Of6 after the cA9 ThreadLocal scope has ended.
+        // Witness the unique original coroutine and its actual captured source.
+        installExactOriginalChildCoroutineSourceWitness(loader);
         if (!originalMediaItemSourceAnchorHookReady) {
             try {
                 Class<?> owner=Class.forName("iLb",false,loader);
@@ -4306,7 +4370,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                             // to bypass original MediaItem identity authorization.
                             STAGE_B_AUDIO.onOriginalChildContextComparison(
                                 chain.getArg(0),chain.getArg(3),item);
-                            Object[] creator=STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
+                            boolean coroutineRoute=originalChildCoroutineSourceHookReady;
+                            Object[] creator=coroutineRoute
+                                ? STAGE_B_AUDIO.exactOriginalChildCoroutineCreator(item)
+                                : STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
                             STAGE_B_AUDIO.onOriginalChildCreatorMatch(creator!=null);
                             if(creator!=null) {
                                 Object[] setter=NATIVE_RENDERER_EVIDENCE
@@ -4316,10 +4383,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 if(setter!=null) {
                                     // Same actual iLb object delivered by
                                     // Player setter, not merely shared ID.
-                                    if(setter[1]==creator[3])
-                                        STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
-                                            item,creator[0],descriptor);
-                                    else
+                                    if(setter[1]==creator[3]) {
+                                        if(coroutineRoute)
+                                            STAGE_B_AUDIO.onOriginalChildCoroutineDescriptor(
+                                                item,creator[0],descriptor);
+                                        else STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
+                                                item,creator[0],descriptor);
+                                    } else
                                         STAGE_B_AUDIO.onOriginalChildSetterSourceDifferent();
                                 }
                             }

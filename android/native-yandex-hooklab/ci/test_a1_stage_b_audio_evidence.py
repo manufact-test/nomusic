@@ -382,14 +382,71 @@ public final class StageBAudioEvidenceTest {
         bucket(wrongScope.exportLines(),0,"ORIGINAL_CHILD_NO_ITEM_ANCHORS","ONE");
     }
 
+    static void originalChildCoroutineCaptureFixture() {
+        StageBAudioEvidence e=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object source=new Object(),item=new Object(),childItem=new Object();
+        Object coroutine=new Object(),wrongCoroutine=new Object(),descriptor=new Object();
+        e.onNativeTrackAlbumConstructed(track,album);
+        e.onNativeTrackFlowEmission(track);
+        e.enterNativeTcaCreatorOwner(new Object());
+        e.enterNativeTcaCreatorTrackScope(track,1);
+        e.onNativeTrackWrapperCreated(wrapper,NativeTrackIdBetaPolicy.RAMIL_AU);
+        e.exitNativeTcaCreatorTrackScope();
+        e.exitNativeTcaCreatorOwner();
+        e.enterNativePlayerSourceSelection(wrapper);
+        e.onOriginalMediaSourceConstructed(source,item);
+        e.exitNativePlayerSourceSelection();
+        check(e.exactOriginalMediaItemCreator(childItem)==null);
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.onOriginalChildCoroutineConstructed(coroutine,source,source);
+        e.onOriginalChildCoroutineConstructed(wrongCoroutine,source,new Object());
+        e.enterOriginalChildCoroutineResume(wrongCoroutine,source);
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.exitOriginalChildCoroutineResume();
+        e.enterOriginalChildCoroutineResume(coroutine,new Object());
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.exitOriginalChildCoroutineResume();
+        e.enterOriginalChildCoroutineResume(coroutine,source);
+        Object[] creator=e.exactOriginalChildCoroutineCreator(childItem);
+        check(creator!=null && creator[0]==wrapper && creator[1]==track
+            && creator[2]==album && creator[3]==source);
+        e.enterOriginalChildCoroutineResume(wrongCoroutine,source);
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.exitOriginalChildCoroutineResume();
+        check(e.exactOriginalChildCoroutineCreator(childItem)!=null);
+        check(!e.onOriginalChildCoroutineDescriptor(childItem,new Object(),descriptor));
+        Object otherSource=new Object(),otherItem=new Object();
+        e.enterNativePlayerSourceSelection(wrapper);
+        e.onOriginalMediaSourceConstructed(otherSource,otherItem);
+        e.exitNativePlayerSourceSelection();
+        check(e.exactOriginalChildCoroutineCreator(otherItem)==null);
+        check(e.onOriginalChildCoroutineDescriptor(childItem,wrapper,descriptor));
+        Object factory=new Object(),dataSource=new Object();
+        e.onExoFactoryCreated(descriptor,factory);
+        e.onExoSourceInstanceCreated(dataSource,factory);
+        Object[] fresh=e.exactFreshCreatorOrBetaForDataSource(dataSource);
+        check(fresh!=null && fresh[0]==wrapper && fresh[1]==track && fresh[2]==album);
+        e.exitOriginalChildCoroutineResume();
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.onOriginalChildCoroutineConstructed(coroutine,source,source);
+        e.enterOriginalChildCoroutineResume(coroutine,source);
+        check(e.exactOriginalChildCoroutineCreator(childItem)==null);
+        e.exitOriginalChildCoroutineResume();
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_COROUTINE_DESCRIPTOR_LINK","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_COROUTINE_SOURCE_SCOPE_MATCH","ONE");
+        bucket(e.exportLines(),0,"ORIGINAL_CHILD_COROUTINE_SOURCE_SCOPE_REJECT","FEW");
+    }
+
     public static void main(String[] argv) {
+        originalChildCoroutineCaptureFixture();
         originalMediaItemSourceBridgeFixture();
         originalChildCallerContextFixture();
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 97);
-        for (int i=0;i<96;i++) check(initial[i].contains(";error=NONE;"));
+        check(initial.length == 100);
+        for (int i=0;i<99;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
         Object track=new Object(), wrapper=new Object(), descriptor=new Object();

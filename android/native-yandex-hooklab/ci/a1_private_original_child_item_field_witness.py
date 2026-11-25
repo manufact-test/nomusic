@@ -9,6 +9,7 @@ import argparse
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import struct
 import zipfile
@@ -398,7 +399,67 @@ def exact_source_capture_shape(dexes, caller_types):
                 out[key]+=1
     return {k:min(v,16) for k,v in out.items()}
 
-def inspect_xapk(path):
+def write_private_capture_target(path, dexes, caller_types, report):
+    """Emit only ephemeral Java names for the pinned, unique capture."""
+    shape=report["coroutine_exact_source_capture_shape"]
+    capture=report["coroutine_source_capture_shape"]
+    required={"final_instance_fields":1,"direct_constructor_parameter_writes":1,
+              "other_field_writes":0,"source_owner_ctor_passes_this":1,
+              "source_owner_ctor_other_argument":0,"source_ctor_parameter_count":1}
+    if (len(caller_types)!=1 or report["original_child_calls_bounded"]!=1
+            or report["callers_in_coroutine_resume"]!=1
+            or capture["coroutine_source_typed_fields"]!=1
+            or capture["coroutine_source_field_reads_in_resume"]<1
+            or capture["coroutine_resume_calls_source_owner"]<1
+            or any(shape[k]!=v for k,v in required.items())):
+        raise ValueError("CHILD_CAPTURE_NOT_UNIQUE_IMMUTABLE")
+    target=next(iter(caller_types))
+    field_names=set()
+    constructors=[]
+    resume_count=0
+    for dex in dexes:
+        count,off=struct.unpack_from("<II",dex.data,80)
+        for i in range(count):
+            if field_descriptor(dex,i)==(target,SOURCE_OWNER):
+                _,_,idx=struct.unpack_from("<HHI",dex.data,off+i*8)
+                field_names.add(dex.string(idx))
+        for mid,_,_,is_static,_ in code_items_with_meta(dex):
+            owner,name,proto=dex.method_signature(mid)
+            if owner!=target or is_static:continue
+            args=params_for(dex,proto) or ()
+            if name=="<init>" and args.count(SOURCE_OWNER)==1:
+                constructors.append(args)
+            if name=="invokeSuspend" and args==("Ljava/lang/Object;",):
+                _,proto_off=struct.unpack_from("<II",dex.data,72)
+                ret=struct.unpack_from("<I",dex.data,proto_off+proto*12+4)[0]
+                if dex.type(ret)=="Ljava/lang/Object;":resume_count+=1
+    if len(field_names)!=1 or len(constructors)!=1 or resume_count!=1:
+        raise ValueError("CHILD_CAPTURE_TARGET_DRIFT")
+    field=next(iter(field_names))
+    args=constructors[0]
+    def binary_name(desc):
+        if desc.startswith("L") and desc.endswith(";"):
+            name=desc[1:-1].replace("/",".")
+            if re.fullmatch(r"[A-Za-z0-9_$.]+",name):return name
+        if desc.startswith("[") and re.fullmatch(r"\[+(?:[ZBCSIJFD]|L[A-Za-z0-9_$/]+;)",desc):
+            return desc.replace("/",".")
+        primitive={"Z":"boolean","B":"byte","C":"char","S":"short","I":"int","J":"long","F":"float","D":"double"}
+        if desc in primitive:return primitive[desc]
+        raise ValueError("CHILD_CAPTURE_TYPE_INVALID")
+    if not re.fullmatch(r"[A-Za-z0-9_$-]{1,100}",field) or path.exists():
+        raise ValueError("CHILD_CAPTURE_FIELD_OR_OUTPUT_INVALID")
+    names=", ".join(json.dumps(binary_name(arg)) for arg in args)
+    out=("package pro.celikom.a1exitwitness;\nfinal class PrivateOriginalChildSourceTarget {\n"
+         +"  static final String OWNER = "+json.dumps(binary_name(target))+";\n"
+         +"  static final String SOURCE_FIELD = "+json.dumps(field)+";\n"
+         +"  static final String[] CTOR_TYPES = {"+names+"};\n"
+         +"  static final int SOURCE_PARAMETER_INDEX = "+str(args.index(SOURCE_OWNER))+";\n"
+         +"  private PrivateOriginalChildSourceTarget() {}\n}\n")
+    path.parent.mkdir(parents=True,exist_ok=True)
+    path.write_text(out,encoding="utf-8")
+    print("A1_PRIVATE_ORIGINAL_CHILD_SOURCE_TARGET_PASS")
+
+def inspect_xapk(path, private_java=None):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise ValueError("INVALID_ORIGINAL_SIZE")
     with path.open("rb") as stream:
@@ -419,7 +480,7 @@ def inspect_xapk(path):
                     if dex.startswith(b"dex\n"):
                         records.append(inspect_dex(dex, caller_types))
                         dexes.append(Dex(dex))
-    return {
+    report={
         "source_input_verified":True,
         "dex_slices_checked":min(len(records),100),
         "exact_original_constructor_present":any(v["exact_original_constructor_present"] for v in records),
@@ -447,6 +508,8 @@ def inspect_xapk(path):
         "coroutine_exact_source_capture_shape":exact_source_capture_shape(dexes, caller_types),
         "static_only_no_runtime_source_or_audio_proof":True,
     }
+    if private_java is not None:write_private_capture_target(private_java,dexes,caller_types,report)
+    return report
 
 def selftest():
     # 35c E=third argument, 3rc third offset; assert never reads F/G.
@@ -464,8 +527,9 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--xapk",type=Path)
     parser.add_argument("--selftest",action="store_true")
+    parser.add_argument("--private-java",type=Path)
     args=parser.parse_args()
     if args.selftest:selftest()
     elif args.xapk:
-        print("A1_ORIGINAL_CHILD_STATIC_ONLY",json.dumps(inspect_xapk(args.xapk),sort_keys=True))
+        print("A1_ORIGINAL_CHILD_STATIC_ONLY",json.dumps(inspect_xapk(args.xapk,args.private_java),sort_keys=True))
     else:parser.error("--xapk or --selftest required")

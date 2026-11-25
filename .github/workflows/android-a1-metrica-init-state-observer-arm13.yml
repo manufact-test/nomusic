@@ -29,6 +29,7 @@ on:
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py'
       - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/device-audio-trial/**'
       - 'android/native-yandex-hooklab/ci/owner_2025_lspatch2_resigned_native_arm13.py'
@@ -261,6 +262,12 @@ jobs:
             --private-java "$item_target"
           test -s "$item_target"
           grep -q "ITEM_LOGICAL_ID" "$item_target"
+          child_target="android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/PrivateOriginalChildSourceTarget.java"
+          test ! -e "$child_target"
+          python3 -B android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk" \
+            --private-java "$child_target"
+          test -s "$child_target"
           gradle -p android/native-yandex-hooklab/exit-callsite-witness-module :app:assembleDebug --no-daemon
           cp android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/celikom-own-metrica-module/app-debug.apk"
           python3 - <<'PY'
@@ -269,7 +276,7 @@ jobs:
           apk=Path("android/native-yandex-hooklab/exit-callsite-witness-module/app/build/outputs/apk/debug/app-debug.apk")
           with ZipFile(apk) as z:
               dex=b"".join(z.read(x) for x in z.namelist() if x.startswith("classes") and x.endswith(".dex"))
-          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateNativePlayerPeriodTarget",b"PrivateNativeCurrentMediaItemTarget",b"PrivateTcaTrackCreatorTarget"):
+          for cls in (b"PrivateNativeQueueSlotTarget",b"PrivateNativeActivePeriodTarget",b"PrivateNativePlayerPeriodTarget",b"PrivateNativeCurrentMediaItemTarget",b"PrivateTcaTrackCreatorTarget",b"PrivateOriginalChildSourceTarget"):
               if cls not in dex: raise SystemExit("NAV39_REQUIRED_PRIVATE_TARGET_NOT_PACKAGED")
           print("NAV39_PRIVATE_TARGETS_PACKAGED")
           PY
