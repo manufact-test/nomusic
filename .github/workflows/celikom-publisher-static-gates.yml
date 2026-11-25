@@ -15,6 +15,10 @@ on:
       - '.github/scripts/floki-android-stable-root-consumer.py'
       - '.github/scripts/floki-android-stable-owner-install.sh'
       - '.github/scripts/tests/floki-android-stable-root-consumer.test.py'
+      - '.github/scripts/floki-android-customer-stable-consumer.py'
+      - '.github/scripts/floki-android-customer-stable-install.sh'
+      - '.github/scripts/tests/floki-android-customer-stable-consumer.test.py'
+      - '.github/release/android-customer-stable.json'
       - '.github/scripts/tests/floki-extension-owner-consumer.test.py'
       - '.github/workflows/celikom-publisher-static-gates.yml'
 permissions:
@@ -56,3 +60,7 @@ jobs:
           bash -n .github/scripts/floki-android-stable-owner-install.sh
           python3 .github/scripts/tests/floki-android-stable-root-consumer.test.py
           echo ANDROID_STABLE_OWNER_PROMOTER_STATIC_GATES_OK
+          python3 -m py_compile .github/scripts/floki-android-customer-stable-consumer.py
+          bash -n .github/scripts/floki-android-customer-stable-install.sh
+          python3 .github/scripts/tests/floki-android-customer-stable-consumer.test.py
+          echo ANDROID_PUBLIC_STABLE_OTA_STATIC_GATES_OK
