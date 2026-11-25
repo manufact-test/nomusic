@@ -4274,7 +4274,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result=chain.proceed(); // original constructor once
                         try {
                             STAGE_B_AUDIO.onOriginalMediaSourceConstructed(
-                                chain.getThisObject(),chain.getArg(3));
+                                chain.getThisObject(),chain.getArg(3),
+                                chain.getArg(0),chain.getArg(1));
                         } catch(Throwable ignored) { }
                         return result;
                     });
@@ -4300,6 +4301,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                         try {
                             STAGE_B_AUDIO.onOriginalChildEntered();
                             Object item=chain.getArg(2),descriptor=chain.getArg(1);
+                            // Read-only BETA17: exact dA9/gA9 Java caller identity
+                            // across constructor and coroutine child; never used
+                            // to bypass original MediaItem identity authorization.
+                            STAGE_B_AUDIO.onOriginalChildContextComparison(
+                                chain.getArg(0),chain.getArg(3),item);
                             Object[] creator=STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
                             STAGE_B_AUDIO.onOriginalChildCreatorMatch(creator!=null);
                             if(creator!=null) {
