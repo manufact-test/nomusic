@@ -37,6 +37,7 @@ class RootConsumerContractTests(unittest.TestCase):
                 self.assertEqual((ver,expected,p,size),("0.24.56",sha,path,len(raw)))
                 dest=core["snapshot_into_root"](p,ino,dev,size,expected,root)
                 self.assertEqual(dest.read_bytes(),raw)
+                dest.unlink()
                 with self.assertRaises(RuntimeError):
                     core["snapshot_into_root"](p,ino,dev,size,"0"*64,root)
                 path.chmod(0o644)
