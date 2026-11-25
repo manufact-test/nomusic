@@ -142,7 +142,7 @@ fetch_exact() {
               "$old_hash" == 22499058fd0cab1bb17649ac0bf2a474546a7907 &&
               "$destination" == "$INTAKE/floki-windows-customer-stable-install.sh" ) ||
             ( "$path" == .github/scripts/floki-android-customer-stable-install.sh &&
-              "$old_hash" == 4680ed1fb55e5b34b2a947af60874562218587d8 &&
+              "$old_hash" == 4253ebb4dd5985677160a01688f867dd6e8425dc &&
               "$destination" == "$INTAKE/floki-android-customer-stable-install.sh" ) ]] &&
          [[ "$(stat -c '%u:%a:%h' "$destination")" == 0:600:1 ]]; then
         local replacement
@@ -226,9 +226,9 @@ fi
 
 # Prepare stable Android public OTA routes. Public manifest remains ABSENT until
 # owner acceptance; legacy installed app still uses Hostinger during the bridge.
-fetch_exact c0ea40e92c70efb4a4f48ff54b397bb32c4e0288 \
+fetch_exact 6c769534ffc5b56b77cbfb3478947576664b2e0f \
   .github/scripts/floki-android-customer-stable-install.sh \
-  4253ebb4dd5985677160a01688f867dd6e8425dc \
+  9e95fa4f3dfe2c7c201e55b01c15db0c6dbfc09e \
   "$INTAKE/floki-android-customer-stable-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-android-customer-stable.timer ]]; then
   bash "$INTAKE/floki-android-customer-stable-install.sh"
@@ -263,9 +263,9 @@ else
 fi
 # Publish ONLY SHA-256 proofs (no private URLs or identities) so future ChatGPT
 # development chats can verify server publication without an operator SSH visit.
-fetch_exact 0300994c183d80286830146f3361464a152d5ab1 \
+fetch_exact a7d5fc07c0570fea33c513ad5446773b19ccb4ee \
   .github/scripts/floki-release-status-install.sh \
-  bf709c0790a04e1af1672f6bc8c31355619febd2 \
+  a10a39ab2ffc1c2dd7ee6f340664bb408d2d4646 \
   "$INTAKE/floki-release-status-install.sh" 0600
 if [[ ! -e /etc/systemd/system/celikom-release-status.timer ]]; then
   bash "$INTAKE/floki-release-status-install.sh"
