@@ -16,7 +16,6 @@
   const DIRECTION_OUT = "from-main";
   const VISIBLE_TIMEOUT_MS = 12000;
   const HIDDEN_TIMEOUT_MS = 120000;
-  const INTRO_WAIT_MS = 1500;
   let controllerSession = null;
   let lastHeartbeatAt = 0;
   let sequence = 0;
@@ -33,7 +32,7 @@
   function trace(snapshot, event) {
     const player=snapshot?.player, track=snapshot?.track;
     const replacements=Array.from(root.document?.querySelectorAll('audio[data-celikom-replacement="true"]') || []).slice(0,3).map(a=>({trackId:a.dataset.celikomTrackId||null,time:Math.round((a.currentTime||0)*1000),paused:a.paused,muted:a.muted,seeking:a.seeking,readyState:a.readyState}));
-    const state={trackId:track?.id||null,evidence:track?.evidence||null,mediaId:player?.mediaId||null,resourceRevision:player?.resourceRevision||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
+    const state={trackId:track?.id||null,evidence:track?.evidence||null,mediaId:player?.mediaId||null,time:Math.round((player?.currentTime||0)*1000),duration:player?.duration||null,paused:player?.paused,seeking:player?.seeking,readyState:player?.readyState,guard:guard.state().active,handoff:Boolean(handoff),replacements};
     const previous=tracePrevious; tracePrevious=state;
     const shape=x=>JSON.stringify({...x,time:0,replacements:x.replacements.map(a=>({...a,time:0}))});
     if(previous&&shape(previous)===shape(state)&&Math.abs(state.time-previous.time)<800&&!/seek|metadata|load|emptied|playing|source|transition/.test(event||''))return;
@@ -52,7 +51,7 @@
     heldStart = null; root.clearTimeout(pending.timer);
     const snapshot = adapter.getSnapshot("intro-start-verdict");
     const same = snapshot.track?.id === pending.trackId && !snapshot.track?.ambiguous
-      && snapshot.player?.mediaId === pending.mediaId && snapshot.player?.resourceRevision === pending.resourceRevision
+      && snapshot.player?.mediaId === pending.mediaId
       && (pending.element.currentSrc || pending.element.src || "") === pending.source;
     trace(snapshot, resume && same ? "intro-start-ready:"+reason : "intro-start-cancelled:"+reason);
     if (!resume || !same) {
@@ -71,16 +70,12 @@
       || adapter.getMediaElement(player.mediaId)!==element || !snapshot.track?.id || snapshot.track.ambiguous
       || snapshot.track.confidence<100 || !Number.isFinite(player.duration)
       || Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)>1500) return null;
-    const pending = {element,invoke,trackId:snapshot.track.id,mediaId:player.mediaId,resourceRevision:player.resourceRevision,
+    const pending = {element,invoke,trackId:snapshot.track.id,mediaId:player.mediaId,
       source:element.currentSrc||element.src||"",timer:null};
     pending.promise=new Promise((resolve,reject)=>{pending.resolve=resolve;pending.reject=reject;});
     pending.promise.catch(()=>{});
     heldStart=pending;
-    // The native clock is paused: retain this single bounded deadline while
-    // authenticated lookup and the decoder run. An older transition timer must
-    // not unmute the original first. Readiness/polls never renew the deadline.
-    root.clearTimeout(handoff.timer); handoff.timer = null;
-    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},INTRO_WAIT_MS);
+    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},400);
     trace(snapshot,"intro-start-held");return pending.promise;
   }
 
@@ -139,7 +134,7 @@
     lastAdmission={element,trackId:track.id,source};
     const token=`${controllerSession}:admission:${++admissionSequence}`;
     try{
-      guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;guard.current.resourceRevision=player.resourceRevision;
+      guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;
       handoff={token,admission:true,startedAt:now(),timer:root.setTimeout(()=>release("admission-timeout",token),1000)};
       trace(snapshot,"admission-guarded");
     }catch(_error){release("admission-unavailable",token);}
@@ -148,7 +143,7 @@
   function checkBinding(snapshot) {
     if (heldStart) {
       const changed = snapshot.track?.id !== heldStart.trackId || snapshot.track?.ambiguous
-        || snapshot.player?.mediaId !== heldStart.mediaId || snapshot.player?.resourceRevision !== heldStart.resourceRevision
+        || snapshot.player?.mediaId !== heldStart.mediaId
         || (heldStart.element.currentSrc||heldStart.element.src||"") !== heldStart.source;
       if (changed) finishHeldStart(false,"binding-changed");
       else if (snapshot.player?.seeking || snapshot.player?.currentTime > 0.25) release("intro-user-seek");
@@ -175,7 +170,6 @@
     // Resource identity remains authoritative while the adapter deliberately
     // withholds stale track metadata during a stream transition.
     if (element && (element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
-    else if (player?.resourceRevision !== lease.resourceRevision) reason = "media-source-changed";
     else if (!snapshot.track?.id) reason = "track-unknown";
     else if (snapshot.track.ambiguous) reason = "track-ambiguous";
     else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
@@ -296,7 +290,7 @@
     if (type === "GUARD_TRANSITION_END") {
       const snapshot = adapter.getSnapshot("transition-verdict");
       const generation = leaseGeneration(payload?.token);
-      if (generation >= lastGuardGeneration && generation > lastReleasedGeneration && handoff && snapshot.track?.id === payload?.trackId && snapshot.player?.mediaId === payload?.mediaId && snapshot.player?.resourceRevision === payload?.resourceRevision) return release("no-replacement", handoff.token);
+      if (generation >= lastGuardGeneration && generation > lastReleasedGeneration && handoff && snapshot.track?.id === payload?.trackId && snapshot.player?.mediaId === payload?.mediaId) return release("no-replacement", handoff.token);
       return { released: false };
     }
     if (type === "GUARD_ENGAGE") {
@@ -306,7 +300,7 @@
       const element = adapter.getMediaElement(payload.mediaId);
       const player = snapshot.player;
       if (!element || snapshot.track?.ambiguous || snapshot.track?.id !== payload.trackId || snapshot.track?.confidence < 100
-        || player?.mediaId !== payload.mediaId || player?.resourceRevision !== payload.resourceRevision || player?.ended || player?.readyState < 2
+        || player?.mediaId !== payload.mediaId || player?.ended || player?.readyState < 2
         || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
         || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
       if (payload.preparing && !handoff) return { reserved: false };
@@ -321,7 +315,6 @@
       }
       lastGuardGeneration = generation;
       guard.current.trackId = payload.trackId;
-      guard.current.resourceRevision = player.resourceRevision;
       // Compare stream identity only inside MAIN; never serialize the raw URL.
       guard.current.source = element.currentSrc || element.src || "";
       // Only an existing transition mute can be reserved while a verified

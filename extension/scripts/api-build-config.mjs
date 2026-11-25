@@ -6,3 +6,4 @@ export function apiBuildConfig(raw = "https://api.celikom.com") {
   if (url.hostname === "hostingersite.com" || url.hostname.endsWith(".hostingersite.com")) throw new Error("Legacy Hostinger API is retired for new extension builds");
   return { baseUrl: url.origin };
 }
+

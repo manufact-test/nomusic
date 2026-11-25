@@ -18,3 +18,4 @@ test('access denial and expired trial are not reported as a server outage; priva
   assert.equal(startAccessError(code),'auth_unavailable');assert.doesNotMatch(startAccessMessage(code),/secret|__proto__/);
  }
 });
+

@@ -19,3 +19,4 @@ export function startAccessError(code): string {
   return typeof code === 'string' && Object.hasOwn(messages, code) ? code : 'auth_unavailable';
 }
 export function startAccessMessage(code): string { return messages[startAccessError(code)]; }
+

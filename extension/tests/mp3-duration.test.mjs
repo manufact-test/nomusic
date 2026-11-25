@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mp3DurationMs,durationNotice} from '../dist/unpacked/upload/mp3-duration.js';
+import {mp3DurationMs,durationNotice,inspectMp3} from '../dist/unpacked/upload/mp3-duration.js';
 function mp3(version=3,count=60,vbr=false){
  const frames=[];const rate=version===3?44100:version===2?22050:11025;
  for(let i=0;i<count;i++){
@@ -100,4 +100,23 @@ test("malformed or excessive consecutive ID3 headers cannot bypass frame validat
   assert.equal(mp3DurationMs(excessive),null);
   const fake=concatenate(first,second,new Uint8Array(2000).fill(0x40));
   assert.equal(mp3DurationMs(fake),null);
+});
+
+function infoFrame(){const f=mp3(3,1);f.set(new TextEncoder().encode('Info'),36);return f;}
+test('lossless cleanup preserves first Info header and every audio frame, removes interleaved duplicate metadata',()=>{
+ const audio=mp3(3,100,true),info=infoFrame(),tag=id3v24(new Uint8Array(30));
+ const original=concatenate(tag,info,tag,info,audio,new TextEncoder().encode('TAG'),new Uint8Array(125));
+ const result=inspectMp3(original);
+ assert.deepEqual(result.bytes,concatenate(info,audio));
+ assert.deepEqual(inspectMp3(result.bytes).bytes,result.bytes);
+ assert.equal(result.durationMs,mp3DurationMs(concatenate(info,audio)));
+ assert.equal(inspectMp3(concatenate(info,audio.subarray(0,417),tag,audio)),null);
+ assert.equal(inspectMp3(concatenate(info,audio,info)),null);
+});
+test('UTF-8 inflated ID3v1 trailer is bounded by character count, arbitrary suffixes stay rejected',()=>{
+ const audio=mp3(3,100),body='Ж'.repeat(27)+'x'.repeat(97);
+ const tail=concatenate(new TextEncoder().encode('TAG'+body),new Uint8Array([7]));
+ assert.equal(tail.length,155);
+ assert.deepEqual(inspectMp3(concatenate(audio,tail)).bytes,audio);
+ assert.equal(inspectMp3(concatenate(audio,tail,new Uint8Array([1]))),null);
 });

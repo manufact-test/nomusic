@@ -168,7 +168,6 @@
       const baseUrl = this.safeCall(() => this.environment.location.href, "https://music.yandex.ru/");
       return {
         mediaId,
-        resourceRevision: this.mediaIdentities.get(element)?.revision || 1,
         tag: String(element.tagName || "").toLocaleLowerCase(),
         paused: Boolean(element.paused),
         ended: Boolean(element.ended),
@@ -238,8 +237,27 @@
       });
     }
 
+    effectiveSessionMetadata() {
+      const current = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
+      const pending = this.pendingMetadataClear;
+      if (current || !pending || this.now() >= pending.until) return current;
+      const master = this.selectMaster();
+      /* My Wave clears and replaces MediaMetadata in separate tasks. Bridge only
+         this bounded gap on the exact same ready resource; never renew on null. */
+      if (master !== pending.master || !master || master.ended || master.readyState < 2
+          || master.src !== pending.src || master.currentSrc !== pending.currentSrc
+          || master.duration !== pending.duration) return current;
+      return pending.value;
+    }
+
+    clearMetadataGrace() {
+      const pending = this.pendingMetadataClear;
+      this.pendingMetadataClear = null;
+      if (pending) this.environment.clearTimeout(pending.timer);
+    }
+
     mediaSessionMetadata() {
-      const metadata = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
+      const metadata = this.effectiveSessionMetadata();
       const artwork = this.safeCall(() => Array.from(metadata?.artwork || []), []);
       return {
         title: String(metadata?.title || "").slice(0, 240),
@@ -505,16 +523,7 @@
       const visible = this.playerDomMetadata();
       const sessionMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], { ...session, durationMs: metadata.durationMs }, 100).selected;
       const visibleMatch = core.pickTrackFromCatalog([...this.trackCatalog.values()], visible, 100).selected;
-      // A visible CURRENT player can already be on B while MediaSession and
-      // the delayed catalog still describe A. Missing B in the catalog is not
-      // evidence that A remains current. Never pick B from this text alone.
-      const compatible = (a,b) => {
-        a=core.normalizeText(a); b=core.normalizeText(b);
-        return a===b || (Math.min(a.length,b.length)>=4 && (a.includes(b)||b.includes(a)));
-      };
-      const textConflict = session.title && session.artist && visible.title && visible.artist
-        && (!compatible(session.title,visible.title)||!compatible(session.artist,visible.artist));
-      const conflict = Boolean(textConflict || (sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id));
+      const conflict = sessionMatch && visibleMatch && sessionMatch.id !== visibleMatch.id;
       let awaitingRefresh = false;
       let awaitingSource = false;
       if (master) {
@@ -524,7 +533,7 @@
         // src changes before currentSrc during HTML's asynchronous resource
         // selection. Neither the old nor the next track may bind this gap.
         awaitingSource = Boolean(assignedSource && currentSource && assignedSource !== currentSource);
-        const sessionObject = this.safeCall(() => this.environment.navigator?.mediaSession?.metadata, null);
+        const sessionObject = this.effectiveSessionMetadata();
         const fingerprint = JSON.stringify({ session, visible: { title: visible.title, artist: visible.artist, album: visible.album, coverUri: visible.coverUri } });
         const previous = this.mediaIdentities.get(master);
         // Stream and metadata updates are independent. Never re-admit the old
@@ -537,10 +546,7 @@
         }
         if (pending && !conflict && ((result.selected && result.selected.id !== pending.id) || fingerprint !== pending.fingerprint || sessionObject !== pending.sessionObject)) pending = null;
         awaitingRefresh = Boolean(pending);
-        const sourcePair = JSON.stringify([assignedSource,currentSource]);
         this.mediaIdentities.set(master, {
-          revision: previous ? (previous.revision || 1) + (previous.sourcePair !== sourcePair ? 1 : 0) : 1,
-          sourcePair,
           source: source || previous?.source || "",
           // Metadata can also arrive before the stream. Keep the identity that
           // first accompanied this resource rather than relabeling it early.
@@ -739,8 +745,24 @@
         const adapter = this;
         const lifecycle = { active: true };
         const setter = function celikomObservedMetadata(value) {
+          const previous = adapter.safeCall(() => Reflect.apply(descriptor.get, this, []), null);
           Reflect.apply(descriptor.set, this, [value]);
-          if (lifecycle.active && this === session) adapter.safeCall(() => adapter.emitSnapshot("media-session-metadata", true));
+          if (lifecycle.active && this === session) adapter.safeCall(() => {
+            if (value) adapter.clearMetadataGrace();
+            else if (previous && !adapter.pendingMetadataClear) {
+              const master = adapter.selectMaster();
+              const pending = { value: previous, master, src: master?.src,
+                currentSrc: master?.currentSrc, duration: master?.duration,
+                until: adapter.now() + 40, timer: null };
+              adapter.pendingMetadataClear = pending;
+              pending.timer = adapter.environment.setTimeout(() => {
+                if (adapter.pendingMetadataClear !== pending) return;
+                adapter.clearMetadataGrace();
+                adapter.emitSnapshot("media-session-metadata-expired", true);
+              }, 40);
+            }
+            adapter.emitSnapshot("media-session-metadata", true);
+          });
         };
         Object.defineProperty(owner, "metadata", { ...descriptor, set: setter });
         Object.assign(this.nativeHooks, { metadataOwner: owner, metadataDescriptor: descriptor, metadataSetter: setter, metadataLifecycle: lifecycle });
@@ -749,6 +771,7 @@
     }
 
     restoreMediaSessionHook() {
+      this.clearMetadataGrace();
       const hooks = this.nativeHooks;
       if (hooks.metadataLifecycle) hooks.metadataLifecycle.active = false;
       if (hooks.metadataOwner && Object.getOwnPropertyDescriptor(hooks.metadataOwner, "metadata")?.set === hooks.metadataSetter) {

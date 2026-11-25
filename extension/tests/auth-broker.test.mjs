@@ -343,3 +343,13 @@ test('empty HTTP 500 preserves the account and retries reads, without refreshing
  outage=false;assert.equal(await broker.withAccess(value=>value.user.id),4);assert.equal(stored,saved);
  await assert.rejects(broker.entitlement(true),/auth_unavailable/);assert.equal(writes,1);assert.equal(stored,saved);
 });
+
+test('ordinary support forwards its separate diagnostic attachment without changing song or legacy support contracts',async()=>{
+ const f=mock();await f.broker.perform('register',{email:'a@example.org',password:'correct horse battery staple'});
+ const report={schema_version:1,platform:'chromium',version:'0.4.76',diagnostics:{phase:'ERROR'}};
+ await f.broker.perform('support-send',{kind:'general',message:'Не играет песня',request_key:crypto.randomUUID(),report});
+ const general=JSON.parse(f.calls.filter(c=>c.endpoint==='/api/v1/support').at(-1).opts.body);
+ assert.deepEqual(general.support_diagnostics,report);assert.equal(general.report,undefined);
+ await f.broker.perform('support-send',{kind:'general',message:'Старый клиент',request_key:crypto.randomUUID()});
+ assert.equal(JSON.parse(f.calls.filter(c=>c.endpoint==='/api/v1/support').at(-1).opts.body).support_diagnostics,undefined);
+});

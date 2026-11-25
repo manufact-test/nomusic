@@ -11,14 +11,12 @@ const flush=async()=>{for(let i=0;i<60;i++)await Promise.resolve();};
 
 // Transport and media decoding are controlled independently. The production
 // controller/player run unchanged; no production endpoint or account is used.
-// Keep the native intro PAUSED to isolate MSE transport/decoder deadlines.
-// Delayed streaming clocks and actual buffer admission are covered separately.
 function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={}) {
   t.mock.timers.enable({apis:['Date','setTimeout'],now:1000000});
   let requests=0, aborted=0, source, current;
   const players=[],fatals=[],bridgeRequests=[];
   class Audio extends EventTarget {
-    constructor(){super();this.dataset={};this.readyState=0;this.duration=200;this.currentTime=7;this.paused=true;this.muted=true;this.volume=1;this.seeking=false;this.buffered={length:0};}
+    constructor(){super();this.dataset={};this.readyState=0;this.duration=200;this.currentTime=7;this.paused=true;this.muted=true;this.volume=1;this.seeking=false;}
     load(){if(source?.readyState==='closed')queueMicrotask(()=>{source.readyState='open';source.dispatchEvent(new Event('sourceopen'));});}
     play(){this.paused=false;return Promise.resolve();}
     pause(){this.paused=true;}
@@ -27,7 +25,7 @@ function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={
   }
   class Buffer extends EventTarget {
     constructor(){super();this.buffered={length:0};}
-    appendBuffer(){queueMicrotask(()=>{const audio=players.at(-1).audio;if(!decode){audio.buffered={length:1,start:()=>0,end:()=>200};audio.readyState=4;audio.dispatchEvent(new Event('canplay'));}this.dispatchEvent(new Event('updateend'));});}
+    appendBuffer(){queueMicrotask(()=>{const audio=players.at(-1).audio;if(!decode){audio.readyState=4;audio.dispatchEvent(new Event('canplay'));}this.dispatchEvent(new Event('updateend'));});}
   }
   class Source extends EventTarget {
     static isTypeSupported(){return true;}
@@ -53,7 +51,7 @@ function fixture(t, firstHeadersDelay, {bodyDelay=0, decode=false, status=206}={
   const engine=new ReplacementController(bridge,environment,{resolveAsset:async()=>asset,createPlayer:fatal=>{
     const p=new ReplacementPlayer(environment,(...args)=>{fatals.push(args);fatal(...args);});players.push(p);return p;
   }});
-  function update(){current={observedAt:Date.now(),track:{id:'144530503',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'media-2',paused:true,ended:false,seeking:false,readyState:4,currentTime:.1,duration:200,volume:1,muted:false,playbackRate:1}};engine.update(current);}
+  function update(){current={observedAt:Date.now(),track:{id:'144530503',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'media-2',paused:false,ended:false,seeking:false,readyState:4,currentTime:(Date.now()-1000000)/1000+7,duration:200,volume:1,muted:false,playbackRate:1}};engine.update(current);}
   engine.configure(true,'');update();
   t.after(()=>engine.destroy());
   return {engine,players,fatals,bridgeRequests,update,get requests(){return requests;},get aborted(){return aborted;},async advance(ms){t.mock.timers.tick(ms);update();await flush();}};
@@ -64,7 +62,7 @@ test('eleven-second first headers activate on the first attempt without a toggle
   await f.advance(10000);
   assert.equal(f.engine.phase,'PREPARING');assert.equal(f.engine.lastError,null);
   assert.equal(f.aborted,0);assert.equal(f.requests,1);
-  assert.equal(f.bridgeRequests.includes('GUARD_ENGAGE'),false,'transport alone cannot engage a native guard before decoder readiness');
+  assert.equal(f.bridgeRequests.includes('GUARD_ENGAGE'),false,'initial original keeps playing while downloading');
   await f.advance(1000);
   assert.equal(f.engine.activationCount,1);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
   assert.equal(f.requests,1);assert.equal(f.engine.restoreCount,0);

@@ -1,3 +1,5 @@
+> Latest extension candidate: **0.4.85**, based on the recovered FINAL **0.4.78** (not 73). Starts the authorized selected-track resolve during native loading; guard/player/sync remain at 78. Restores omitted support/upload/My Wave features; retains Floki delivery/access fixes. Local 392 tests, manifest and security gate pass. Owner listening pending; no public promotion. See `docs/handoff/CELIKOM-EXTENSION-085-EARLY-RESOLVE-20261125.md`. 78 Floki control remains rollback. No Android/Windows/server changes.
+
 # 25 November2026 — owner baseline correction:0.4.78
 
 Read [verified78 recovery](CELIKOM-EXTENSION-078-BASELINE-CORRECTION-20261125.md). Earlier73/79 baseline-control instructions below are superseded. Final pre-migration client78 includes the77My Wave fix absent from migration main.73 retest canceled; exact78+Floki-origin control recovered,all packaged runtime bytes match original CI.84 remains held;no customer publication or backend/Android/Windows changes. Main runtime restoration is still pending matched78 owner control.

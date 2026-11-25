@@ -29,23 +29,23 @@ function fixture(){
  const request=(preparing=false)=>send('REQUEST',{type:'GUARD_ENGAGE',payload:{token:'test-session:1',trackId:'2',mediaId:'m',preparing}});
  return {media,snapshot,hold,tick,request,send,posts,get plays(){return plays},get sink(){return sink}};
 }
-test('cold authenticated lookup keeps native intro paused beyond old 400ms and resumes once guarded decoder is ready',async()=>{
+test('guarded decoder readiness resumes native intro within the unchanged 400ms deadline',async()=>{
  const f=fixture(),pending=f.hold();assert(pending);assert.equal(f.media.muted,true);
- f.tick(700);assert.equal(f.plays,0);assert.equal(f.media.paused,true);assert.equal(f.media.muted,true);
- f.request(true);f.tick(500);assert.equal(f.plays,0,'preparation reservation cannot shorten or restart the intro deadline');
+ f.tick(100);assert.equal(f.plays,0);assert.equal(f.media.paused,true);assert.equal(f.media.muted,true);
+ f.request(true);f.tick(100);assert.equal(f.plays,0,'preparation reservation cannot shorten or restart the intro deadline');
  f.request();await pending;assert.equal(f.plays,1);assert.equal(f.media.muted,true);
  f.tick(1600);assert.equal(f.plays,1);
 });
 test('unavailable replacement fails open at one bounded deadline even under repeated snapshots',async()=>{
  const f=fixture(),pending=f.hold();
- for(let i=0;i<14;i++){f.tick(100);f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'poll'});}
+ for(let i=0;i<3;i++){f.tick(100);f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'poll'});}
  assert.equal(f.plays,0);f.tick(100);await pending;assert.equal(f.plays,1);assert.equal(f.media.muted,false);
  f.tick(10000);assert.equal(f.plays,1);
 });
 test('user pause and changed source cancel a pending native intro instead of replaying old audio',async()=>{
  for(const reason of ['pause','source']){
   const f=fixture(),pending=f.hold();const rejected=assert.rejects(pending,{name:'AbortError'});
-  f.tick(600);
+  f.tick(100);
   if(reason==='pause')f.sink.beforeNativeMethod('pause',f.media);
   else{f.media.src='https://stream.example/two';f.snapshot.track.id='3';f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'loadstart'});}
   await rejected;f.tick(3000);assert.equal(f.plays,0);
@@ -57,3 +57,4 @@ test('negative or bypass policy never admits an intro hold; mid-song play is nev
  }
  const f=fixture();f.snapshot.player.currentTime=40;assert.equal(f.hold(),null);
 });
+

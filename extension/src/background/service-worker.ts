@@ -1,3 +1,4 @@
+import { buildSupportReport } from "../popup/song-report.js";
 import { startAccessError } from "../auth/start-access.js";
 import { redactDiagnostics, publicPlaybackState } from "../auth/diagnostic-access.js";
 import { COMMANDS, normalizeEnabled, type ExtensionState } from "../shared/messages.js";
@@ -300,6 +301,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
     // Popup-only limited snapshot: private full diagnostic access is NOT granted.
     void readState(false,true).then(state => sendResponse({
       ...publicPlaybackState(state),
+      supportReport: buildSupportReport(state, VERSION),
       network: (state.network || []).filter(row =>
         ["config","auth/me","entitlement","tracks/version-status","resolve","rewards"].includes(row.endpoint)
       ).slice(-20).map(row => ({endpoint:row.endpoint,httpStatus:row.httpStatus,
@@ -365,3 +367,4 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   if (type === "CELIKOM_ADD_TRACK_OPENED") { void sendToActiveTab({ type }).then(sendResponse); return true; }
   return false;
 });
+

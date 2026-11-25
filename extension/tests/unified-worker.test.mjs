@@ -1,3 +1,4 @@
+import {buildSupportReport} from "../dist/unpacked/popup/song-report.js";
 import {startAccessError} from '../dist/unpacked/auth/start-access.js';
 import {publicPlaybackState,redactDiagnostics} from "../dist/unpacked/auth/diagnostic-access.js";
 import test from 'node:test';
@@ -17,7 +18,7 @@ function fixture() {
  const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={withDiagnosticsAccess:async()=>{throw Error('access_denied')},installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
- vm.runInNewContext(source,{setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,at:Date.now()+ms});return id},clearTimeout:id=>timers.delete(id),addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
+ vm.runInNewContext(source,{setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,at:Date.now()+ms});return id},clearTimeout:id=>timers.delete(id),addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,buildSupportReport,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
  const send=(type,more={},sender={id:'worker',url:'chrome-extension://worker/popup/popup.html'})=>new Promise(resolve=>handler({type,...more},sender,resolve));
  return {timers,runTimers:()=>{for(const [id,t] of [...timers])if(t.at<=Date.now()){timers.delete(id);t.fn()}},setController:(value,error=null)=>{controller=value;connectionError=error},send,local,sent,icons,auth,network:(name)=>networkListeners.get(name)?.(),setAllowed:v=>allowed=v,setSignedIn:v=>localSession=v,get trials(){return trialStarted}};
 }
@@ -316,4 +317,14 @@ test('a short server grant and Stop/logout during VPN validation cannot be exten
   const count=f.sent.length;t.mock.timers.tick(12000);f.runTimers();finish({allowed:true,source:'promo',valid_until:null});await flush();
   assert.equal(f.local.enabled,false);assert.equal(f.sent.length,count);
  }
+});
+
+
+test('ordinary accounts collect a bounded support attachment but cannot export full admin diagnostics',async()=>{
+ const f=fixture();f.setController({phase:'READY',track:{id:'50163040',confidence:260,ambiguous:false,metadata:{durationMs:187520,title:'Track',artist:'Artist'}},player:{currentTime:3,duration:187,paused:false,source:'https://private/SECRET'},playback:{activationCount:2},recentLog:['SECRET'],account:{email:'PRIVATE'}});
+ const result=await f.send('CELIKOM_SUPPORT_STATUS_GET');
+ assert.equal(result.supportReport.diagnostics.currentTime,3);assert.equal(result.supportReport.diagnostics.activationCount,2);
+ assert.doesNotMatch(JSON.stringify(result.supportReport),/SECRET|PRIVATE|https:/);
+ assert.equal((await f.send('CELIKOM_DIAGNOSTICS_GET')).error,'access_denied');
+ const denied=await f.send('CELIKOM_SUPPORT_STATUS_GET',{}, {id:'worker',url:'https://music.yandex.ru/'});assert.equal(denied.error,'invalid_sender');
 });

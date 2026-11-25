@@ -42,9 +42,10 @@
       this.policyRevision = 0;
       this.activationCount = 0;
       this.startupHistory = [];
+      this.warmedAsset = null;
       this.restoreCount = 0;
-      this.restoreHistory = [];
       this.lastRestore = null;
+      this.restoreHistory = [];
     }
     publishPolicy(reset = false) {
       this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,holdIntro:true,reset:reset===true,
@@ -57,13 +58,14 @@
       this.enabled = enabled;
       this.testTrackId = id;
       if(explicitStart && this.operation)this.abort("explicit-retry");
-      if (changed || explicitStart) { this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
+      if (changed || explicitStart) { this.warmedAsset = null; this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.publishPolicy(changed||explicitStart);
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
       if (this.suspended === suspended) { if (suspended) this.lastError = reason; this.publishPolicy(); return; }
       this.suspended = suspended;
+      this.warmedAsset = null;
       this.publishPolicy();
       if (suspended) { this.suspendedError = this.lastError; this.abort(reason); this.lastError = reason; }
       else {
@@ -85,7 +87,6 @@
       if (!snapshot || this.destroyed) return;
       if (this.snapshot && snapshot.observedAt < this.snapshot.observedAt) return;
       const previousId = this.snapshot?.track?.id;
-      const previousResource = this.snapshot?.player?.resourceRevision;
       this.snapshot = snapshot;
       const id = snapshot.track?.id;
       const player = snapshot.player;
@@ -93,57 +94,42 @@
         || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
-      if (previousResource !== undefined && player?.resourceRevision !== previousResource) {
-        this.networkRetries = 0; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null;
-        // Manual Original is track intent and survives a resource refresh.
-        this.publishPolicy();
-      }
       if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy(); }
       if (eventType === "ENDED" && player?.ended === true) {
         // Natural completion releases this lease; it must never block the next song.
         this.abort("master-ended"); return;
       }
       if (eventType === "ERROR") { this.abort("master-error", true); return; }
+      this.warmPendingTrack();
       this.reconcile(eventType === "SEEK");
     }
+    warmPendingTrack() {
+      // Resolve only the selected, confidently identified track while Yandex is
+      // loading its native source. This does not construct audio or acquire a
+      // guard. Actual preparation still needs the original eligibility checks.
+      const snapshot = this.snapshot, track = snapshot?.track, player = snapshot?.player;
+      const id = this.core.normalizeTrackId(track?.id);
+      if (this.warmedAsset && (this.warmedAsset.trackId !== id
+          || this.warmedAsset.mediaId !== player?.mediaId)) this.warmedAsset = null;
+      if (!this.enabled || this.suspended || this.destroyed || !this.bridge.isHealthy()
+          || this.testTrackId || !this.resolveAsset || !id || track.ambiguous || track.confidence < 100
+          || !player || player.ended || this.manualBypass?.trackId === id || this.blockedTrackId === id
+          || this.operation?.trackId === id || this.warmedAsset
+          || (this.negativeResolution?.trackId === id && this.negativeResolution.until > Date.now())) return;
+      if (this.eligible(snapshot)) return;
+      // A finite duration mismatch outside a native loading/handoff is still
+      // rejected as before. Warm-up is not a weaker playback admission path.
+      if (player.readyState > 0 && Number.isFinite(player.duration)
+          && snapshot.guard?.transitioning !== true) return;
+      const warm = {trackId:id, mediaId:player.mediaId, startedAt:Date.now(),
+        fresh:this.networkRetries > 0 || this.freshResolve === true};
+      this.warmedAsset = warm;
+      // Handle rejection immediately: an obsolete warm-up must never become an
+      // unhandled rejection or affect a different song's playback.
+      warm.result = Promise.resolve().then(() => this.resolveAsset(id, {fresh:warm.fresh}))
+        .then(asset => ({asset}), error => ({error}));
+    }
     current(operation) { return !this.destroyed && this.operation === operation && this.generation === operation.generation; }
-    streamReady(operation) {
-      const replacement = operation.player;
-      if (!replacement?.mediaSource) return true;
-      try {
-      const audio = replacement.audio;
-      const target = root.__CELIKOM_SYNC_ENGINE_V1__.projectTime(this.snapshot.player, this.snapshot.observedAt, Date.now());
-      replacement.bufferTargetTime = target;
-      const ranges = audio.buffered;
-      let buffered = false;
-      for (let i = 0; i < (ranges?.length || 0); i++) {
-        if (target >= ranges.start(i) - 0.025 && ranges.end(i) >= Math.min(audio.duration - 0.02, target + 0.15)) { buffered = true; break; }
-      }
-      // Never initiate a seek to bytes that have not reached the decoder.
-      if (!buffered) return false;
-      if (audio.seeking && Math.abs(audio.currentTime - target) > 0.35) {
-        audio.currentTime = target;
-        return false;
-      }
-      return !audio.seeking && audio.readyState >= 3;
-      } catch (_error) { return false; }
-    }
-    waitForBuffer(operation) {
-      if (!this.current(operation) || operation.bufferWaiting) return;
-      operation.bufferWaiting = true;
-      operation.player.pause(); operation.player.audio.muted = true;
-      this.driftMs = null;
-      this.phase = "PREPARING"; operation.stage = "waiting-stream-buffer";
-      const oldToken = operation.token;
-      // Retire only this guard lease; retain decoder, verified bytes and fetch.
-      // Its late release notification must not abort the retained operation.
-      operation.generation = ++this.generation;
-      operation.token = `${this.bridge.sessionId}:${operation.generation}`;
-      operation.bufferRelease = Promise.resolve().then(() => this.bridge.request("GUARD_RELEASE", {token:oldToken,reason:"replacement-buffer-wait"}))
-        .catch(() => { try { this.bridge.post("RELEASE_NOW", {token:oldToken,reason:"replacement-buffer-wait"}); } catch (_error) { /* MAIN lease watchdog remains independent. */ } })
-        .finally(() => { operation.bufferRelease = null; });
-      this.log(`BUFFER_WAIT · ${operation.trackId}`);
-    }
     releaseIntroWait(token) {
       const operation = this.operation;
       if (this.phase !== "PREPARING" || !operation || !this.current(operation) || operation.token !== token) return false;
@@ -163,13 +149,13 @@
         this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy();
       }
       const operation = this.operation;
-      const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId && operation.resourceRevision === this.snapshot?.player?.resourceRevision;
+      const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
       // A bound, already guarded master can temporarily have only metadata while
       // seeking/buffering. Keep the lease and pause replacement; admission still
       // requires current data, and emptied/changed/ambiguous masters fail open.
       /* Warm a validated paused beginning before native playback.
          Mid-song buffering and seeks retain the existing admission rules. */
-      const earlyIntro = !operation && this.snapshot?.player?.paused
+      const earlyIntro = !operation && !this.snapshot?.guard?.transitioning && this.snapshot?.player?.paused
         && !this.snapshot.player.seeking && this.snapshot.player.currentTime <= 0.25;
       const minimumReadyState = (operation && matching) || earlyIntro ? 1 : 2;
       if (!this.eligible(this.snapshot, minimumReadyState) || (operation && !matching)) {
@@ -184,28 +170,42 @@
         void this.activate(operation);
       }
       if (this.phase === "REPLACEMENT_ACTIVE") {
-        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
         try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
         catch (error) { this.abort(error.message, true); }
       }
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, resourceRevision: snapshot.player.resourceRevision, sync: new this.SyncEngine(), player: null };
+      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
       operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";
       this.log(`PREPARING · ${operation.trackId}`);
       try {
-        operation.asset = this.testTrackId
+        const warm = this.warmedAsset;
+        this.warmedAsset = null;
+        const useWarm = !this.testTrackId && warm?.trackId === operation.trackId
+          && warm.mediaId === operation.mediaId && Date.now()-warm.startedAt <= 5000
+          && (!(this.networkRetries > 0 || this.freshResolve === true) || warm.fresh);
+        if (useWarm) {
+          const result = await warm.result;
+          if (!this.current(operation)) return;
+          if (result.error) throw result.error;
+          // Never extend a signed grant's lifetime by warming it.
+          if (!result.asset?.found || result.asset.expiresAt > Date.now()+1000) {
+            operation.asset = result.asset;
+            operation.warmLeadMs = operation.startedAt-warm.startedAt;
+          }
+        }
+        if (!operation.asset) operation.asset = this.testTrackId
           ? { found: true, url: this.environment.chrome.runtime.getURL("assets/test-audio.mp3"), demoLoop: true }
           : await this.resolveAsset(operation.trackId, { fresh: this.networkRetries > 0 || this.freshResolve === true });
-        if (!this.current(operation)) return;
         this.freshResolve = false;
+        if (!this.current(operation)) return;
         if (!operation.asset?.found) {
           this.negativeResolution = { trackId: operation.trackId, until: Date.now() + Math.min(60000, Math.max(5000, operation.asset?.retryAfterMs || 15000)) };
           this.publishPolicy();
-          if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision});
+          if (this.snapshot?.guard?.transitioning) await this.bridge.request("GUARD_TRANSITION_END", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
           if (!this.current(operation)) return;
           this.operation = null; this.phase = "IDLE"; this.log(`NO_REPLACEMENT · ${operation.trackId}`); return;
         }
@@ -217,13 +217,13 @@
         operation.completeJoin = operation.wasUnavailable && !operation.asset.demoLoop && operation.asset.mimeType === "audio/mpeg"
           && this.snapshot?.player?.currentTime > 0.25;
         if(operation.completeJoin && this.snapshot?.guard?.transitioning) {
-          await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision});
+          await this.bridge.request("GUARD_TRANSITION_END",{token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId});
           if(!this.current(operation))return;
           this.update(await this.bridge.getSnapshot());
           if(!this.current(operation))return;
         }
         if (!operation.completeJoin && this.snapshot?.guard?.transitioning && this.eligible()) {
-          await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,resourceRevision:operation.resourceRevision,preparing:true});
+          await this.bridge.request("GUARD_ENGAGE", {token:operation.token,trackId:operation.trackId,mediaId:operation.mediaId,preparing:true});
           if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", {token:operation.token}); return; }
         }
         operation.resolvedAt = Date.now();
@@ -241,16 +241,11 @@
     async activate(operation) {
       // A seek changes readiness while preserving this track/media binding.
       // Retain its in-flight download and activate once a fresh master is ready.
-      if (!this.current(operation) || operation.activating || operation.bufferRelease || !this.eligible()) return;
+      if (!this.current(operation) || operation.activating || !this.eligible()) return;
       operation.activating = true;
       try {
         this.update(await this.bridge.getSnapshot());
         if (!this.current(operation) || !this.eligible()) return;
-        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
-        // Retain the ordinary streaming decoder after a delayed intro. The
-        // accepted guard/sync path follows the fresh master clock; converting
-        // here would throw away verified bytes and download the MP3 again.
-        // Complete-file alignment stays limited to newly approved mid-song assets.
         if(operation.completeJoin && !operation.joinAligned) {
           operation.stage="aligning-complete-file";
           await operation.player.prepareCompleteJoin(this.snapshot, async()=>{
@@ -269,22 +264,18 @@
           operation.joinAligned=true;
         }
         operation.stage="guarding";
-        operation.bufferWaiting = false;
-        const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId, resourceRevision: operation.resourceRevision });
+        const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
         this.update(guard.snapshot);
         if (!this.current(operation) || !this.eligible(this.snapshot, 1)) { this.abort("guard-state-changed"); return; }
-        if (!this.streamReady(operation)) { this.waitForBuffer(operation); return; }
-        operation.bufferWaiting = false;
         this.phase = "REPLACEMENT_ACTIVE";
         this.activationCount++;
         /* Bounded timings retain each recent join without URLs or credentials.
            Activation is a controller milestone, not proof of audible output. */
-        this.startupHistory.push({trackId:operation.trackId, resourceRevision:operation.resourceRevision, at:Date.now(),
-          prepareMs:Date.now()-operation.startedAt,
+        this.startupHistory.push({trackId:operation.trackId, at:Date.now(),
+          prepareMs:Date.now()-operation.startedAt, warmLeadMs:operation.warmLeadMs || 0,
           resolveMs:operation.resolvedAt-operation.startedAt,
           loadMs:operation.loadedAt-operation.resolvedAt,
-          joinMode:operation.completeJoin ? "complete-file" : "guarded-sync",
           masterTimeMs:Math.round(this.snapshot.player.currentTime*1000)});
         if(this.startupHistory.length>12)this.startupHistory.shift();
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
@@ -316,7 +307,7 @@
         readyState: this.snapshot?.player?.readyState ?? null, seeking: Boolean(this.snapshot?.player?.seeking),
         snapshotReason: this.snapshot?.reason || null
       };
-      this.restoreHistory.push({reason:String(reason).slice(0,96),trackId:operation.trackId,phase:this.phase,at:Date.now(),httpStatus:Number.isInteger(detail?.httpStatus) ? detail.httpStatus : null});
+      this.restoreHistory.push(this.lastRestore);
       if (this.restoreHistory.length > 12) this.restoreHistory.shift();
       ++this.generation;
       this.operation = null;
@@ -334,6 +325,7 @@
       });
     }
     manualRestore() {
+      this.warmedAsset = null;
       const trackId = this.snapshot?.track?.id || this.operation?.trackId;
       if (trackId) this.manualBypass = { trackId, requestedAt: Date.now() };
       this.publishPolicy();
@@ -363,7 +355,7 @@
       }
       this.reconcile();
     }
-    destroy() { this.destroyed = true; this.publishPolicy(); this.abort("controller-destroyed"); }
+    destroy() { this.warmedAsset = null; this.destroyed = true; this.publishPolicy(); this.abort("controller-destroyed"); }
   }
   Object.defineProperty(root, KEY, { value: Object.freeze({ ReplacementController }), writable: false });
 })(globalThis);
