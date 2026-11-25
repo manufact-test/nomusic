@@ -84,8 +84,16 @@ def pack(source, output, version, sequence, pin):
             with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED, allowZip64=False) as z:
                 for name, (low, high) in entries(version).items():
                     p = source / name
-                    bounded_file(p, low, high)
-                    z.write(p, name)
+                    st = bounded_file(p, low, high)
+                    # Identical signed bytes always produce the same archive;
+                    # filesystem timestamps/umask must not consume another slot.
+                    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                    info.create_system = 3
+                    info.external_attr = (stat.S_IFREG | 0o600) << 16
+                    info.compress_type = zipfile.ZIP_STORED
+                    info.file_size = st.st_size
+                    with p.open("rb") as src, z.open(info, "w") as dst:
+                        need(copy_bounded(src, dst, high) == st.st_size, "SOURCE_SIZE_CHANGED")
             need(target.tell() <= MAX_BUNDLE, "BUNDLE_TOO_LARGE")
         except BaseException:
             target.close()

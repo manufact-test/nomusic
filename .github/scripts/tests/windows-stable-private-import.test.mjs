@@ -43,6 +43,7 @@ test("private Windows transport verifies signed identity, monotonic floor, archi
   }
   const next=await fixture("next","0.24.56",3);
   const bytes=await pack(next,"next");
+  assert.deepEqual(await pack(next,"next-repeat"),bytes,"same signed release has deterministic transport bytes");
   // Test the real unprivileged receiver function on disposable data; the
   // remote entrypoint itself requires a nonroot uid and fixed server paths.
   const inbox=join(dir,"inbox");await mkdir(inbox,{mode:0o700});

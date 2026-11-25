@@ -54,6 +54,8 @@ def receive(stream, spool, pin, command, trust_uid=0):
                  and p.is_file() and not p.is_symlink() for p in pending), "SPOOL_REVIEW_REQUIRED")
         replay = target in pending
         if not replay:
+            need(not any(p.name.startswith("windows-" + version + "-") for p in pending),
+                 "IMMUTABLE_INTAKE_CONFLICT")
             need(len(pending) < MAX_PENDING, "PRIVATE_INTAKE_FULL")
         work = pathlib.Path(tempfile.mkdtemp(prefix=".incoming-", dir=spool))
         try:
