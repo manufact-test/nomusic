@@ -38,3 +38,9 @@
 JVM harness дополнен проверками exact item, wrong item, conflict, weak loss, missing creator и repeated wrapper. Build marker: `A1_TRACKID_BETA16_CREATOR_REJECT_REASON_DIAGNOSTIC_20261125`. APK: `CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk`. Оригинальный workflow name сохранён для FlokiNET. Source export run `45651541265` (commit `a24ec32af24a1eec1918a208031acf2dab93745d`); отдельный JVM regression run `45651822165` (CI-only commit `09ce464489ff80eae797f63074dc1ca7878701c6`). Статусы проверить, не считать зелёный CI звуком.
 
 После обеих SUCCESS и успешной независимой FlokiNET доставки получить только свежий `A1_DOWNLOAD_URL` из delivery run. Один телефон: поверх BETA15 установить BETA16, включить Рамиля «Ау» из альбома, 00:43–00:54, прислать TXT. Только её новые reason buckets могут определить минимальную точную правку; не делать source/ID/beta fallback по догадке.
+
+### BETA16 — CI regression, исправление теста и актуальный запуск
+
+Первый экспорт `45651541265` и первая standalone JVM `45651822165` завершились **failure** по одному тестовому ожиданию: `ORIGINAL_CHILD_ITEM_ANCHOR_CONFLICT` регистрируется дважды, поскольку guard вызывается прямо и затем внутри `onOriginalMediaItemDescriptor`. Для этого сценария ожидается `FEW`, не `ONE`. Код идентификации/source authorization не изменён.
+
+Исправление теста: commit `37903af55bf738cc9e1dfa4d2b0ac9ae615ac647`; standalone JVM `45652189632`. Затем найден и исправлен остаточный BETA15 export filename в `ci/owner_phone_diagnostic_artifact.py` и его тесте; финальный commit `18cb4afc5ece3c04c5dd64af32125dcf409d1448`. **Финальный pending подписанный owner ARM13 run: `45652314715`**. APK и ссылка из старого run не подходят, нужен verified delivery именно от финального успешного run. Пока он queued/не завершён — звук/готовая APK не подтверждены.
