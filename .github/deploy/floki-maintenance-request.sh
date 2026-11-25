@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 umask 077
 python3 - <<'PY'
-import os,pathlib,hashlib,subprocess,urllib.request,urllib.error,re
+import os,pathlib,hashlib,subprocess,urllib.request,urllib.error,re,time
 P=pathlib.Path
 p=P('/srv/celikom/app/staging-20261122/src/Application.php')
 assert not p.is_symlink()
@@ -41,6 +41,10 @@ try:
  origin='chrome-extension://abcdefghijklmnopabcdefghijklmnop'
  for path in ['/api/v1/auth/me','/api/v1/entitlement','/api/v1/resolve','/api/v1/uploads','/api/v1/audio/1']:
   r=fetch(path,'OPTIONS',origin)
+  for attempt in range(8):
+   if r.status==204 and r.headers.get('Access-Control-Allow-Origin')==origin:break
+   print('PREFLIGHT_RELOAD_SETTLING',path,r.status,r.headers.get('Access-Control-Allow-Origin'))
+   time.sleep(.5);r=fetch(path,'OPTIONS',origin)
   assert r.status==204 and r.headers.get('Access-Control-Allow-Origin')==origin
   assert not r.headers.get('Access-Control-Allow-Credentials')
   assert 'authorization' in r.headers.get('Access-Control-Allow-Headers','').lower()
