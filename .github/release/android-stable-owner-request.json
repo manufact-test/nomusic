@@ -1,0 +1,10 @@
+{
+  "release_id": 457921929,
+  "source_run": 45589980361,
+  "attempt": 1,
+  "version": "0.3.94",
+  "version_code": 95,
+  "apk_sha256": "d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469",
+  "apk_size": 8845385,
+  "manifest_sha256": "8e5205b64ea65b8a9879b7034a3e5c141a8e96b79a0e1a07c1d849def358478e"
+}
