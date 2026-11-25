@@ -75,7 +75,7 @@ freeze)
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteCond %{REQUEST_METHOD} !^(GET|HEAD|OPTIONS)$ [NC]
-RewriteRule ^ - [R=503,L]
+RewriteRule ^ - [F,L]
 </IfModule>
 HTACCESS
       cat "$state/$key.original"
