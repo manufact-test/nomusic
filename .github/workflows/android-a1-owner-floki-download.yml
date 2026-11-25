@@ -31,6 +31,17 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+      - name: Install pinned GitHub CLI for isolated Floki runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if command -v gh >/dev/null 2>&1; then exit 0; fi
+          version=2.105.0
+          archive="$RUNNER_TEMP/gh_${version}_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --retry 3 --output "$archive" "https://github.com/cli/cli/releases/download/v${version}/gh_${version}_linux_amd64.tar.gz"
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          test -x "$RUNNER_TEMP/gh_${version}_linux_amd64/bin/gh"
+          echo "$RUNNER_TEMP/gh_${version}_linux_amd64/bin" >> "$GITHUB_PATH"
       - name: Resolve exact successful ARM export and private release
         id: source
         env:
