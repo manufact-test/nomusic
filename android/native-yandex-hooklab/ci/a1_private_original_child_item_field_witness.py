@@ -13,7 +13,8 @@ from pathlib import Path
 import struct
 import zipfile
 
-from a1_private_push_dex_method import Dex, EXPECTED_LEN, EXPECTED_SHA
+from a1_private_push_dex_method import Dex, EXPECTED_LEN, EXPECTED_SHA, uleb
+from a1_private_dex_predicate import code_items_with_meta
 from a1_private_dex_flow import decode_instructions, FlowDecodeError, INVOKE_METHOD
 
 SOURCE_OWNER="LiLb;"
@@ -315,6 +316,86 @@ def coroutine_source_capture(dexes, caller_types):
     out["coroutine_source_typed_fields"] = len(signatures)
     return {k: min(v, 16) for k, v in out.items()}
 
+def exact_source_capture_shape(dexes, caller_types):
+    """Conservative direct register proof; unresolved moves are NOT matches."""
+    out = dict(final_instance_fields=0, direct_constructor_parameter_writes=0,
+               other_field_writes=0, resume_reads_from_this=0,
+               resume_other_field_reads=0, source_owner_ctor_passes_this=0,
+               source_owner_ctor_other_argument=0, source_ctor_parameter_count=0)
+    if len(caller_types) != 1:
+        return out
+    target = next(iter(caller_types))
+    for dex in dexes:
+        count, off = struct.unpack_from("<II", dex.data, 80)
+        fields = {i for i in range(count) if field_descriptor(dex, i) == (target, SOURCE_OWNER)}
+        for ci in range(dex.class_count):
+            base = dex.class_off + 32*ci
+            if dex.type(struct.unpack_from("<I", dex.data, base)[0]) != target:
+                continue
+            pos = struct.unpack_from("<I", dex.data, base+24)[0]
+            if not pos:
+                continue
+            nstatic,pos=uleb(dex.data,pos)
+            ninstance,pos=uleb(dex.data,pos)
+            for is_instance,n in ((False,nstatic),(True,ninstance)):
+                index=0
+                for _ in range(n):
+                    delta,pos=uleb(dex.data,pos)
+                    index+=delta
+                    flags,pos=uleb(dex.data,pos)
+                    if index in fields and is_instance and flags&0x10 and not flags&8:
+                        out["final_instance_fields"]+=1
+        constructors={}
+        for mid in range(dex.method_count):
+            owner,name,proto=dex.method_signature(mid)
+            if owner==target and name=="<init>":
+                args=params_for(dex,proto) or ()
+                if args.count(SOURCE_OWNER)==1:
+                    offset=1+sum(2 if x in ("J","D") else 1 for x in args[:args.index(SOURCE_OWNER)])
+                    constructors[mid]=offset
+        for mid,regs,inputs,is_static,code in code_items_with_meta(dex):
+            owner,name,proto=dex.method_signature(mid)
+            if not fields and not constructors:
+                continue
+            if owner not in (target,SOURCE_OWNER) and not fields:
+                continue
+            try:ins=decode_instructions(code)
+            except FlowDecodeError:continue
+            this_reg=regs-inputs if not is_static else None
+            if owner==target and name=="<init>" and mid in constructors:
+                out["source_ctor_parameter_count"]+=1
+            for pc,op,_ in ins:
+                if op in (0x54,0x5b):
+                    fid=struct.unpack_from("<H",code,pc+2)[0]
+                    if fid in fields:
+                        a,b=code[pc+1]&15,code[pc+1]>>4
+                        if op==0x5b:
+                            if (owner==target and name=="<init>" and mid in constructors
+                                    and this_reg is not None and b==this_reg
+                                    and a==this_reg+constructors[mid]):
+                                out["direct_constructor_parameter_writes"]+=1
+                            else:out["other_field_writes"]+=1
+                        elif owner==target and name=="invokeSuspend":
+                            key="resume_reads_from_this" if b==this_reg else "resume_other_field_reads"
+                            out[key]+=1
+                if owner!=SOURCE_OWNER or op not in (0x70,0x76):
+                    continue
+                ref=struct.unpack_from("<H",code,pc+2)[0]
+                if ref not in constructors:continue
+                slot=constructors[ref]
+                if op==0x70:
+                    n=code[pc+1]>>4
+                    arguments=(code[pc+4]&15,code[pc+4]>>4,code[pc+5]&15,
+                               code[pc+5]>>4,code[pc+1]&15)
+                    arg=arguments[slot] if slot<n<=5 else None
+                else:
+                    n=code[pc+1]
+                    arg=struct.unpack_from("<H",code,pc+4)[0]+slot if slot<n else None
+                key=("source_owner_ctor_passes_this" if this_reg is not None and arg==this_reg
+                     else "source_owner_ctor_other_argument")
+                out[key]+=1
+    return {k:min(v,16) for k,v in out.items()}
+
 def inspect_xapk(path):
     if not path.is_file() or path.is_symlink() or path.stat().st_size!=EXPECTED_LEN:
         raise ValueError("INVALID_ORIGINAL_SIZE")
@@ -361,6 +442,7 @@ def inspect_xapk(path):
             for key in sorted({k for v in records for k in v["child_item_producer_return_shapes"]})
         },
         "coroutine_source_capture_shape":coroutine_source_capture(dexes, caller_types),
+        "coroutine_exact_source_capture_shape":exact_source_capture_shape(dexes, caller_types),
         "static_only_no_runtime_source_or_audio_proof":True,
     }
 
@@ -373,6 +455,7 @@ def selftest():
     assert source_argument_register(c,0,0x6e) is None
     assert coroutine_source_capture([], set())["unique_child_coroutine_owner"] == 0
     assert coroutine_source_capture([], {"Lsynthetic;"})["unique_child_coroutine_owner"] == 1
+    assert exact_source_capture_shape([], set())["direct_constructor_parameter_writes"] == 0
     print("A1_ORIGINAL_CHILD_STATIC_PROVENANCE_SELFTEST_PASS")
 
 if __name__=="__main__":
