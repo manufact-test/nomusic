@@ -1,0 +1,1 @@
+2026-11-25: one-time owner-authorized installation of root-only independent signed Windows 0.24.56 promoter. Existing Floki admin secret, exact hashed scripts, rollback Nginx, no public feed and no unrelated services.
