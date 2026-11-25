@@ -115,3 +115,42 @@ jobs:
         if: always()
         shell: bash
         run: rm -rf -- "$RUNNER_TEMP/celikom-windows-private-stage"
+
+  independent_root_import:
+    needs: stage
+    if: inputs.send_to_private_intake == true && github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: floki-deploy
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Independently verify and import staged data, no publication
+        shell: bash
+        env:
+          FLOKI_DEPLOY_CONNECTION: ${{ secrets.FLOKI_DEPLOY_CONNECTION }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" == "$GITHUB_SHA" ]] || { echo FLOKI_STALE_REQUEST_REFUSED; exit 1; }
+          unset GH_TOKEN
+          [[ -n "$FLOKI_DEPLOY_CONNECTION" ]]
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          printf '%s\n' "$FLOKI_DEPLOY_CONNECTION" | tr -d '\r' > "$tmp/bundle"
+          unset FLOKI_DEPLOY_CONNECTION
+          head -n 1 "$tmp/bundle" > "$tmp/known_hosts"
+          tail -n +2 "$tmp/bundle" > "$tmp/key"
+          rm "$tmp/bundle"
+          grep -Eq '^95\.133\.160\.111 ssh-ed25519 [A-Za-z0-9+/=]+$' "$tmp/known_hosts"
+          ssh-keygen -y -P '' -f "$tmp/key" >/dev/null
+          sshargs=(-T -i "$tmp/key" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$tmp/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=20 -o ClearAllForwardings=yes)
+          request=.github/scripts/floki-windows-private-consume-request.sh
+          bash -n "$request"
+          ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < "$request"
