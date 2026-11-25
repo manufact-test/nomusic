@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - ".github/release/owner-bootstrap-0.24.55.trigger"
+      - ".github/release/owner-bootstrap-0.24.56.trigger"
   workflow_dispatch:
     inputs:
       version:
         description: Version already committed to main
         required: true
-        default: '0.24.55'
+        default: '0.24.56'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
-        default: '2'
+        default: '3'
         type: string
       expires_at:
         description: Leave blank to use an automatic 7-day UTC expiry
@@ -52,8 +52,8 @@ jobs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version || '0.24.55' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '2' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.56' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '3' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
     steps:
       - uses: actions/checkout@v4
