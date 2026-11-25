@@ -13,9 +13,9 @@ cms_db=celikom_website_cutover_20261124
 ctr=celikom-mdb-check-20261122
 api_sql(){
  docker exec -i "$ctr" sh -c '
- if [ -n "\${MARIADB_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MARIADB_ROOT_PASSWORD_FILE")
- elif [ -n "\${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
- elif [ -n "\${MARIADB_ROOT_PASSWORD:-}" ]; then MYSQL_PWD=$MARIADB_ROOT_PASSWORD
+ if [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MARIADB_ROOT_PASSWORD_FILE")
+ elif [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ]; then MYSQL_PWD=$(cat "$MYSQL_ROOT_PASSWORD_FILE")
+ elif [ -n "${MARIADB_ROOT_PASSWORD:-}" ]; then MYSQL_PWD=$MARIADB_ROOT_PASSWORD
  else exit 2; fi
  export MYSQL_PWD
  exec mariadb -uroot --max-allowed-packet=64M "$@"
@@ -99,20 +99,20 @@ mapfile -t sources <<'FILES'
 /root/celikom-cutover-prepared/website-staging-config.php
 FILES
 for i in 0 1 2 3 4 5; do
- test -f "\${destinations[$i]}" && test ! -L "\${destinations[$i]}"
- cp -a "\${destinations[$i]}" "$backup/$i"
+ test -f "${destinations[$i]}" && test ! -L "${destinations[$i]}"
+ cp -a "${destinations[$i]}" "$backup/$i"
 done
 rollback(){
- for i in 0 1 2 3 4 5; do cp -a "$backup/$i" "\${destinations[$i]}" || true; done
+ for i in 0 1 2 3 4 5; do cp -a "$backup/$i" "${destinations[$i]}" || true; done
  nginx -t && systemctl reload nginx || true
  echo CELIKOM_LIVE_ACTIVATION_ROLLED_BACK
 }
 ok=0
 trap 'rc=$?; if [[ "$ok" != 1 ]]; then rollback; fi; exit "$rc"' EXIT
 for i in 0 1 2 3 4 5; do
- dest="\${destinations[$i]}"
+ dest="${destinations[$i]}"
  tmp=$(mktemp "$dest.celikom-XXXXXXXX")
- cat "\${sources[$i]}" > "$tmp"
+ cat "${sources[$i]}" > "$tmp"
  chown --reference="$dest" "$tmp"
  chmod --reference="$dest" "$tmp"
  mv -f -- "$tmp" "$dest"
