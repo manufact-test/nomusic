@@ -6,17 +6,17 @@ on:
         description: Exact already signed version
         required: true
         type: string
-        default: '0.24.55'
+        default: '0.24.56'
       sequence:
         description: Exact signed sequence
         required: true
         type: string
-        default: '2'
+        default: '3'
       source_commit:
         description: Exact source commit of both existing private drafts
         required: true
         type: string
-        default: '61d17d9eb97f3db5c58c906e30da6c19ee737090'
+        default: '3c743332d134618fd4bba39ee826e833f39aa54c'
       send_to_private_intake:
         description: Send to dedicated nonprivileged intake, never publish
         required: true
@@ -54,9 +54,9 @@ jobs:
       contents: write
     timeout-minutes: 15
     env:
-      RELEASE_VERSION: ${{ inputs.version || '0.24.55' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '2' }}
-      RELEASE_COMMIT: ${{ inputs.source_commit || '61d17d9eb97f3db5c58c906e30da6c19ee737090' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.56' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '3' }}
+      RELEASE_COMMIT: ${{ inputs.source_commit || '3c743332d134618fd4bba39ee826e833f39aa54c' }}
     steps:
       - uses: actions/checkout@v4
         with:
