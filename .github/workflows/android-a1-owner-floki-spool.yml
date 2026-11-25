@@ -21,7 +21,7 @@ jobs:
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 18
     permissions:
-      contents: read
+      contents: write
       actions: read
     steps:
       # Only trusted main delivery code executes; never check out or execute
