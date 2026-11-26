@@ -1,0 +1,1 @@
+2026-11-26: W188 owner-only recovery candidate. W174 audio baseline plus exact Floki API-origin migration and privacy-safe login diagnostics. Version 0.24.61, signed sequence 8 from current release workflow defaults. Stage only through Floki private spool; customer stable remains unapproved and production publish must remain skipped.
