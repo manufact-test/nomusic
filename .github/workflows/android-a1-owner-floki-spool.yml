@@ -74,9 +74,11 @@ jobs:
               request={'run_id':run['id'],'attempt':run['run_attempt']}
           else:
               request=json.loads(Path('.github/deploy/a1-owner-download-request.json').read_text())
-          assert set(request)=={'run_id','attempt'}
+          assert set(request) in ({'run_id','attempt'},{'run_id','attempt','release_id'})
           assert type(request['run_id']) is int and 1<=request['run_id']<=10**14
           assert type(request['attempt']) is int and 1<=request['attempt']<=100
+          if 'release_id' in request:
+              assert type(request['release_id']) is int and 1<=request['release_id']<=10**14
           Path(sys.argv[1]).write_text(json.dumps(request))
           PY
           run=$(jq -r .run_id "$d/request.json")
@@ -100,14 +102,31 @@ jobs:
           print('A1_SOURCE_RUN_AND_BOTH_NATIVE_JVM_GATES_VERIFIED')
           PY
           # No export requested is a normal outcome for routine successful CI.
-          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
-            --json id,body,isDraft,tagName,targetCommitish,assets > "$d/release.json"; then
-            if [[ "$GITHUB_EVENT_NAME" == workflow_run ]] && ! jq -e '.head_commit.message | contains("[export-beta-audio]")' "$d/run.json" >/dev/null; then
-              echo 'No private owner APK export for this run; no delivery.'
-              echo 'ready=false' >> "$GITHUB_OUTPUT"
-              exit 0
+          release_id=$(jq -r '.release_id // empty' "$d/request.json")
+          if [[ -n "$release_id" ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" > "$d/release-raw.json"
+            python3 - "$d" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]);r=json.loads((p/'release-raw.json').read_text())
+          normalized={
+              'id':r['id'],'body':r.get('body') or '',
+              'isDraft':r['draft'],'tagName':r['tag_name'],
+              'targetCommitish':r['target_commitish'],
+              'assets':[{'id':a['id'],'name':a['name'],'size':a['size'],'digest':a.get('digest')} for a in r['assets']]
+          }
+          (p/'release.json').write_text(json.dumps(normalized))
+          PY
+          else
+            if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+              --json id,body,isDraft,tagName,targetCommitish,assets > "$d/release.json"; then
+              if [[ "$GITHUB_EVENT_NAME" == workflow_run ]] && ! jq -e '.head_commit.message | contains("[export-beta-audio]")' "$d/run.json" >/dev/null; then
+                echo 'No owner APK export for this run; no delivery.'
+                echo 'ready=false' >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              echo 'Expected owner signed APK draft not found' >&2; exit 1
             fi
-            echo 'Expected private signed APK draft not found' >&2; exit 1
           fi
           python3 - "$d" "$tag" <<'PY'
           import json,sys,re
@@ -197,19 +216,19 @@ jobs:
       - name: Wait for root-verified Floki receipt and store owner link in unpublished draft
         if: steps.source.outputs.ready == 'true'
         env:
-          GH_TOKEN: \${{ github.token }}
-          A1_RUN: \${{ steps.source.outputs.run }}
-          A1_ATTEMPT: \${{ steps.source.outputs.attempt }}
-          A1_RELEASE_ID: \${{ steps.source.outputs.release_id }}
-          A1_APK_NAME: \${{ steps.source.outputs.apk_name }}
-          A1_APK_SIZE: \${{ steps.source.outputs.apk_size }}
-          A1_APK_SHA256: \${{ steps.source.outputs.apk_sha256 }}
+          GH_TOKEN: ${{ github.token }}
+          A1_RUN: ${{ steps.source.outputs.run }}
+          A1_ATTEMPT: ${{ steps.source.outputs.attempt }}
+          A1_RELEASE_ID: ${{ steps.source.outputs.release_id }}
+          A1_APK_NAME: ${{ steps.source.outputs.apk_name }}
+          A1_APK_SIZE: ${{ steps.source.outputs.apk_size }}
+          A1_APK_SHA256: ${{ steps.source.outputs.apk_sha256 }}
         shell: bash
         run: |
           set -Eeuo pipefail
           umask 077
           d="$RUNNER_TEMP/a1-verified-owner-delivery"
-          receipt="/home/runner/celikom-a1-signed-spool/receipts/a1-\${A1_RUN}-\${A1_ATTEMPT}.json"
+          receipt="/home/runner/celikom-a1-signed-spool/receipts/a1-${A1_RUN}-${A1_ATTEMPT}.json"
           for attempt in $(seq 1 24); do
             [[ -f "$receipt" && ! -L "$receipt" ]] && break
             sleep 30
@@ -247,7 +266,7 @@ jobs:
               raise SystemExit('A1_OWNER_DRAFT_NOT_UNPUBLISHED')
           body=release.get('body') or ''
           marker='A1_OWNER_DOWNLOAD_URL='
-          found=re.findall(r'^A1_OWNER_DOWNLOAD_URL=(https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_.-]+\.apk),body,re.M)
+          found=re.findall(r'^A1_OWNER_DOWNLOAD_URL=(https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_.-]+\.apk)$',body,re.M)
           if found and found!=[url]:
               raise SystemExit('A1_OWNER_DRAFT_LINK_CONFLICT')
           notes=body if found else body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
