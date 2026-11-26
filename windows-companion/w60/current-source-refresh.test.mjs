@@ -45,20 +45,28 @@ test("W60 signed vendor class observer reloads current source without changing s
   assert.strictEqual(Object.getOwnPropertyDescriptor(h.NativeYandexPlayback.prototype,"state").get,h.getter);
 });
 
-test("W182 exposes the real player file-info method owner, including inherited methods",()=>{
+test("W183 resolves getFileInfo from the observed derived live-player instance",()=>{
   const h=harness(),r=createCurrentSourceRefresh();
-  class ResourceBase { async getFileInfo(params) { return {fileInfo:{trackId:params.id}}; } }
-  Object.setPrototypeOf(h.NativeYandexPlayback.prototype, ResourceBase.prototype);
+  class LiveYandexPlayer extends h.NativeYandexPlayback {
+    async getFileInfo(params) { return {fileInfo:{trackId:params.id}}; }
+  }
   assert.equal(r.attach(h.webpackRequire),true);
-  assert.strictEqual(r.resourcePrototype(),ResourceBase.prototype,
-    "hook target is the prototype that actually owns getFileInfo");
+  assert.equal(r.playerObserved,false);
+  assert.equal(r.resourcePrototype(),null,
+    "do not guess the resource owner before a live instance exists");
+  const player=new LiveYandexPlayer();
+  void player.state; // inherited getter observes the actual derived instance
+  assert.equal(r.playerObserved,true);
+  assert.strictEqual(r.resourcePrototype(),LiveYandexPlayer.prototype,
+    "hook target must be the prototype that actually owns getFileInfo");
   r.dispose();
   assert.equal(r.resourcePrototype(),null);
 });
-test("W182 has no resource prototype when the pinned player has no file-info method",()=>{
+test("W183 does not report a player resource owner before state observation",()=>{
   const h=harness(),r=createCurrentSourceRefresh();
   assert.equal(r.attach(h.webpackRequire),true);
   assert.equal(r.resourcePrototype(),null);
+  assert.equal(r.playerObserved,false);
   r.dispose();
 });
 test("W60 paused Yandex remains paused and at the same position",async()=>{
