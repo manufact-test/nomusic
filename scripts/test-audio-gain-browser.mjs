@@ -347,7 +347,8 @@ try{
  }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
  const version=spawnSync(binary,['--version'],{encoding:'utf8'});if(version.status!==0)throw Error('Chromium could not start: '+(version.stderr||version.stdout||'unknown error'));console.log('Browser gate: '+String(version.stdout||version.stderr).trim());
- const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
+ const headlessArgs=process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1'?[]:['--headless=new'];
+ const browser=spawn(binary,[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
@@ -356,7 +357,14 @@ try{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
-  const pages=await fetch('http://127.0.0.1:'+port+'/json/list').then(r=>r.json());const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable');
+  let pages,lastFetchError;
+  for(let i=0;i<100&&!pages;i++){
+   try{const response=await fetch('http://127.0.0.1:'+port+'/json/list');if(response.ok)pages=await response.json();else lastFetchError=Error('HTTP '+response.status);}
+   catch(error){lastFetchError=error;}
+   if(!pages)await pause(50);
+  }
+  if(!pages)throw Error('Chrome DevTools endpoint did not become ready: '+(lastFetchError?.message||'no response')+'; stderr: '+launchError);
+  const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable; stderr: '+launchError);
   socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
   let id=0;const pending=new Map();
   socket.onclose=()=>{for(const {reject} of pending.values())reject(Error('Browser closed during media test: '+launchError));pending.clear();};
