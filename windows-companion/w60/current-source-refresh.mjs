@@ -86,8 +86,12 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
       prototype = stateOwner;
       original = descriptor;
       patchedGetter = observedGet;
-      note(candidate.id === 7695 ? "NATIVE_TOGGLE_PLAYER_OBSERVER_READY" :
-        "NATIVE_TOGGLE_PLAYER_OBSERVER_LEGACY_READY");
+      if (candidate.id === 7695) {
+        note("NATIVE_TOGGLE_PLAYER_OBSERVER_SONATA_READY");
+        note("NATIVE_TOGGLE_PLAYER_OBSERVER_READY");
+      } else {
+        note("NATIVE_TOGGLE_PLAYER_OBSERVER_LEGACY_READY");
+      }
       return true;
     }
     return false;
