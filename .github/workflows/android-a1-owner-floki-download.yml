@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify-and-deliver:
-    if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event.workflow_run.conclusion == 'success')
+    if: github.repository == 'manufact-test/nomusic' && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[a1-owner-delivery-request]')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
     environment: floki-deploy
     timeout-minutes: 22
@@ -31,7 +31,7 @@ jobs:
         with:
           ref: main
           persist-credentials: false
-      - name: Resolve exact successful ARM export and private release
+      - name: Resolve exact successful ARM export and unpublished owner draft
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,7 +39,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           umask 077
-          [[ "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" == PRIVATE ]]
+          [[ "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" == PUBLIC ]]
           d="$RUNNER_TEMP/a1-verified-owner-delivery"
           mkdir -m700 "$d"
           python3 - "$d/request.json" <<'PY'
@@ -82,7 +82,7 @@ jobs:
               echo 'ready=false' >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo 'Expected private signed APK draft not found' >&2; exit 1
+            echo 'Expected unpublished owner-only signed APK draft not found' >&2; exit 1
           fi
           python3 - "$d" "$tag" <<'PY'
           import json,sys,re
