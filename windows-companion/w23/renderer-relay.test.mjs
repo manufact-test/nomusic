@@ -12,18 +12,22 @@ const makeGrant = (id="123") => ({
   expiresAt:expiry*1000
 });
 function createRenderer({
-  hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=false
+  hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=true
 }={}) {
   const logs=[],handlers={};
   class ResourceBase {
-    async getFileInfo(context, params) {
-      const trackId=params?.trackId ?? params?.id ??
-        context?.trackId ?? context?.id;
+    async getMediaSource(params={}) {
+      const trackId=params?.entity?.id ?? params?.trackId ?? params?.id;
       return {
         responseTime:13,
         downloadInfo:{trackId:String(trackId),key:"yandex-drm",
           url:"https://official.yandex.example/stream",codec:"aac"}
       };
+    }
+    async getFileInfo(context,params) {
+      const trackId=params?.trackId ?? params?.id ??
+        context?.trackId ?? context?.id;
+      return this.getMediaSource({entity:{id:trackId}});
     }
     async getFileInfoBatch(params={}) {
       const ids=params.trackIds || params.ids || ["123","456"];
@@ -38,27 +42,19 @@ function createRenderer({
   class SonataProvider {
     async getFileInfo(params) {
       const trackId=params?.trackId ?? params?.id;
-      return {
-        responseTime:13,
-        downloadInfo:{trackId:String(trackId),key:"yandex-drm",
-          url:"https://official.yandex.example/stream",codec:"aac"}
-      };
+      return {responseTime:13,downloadInfo:{trackId:String(trackId),
+        key:"yandex-drm",url:"https://official.yandex.example/stream",codec:"aac"}};
     }
-    async getMediaSource(params) {
-      return this.getFileInfo(params);
-    }
+    async getMediaSource(params) { return this.getFileInfo(params); }
     async getFileInfoBatch(params={}) {
       const ids=params.trackIds || params.ids || ["123","456"];
       return {downloadInfos:ids.map((id,index)=>({
-        trackId:String(id?.trackId ?? id?.id ?? id),key:"drm",
+        trackId:String(id?.trackId ?? id?.id),key:"drm",
         url:index===0?"https://official.yandex.example/stream":
           "https://official.yandex.example/next"
       }))};
     }
   }
-  // W174's accepted 5.128 path hooks the endpoint resource class. Keep
-  // SonataProvider separate: static module presence alone does not prove that
-  // the live player invokes its getFileInfo method.
   class Resource extends LegacyResource {
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
@@ -68,7 +64,9 @@ function createRenderer({
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
-      this.resourceProvider=new LegacyResource();
+      // Mirrors the pinned VE constructor: mediaProvider is injected on the
+      // live player instance, and the player calls mediaProvider.getMediaSource.
+      this.mediaProvider=new LegacyResource();
       this.snapshot={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
         playerState:{status:{value:status},progress:{value:{position}}}
@@ -78,19 +76,18 @@ function createRenderer({
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
       const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await this.resourceProvider.getFileInfo({}, {trackId:id});
+      const response=await this.mediaProvider.getMediaSource({entity:{id}});
       this.mediaSources.push(response.downloadInfo.url);
       return response;
     }
   }
   class NativeYandexPlayer extends NativeYandexPlayerBase {}
-  const requireFn=id=>id==="native-resource"?{Resource:LegacyResource}:
-    id===7123 && withPlayer?{VE:NativeYandexPlayerBase}:
+  const requireFn=id=>id===7123 && withPlayer?{VE:NativeYandexPlayerBase}:
     id===7695 && withPlayer?{SonataProvider}:null;
-  requireFn.m={"native-resource":function resourceFactory(){return '"get-file-info"';}};
+  requireFn.m={};
   if(withPlayer) {
     requireFn.m[7123]=function actualYandexPlaybackFactory(){};
-    requireFn.m[7695]=function actualYandexSonataProviderFactory(){};
+    requireFn.m[7695]=function unrelatedSonataExportFactory(){};
   }
   const chunks=[];
   chunks.push=packet=>{packet[2](requireFn);return 1;};
@@ -109,7 +106,10 @@ function createRenderer({
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
   const runIntervals=()=>{for(const fn of intervals) fn();};
-  return {window,Resource,LegacyResource,SonataProvider,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals};
+  const activePlayer=withPlayer?new NativeYandexPlayer():null;
+  if(activePlayer) void activePlayer.state;
+  return {window,Resource,ResourceBase,LegacyResource,SonataProvider,
+    NativeYandexPlayer,activePlayer,logs,handlers,originalPause,originalSeek,runIntervals};
 }
 async function tick() {
   await new Promise(resolve=>setImmediate(resolve));
@@ -118,7 +118,7 @@ async function tick() {
 test("real bundled renderer integrates one approved source, keeps Yandex pause/seek",async()=>{
   const r=createRenderer();
   assert.equal(typeof r.window.__celikomBridgeNativeSetState,"function");
-  assert.ok(r.logs.some(s=>s.includes("Native file-info source connector attached")));
+  assert.ok(r.logs.some(s=>s.includes("Live Yandex media-source connector attached")));
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin
   });
@@ -141,7 +141,7 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
-test("W185 restores the W174 accepted Yandex 5.128 endpoint hook path",async()=>{
+test("W186 attaches to the live Yandex mediaProvider.getMediaSource path",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({
@@ -152,23 +152,25 @@ test("W185 restores the W174 accepted Yandex 5.128 endpoint hook path",async()=>
   await tick();
   const requests=r.window.__celikomBridgeNativeDrain();
   assert.equal(requests.length,1,
-    "the W174 endpoint getFileInfo(context, {trackId}) path must be intercepted");
+    "the exact mediaProvider.getMediaSource call must be intercepted");
   assert.equal(requests[0].trackId,"123");
   r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
   const result=await pending;
   assert.equal(result.downloadInfo.url,
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.deepEqual(player.mediaSources,[makeGrant("123").audioUrl+"&celikom_native_query_guard=0"]);
   const events=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
-  assert.ok(events.includes("NATIVE_FILEINFO_REQUEST"));
+  assert.ok(events.includes("NATIVE_MEDIASOURCE_REQUEST"));
   assert.ok(events.includes("SOURCE_MAPPED"));
-  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
+  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_LIVE_MEDIA_PROVIDER"));
+  assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
   assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_PROVIDER"));
-  assert.equal(Object.hasOwn(r.LegacyResource.prototype,"getFileInfo"),true);
+  assert.equal(Object.hasOwn(r.ResourceBase.prototype,"getMediaSource"),true);
   const originalProviderMethod=r.SonataProvider.prototype.getFileInfo;
   const provider=await new r.SonataProvider().getFileInfo({trackId:"123"});
   assert.strictEqual(r.SonataProvider.prototype.getFileInfo,originalProviderMethod,
-    "the unverified SonataProvider remains untouched");
+    "the unrelated static SonataProvider export remains untouched");
   assert.equal(provider.downloadInfo.url,"https://official.yandex.example/stream");
   r.handlers.beforeunload();
 });
