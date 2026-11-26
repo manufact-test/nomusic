@@ -4,7 +4,7 @@
 
 ## Критическая поправка к W186
 
-Предыдущий чат ошибочно посоветовал при откате удалить сохранённые данные входа. Это удалило/могло удалить `%LOCALAPPDATA%\\CELIKOM\\Windows\\session.dpapi` и заставило старый W173 0.24.54 выбрать свой старый Hostinger default origin. Он не знает о Floki migration.
+Предыдущий чат ошибочно посоветовал при откате удалить сохранённые данные входа. Это удалило/могло удалить `%LOCALAPPDATA%\CELIKOM\Windows\session.dpapi` и заставило старый W173 0.24.54 выбрать свой старый Hostinger default origin. Он не знает о Floki migration.
 
 **Не повторять uninstall и не удалять DPAPI.** Общая ошибка UI не доказывает неверный пароль. W186 Hostinger health/config checks не проверяли owner login. Скриншот не показывает реальный endpoint/status, поэтому Hostinger — ведущая гипотеза, не окончательно подтверждённая причина. См. подробный разбор [W187](./W187-02454-HOSTINGER-LOGIN-FAILURE-FLOKI-API-RECOVERY-20261126.md). Сам [W186 помечен как superseded](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md).
 
