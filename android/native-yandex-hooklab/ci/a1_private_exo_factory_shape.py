@@ -70,7 +70,7 @@ def inspect(path):
                 continue
             with zipfile.ZipFile(io.BytesIO(xapk.read(part))) as apk:
                 for name in apk.namelist():
-                    if not re.fullmatch(r"classes[0-9]*\\.dex",name):
+                    if not re.fullmatch(r"classes[0-9]*\.dex",name):
                         continue
                     info=apk.getinfo(name)
                     if info.file_size>25_000_000:continue
