@@ -4570,6 +4570,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                         } catch (Throwable ignored) { }
                         return result;
                     });
+                // If this is also the exact descriptor-returned factory method,
+                // the later dynamic resolver must reuse this existing hook.
+                synchronized (exactExoFactoryProductMethods) {
+                    exactExoFactoryProductMethods.add(make);
+                }
                 exactExoSourceInstanceHookReady = true;
                 emit("AUDIO_EXO_SOURCE_INSTANCE_HOOK", "EXO_DATASOURCE", "REGISTERED");
             } catch (Throwable ignored) {
