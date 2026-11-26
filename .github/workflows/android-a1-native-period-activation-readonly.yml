@@ -77,11 +77,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          set +e
           report="$(python3 -B android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
             --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk")"
+          audit_status=$?
+          set -e
           printf '%s' "$report" | python3 -c '
           import json, sys
           d=json.load(sys.stdin)
+          if d.get("safe_error_code"):
+              print("A1_AUDIT_SAFE_ERROR_CODE="+str(d.get("safe_error_code")))
+              print("A1_UPSTREAM_VERDICT=INCOMPLETE")
+              raise SystemExit(0)
           calls=d.get("exact_open_direct_callers", [])
           loadables=[r for r in calls if r.get("method_matches_exact_loader_contract")]
           owner=loadables[0].get("method", [None])[0] if len(loadables)==1 else None
@@ -129,6 +136,9 @@ jobs:
               print(prefix+"OPEN_READ_SAME_METHOD="+str(bool(row.get("exact_open_and_read_same_method"))).upper())
               print(prefix+"OPEN_CLOSE_SAME_METHOD="+str(bool(row.get("exact_open_and_close_same_method"))).upper())
           ' 
+          if [ "$audit_status" -ne 0 ]; then
+            echo "A1_AUDIT_INCOMPLETE_REVIEW_SAFE_ERROR_CODE_ABOVE"
+          fi
       - name: Delete the original research input and guard untouched products
         if: always()
         shell: bash
