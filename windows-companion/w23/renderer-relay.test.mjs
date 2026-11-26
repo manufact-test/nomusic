@@ -70,9 +70,9 @@ function createRenderer({
     }
   }
   const requireFn=id=>id==="native-resource"?{Resource}:
-    id===7123 && withPlayer?{VE:NativeYandexPlayerBase}:null;
+    id===7695 && withPlayer?{SonataProvider:NativeYandexPlayerBase}:null;
   requireFn.m={"native-resource":function resourceFactory(){return '"get-file-info"';}};
-  if(withPlayer)requireFn.m[7123]=function actualYandexPlaybackFactory(){};
+  if(withPlayer)requireFn.m[7695]=function actualYandexSonataProviderFactory(){};
   const chunks=[];
   chunks.push=packet=>{packet[2](requireFn);return 1;};
   chunks.pop=()=>null;
@@ -122,7 +122,7 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
-test("W183 Yandex 5.128 hooks getFileInfo on the actual derived player instance",async()=>{
+test("W183 Yandex 5.128 pins SonataProvider and hooks getFileInfo on its live instance",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   void player.state; // inherited base getter observes the derived live player
