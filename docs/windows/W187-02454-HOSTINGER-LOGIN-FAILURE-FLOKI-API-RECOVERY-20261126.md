@@ -12,7 +12,7 @@ Screenshot supplied 26.11.2026. There is no successful login and no new playback
 
 ## Correction to W186 — the previous rollback instruction was wrong for the migrated service
 
-W186 instructed the owner to uninstall CELIKOM and select **«Также удалить сохранённые данные входа»**. This removed `%LOCALAPPDATA%\\CELIKOM\\Windows\\session.dpapi` and forced W173 0.24.54 to create a blank session.
+W186 instructed the owner to uninstall CELIKOM and select **«Также удалить сохранённые данные входа»**. If that step was followed, the uninstaller removed `%LOCALAPPDATA%\CELIKOM\Windows\session.dpapi`, forcing W173 0.24.54 to create a blank session.
 
 That historical build has the old Hostinger origin as its default:
 
