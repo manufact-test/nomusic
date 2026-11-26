@@ -49,6 +49,7 @@ on:
         type: boolean
         default: false
 # BETA17 owner-phone export requires existing JVM, publisher-first ARM13, and persistent owner signer.
+# 2026-11-26: public-repository recovery run is validation-only; export remains opt-in and disabled.
 permissions:
   contents: read
 jobs:
