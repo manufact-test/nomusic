@@ -1,50 +1,37 @@
-# CELIKOM Windows W182 — 0.24.58 owner candidate queued (26.11.2026)
+# CELIKOM Windows W183 — 0.24.58 owner candidate доставлена на celikom.com (26.11.2026)
 
-## Current state
+## Текущий статус
 
-**The actual Yandex 5.128.0 player hook has been repaired in main. The 0.24.58 signed owner release has been triggered but is not yet built or published.** Do not give the owner a download link until the exact EXE is independently verified on celikom.com.
+**0.24.58 собрана, подписана P-256, передана в Floki runner spool, независимо опубликована root consumer на закрытый owner-download сайт и подтверждена полным SHA-256 по HTTPS.** Версию можно выдавать владельцу для личного теста. Это owner candidate, не клиентский релиз.
 
-- Repository: manufact-test/nomusic, main only.
-- Signed candidate source commit: 0f05d194555268d51858fd8ca8b598738e37ee53.
-- Candidate: 0.24.58, P-256 sequence 5.
-- Release workflow: 45830668925, push-triggered, WAITING for owner approval in protected environment windows-stable-production; no signed EXE or Floki root receipt yet.
-- Stale 0.24.57 run 45707797672 still holds the old global release concurrency group while waiting on its obsolete protected stage. Do not approve that 0.24.57 request. The 0.24.58 workflow now uses a per-version concurrency group; run 45830668925 is the valid approval request.
-- The first 0.24.58 run 45829991821 is stale/queued behind the old global group; ignore it.
-- Previous owner candidate 0.24.57 / sequence 4 is on celikom.com but is unaccepted and is not the W182 player-hook repair.
-- Customer channel remains approved:null, baseline 0.24.55 / sequence 2.
-- Last personally accepted audible baseline remains 0.24.54.
-- Backup before W182 player-hook integration: backup/windows-main-pre-w182-player-hook-20261126 at f3fd3408028c2b04d82b675cd81feaa97ffef9eb.
+- Репозиторий: `manufact-test/nomusic`, ветка `main`.
+- Candidate source commit: `72729e6de7b6ccc7881ae751269035d3e6ba42ce`.
+- Версия: **0.24.58**, P-256 signed sequence **5**.
+- EXE SHA-256: `3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
+- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.58.exe
+- Owner latest: https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe
 
-## Confirmed playback root cause
+## Доказательства доставки
 
-The W54 diagnostic from 0.24.56 showed RESOURCE_HOOK_ATTACHED but no NATIVE_FILEINFO_REQUEST. The signed official Yandex 5.128.0 ASAR audit proved the old finder selected the endpoint wrapper (webpack module 72882), while the live player method is on the player class/base and reads {id}. CELIKOM hooked the wrong method owner, so the real player bypassed the native adapter.
+1. Signed release workflow [45836692248](https://github.com/manufact-test/nomusic/actions/runs/45836692248): **SUCCESS**. Windows/native build, P-256 manifest signing, package verification, owner EXE/ZIP packaging, six-file signed transfer packaging и upload artifact — SUCCESS. EXE SHA совпадает с манифестом: `3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
+2. В том же run reusable private-stage job [139968663294](https://github.com/manufact-test/nomusic/actions/runs/45836692248/job/139968663294): **SUCCESS**, runner `celikom-floki-ci01`. Signed transfer SHA-256 `9b187faa2bdce0f1d34c7e8374409cc66efc5f7d3af0cdedc20cac2f47d5cf76`, size 85,143,246 bytes; атомарно помещён в изолированный spool.
+3. Generic verify [45836692412](https://github.com/manufact-test/nomusic/actions/runs/45836692412): **SUCCESS**. Windows integration CI [45836692130](https://github.com/manufact-test/nomusic/actions/runs/45836692130): **SUCCESS**.
+4. Root consumer независимо импортировал signed transfer, проверил P-256 signature, monotonic sequence, содержимое и package SHA, создал immutable owner EXE и owner latest. По контракту root consumer он пишет `owner-verified.json` только после authenticated HTTPS 200, exact size и full SHA-256 для обеих owner-ссылок; анонимный доступ должен возвращать 401.
+5. Публичная SHA-only receipt verification [45837481219](https://github.com/manufact-test/nomusic/actions/runs/45837481219): **SUCCESS**, лог: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
 
-W182 now:
-1. Attaches the pinned Yandex player observer first and hooks the actual prototype owner returned by resourcePrototype().
-2. Keeps the old endpoint scan only as a compatibility fallback.
-3. Accepts Yandex file-info calls using id, trackId, multiple argument objects, and batch ids/trackIds.
+## Границы релиза
 
-Full evidence and exact ASAR hash are in W182-YANDEX-51280-PLAYER-HOOK-REPAIR-20261126.md.
+- **0.24.58 — owner test candidate, ещё НЕ принята владельцем.** Успешная сборка/доставка не доказывает слышимую подмену.
+- `.github/release/windows-customer-stable.json` остаётся `approved:null`.
+- Клиентский подписанный baseline остаётся **0.24.55 / sequence 2**.
+- `publish` job в release workflow пропущен; клиентский канал не менялся.
+- Не делать customer promotion и не заявлять автообновление old→new проверенным до личного acceptance и отдельной команды владельца **«выпускай всем»**.
+- Не менять Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture.
 
-## Verified source CI
+## Следующий шаг владельца
 
-The code-level source commit 4cb066364ff4e5bfbb9f1f4c41618b2da69aff2a passed:
-- Generic CI 45829060558.
-- Windows integration CI 45829060572, including W22/W23/W60 native-resource, renderer and audio regressions.
-- FlokiNET Windows cross-build 45829060571.
-- Signed official Yandex 5.128.0 ASAR audit 45828560514.
+Установить 0.24.58 по версионной ссылке выше. Проверить mapped track **144530503 («Ау»)**, ещё одну mapped-композицию, обычный unmapped трек, Next, Play/Pause и именно слышимую подмену. Если не работает — прислать свежую диагностику именно 0.24.58. Не путать UI label / CI green с подтверждённым audio output.
 
-The later 0.24.58 version/installer metadata commit is 0f05d194555268d51858fd8ca8b598738e37ee53. Its CI is running separately. The signed-release workflow must also complete; if it enters the protected deployment review, owner approval is required for the private owner build only. publish_to_production remains false.
-
-## Required next steps
-
-1. Confirm the 0.24.58 metadata-commit CI is green.
-2. Complete the signed Windows prepare job and exact unpublished owner/feed drafts.
-3. Complete the isolated Floki data-only stage and wait for independent root P-256/hash verification.
-4. Verify the owner website receipt SHA against the exact installer and owner latest URL. Only then give one direct celikom.com EXE link.
-5. Owner installs 0.24.58 and tests mapped track 144530503 («Ау»), another mapped replacement, an unmapped/original track, Next, Play/Pause, and audible playback. A green test or UI replacement label is not acceptance.
-
-Do not promote the customer channel before the owner's explicit «выпускай всем». Do not change Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture, or customer stable approval.
 
 ---
 
