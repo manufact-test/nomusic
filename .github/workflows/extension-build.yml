@@ -86,18 +86,15 @@ jobs:
             chmod +x "$browser_bin"
           fi
           if ! command -v ffmpeg >/dev/null 2>&1; then
-            if [[ "$(id -u)" == "0" ]]; then
-              SUDO=()
-            elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
-              SUDO=(sudo)
-            else
-              echo "FFMPEG_MISSING_AND_RUNNER_CANNOT_INSTALL_SYSTEM_PACKAGES"
-              id
-              exit 1
-            fi
-            command -v apt-get >/dev/null 2>&1 || { echo APT_GET_REQUIRED; exit 1; }
-            "${SUDO[@]}" apt-get update
-            "${SUDO[@]}" apt-get install -y ffmpeg
+            echo "No system FFmpeg found; installing a pinned user-space test binary."
+            npm install --no-save --package-lock=false ffmpeg-static@5.3.0
+            ffmpeg_bin="$(node --input-type=module -e 'import ffmpegPath from "ffmpeg-static"; console.log(ffmpegPath)')"
+            [[ -n "$ffmpeg_bin" && -x "$ffmpeg_bin" ]] || { echo "FFMPEG_STATIC_BINARY_NOT_EXECUTABLE"; exit 1; }
+            tools_dir="$RUNNER_TEMP/celikom-tools"
+            mkdir -p "$tools_dir"
+            ln -sf "$ffmpeg_bin" "$tools_dir/ffmpeg"
+            export PATH="$tools_dir:$PATH"
+            echo "$tools_dir" >> "$GITHUB_PATH"
           fi
           [[ -n "$browser_bin" && -x "$browser_bin" ]] || { echo "CHROMIUM_BINARY_NOT_EXECUTABLE"; exit 1; }
           "$browser_bin" --version
