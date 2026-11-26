@@ -141,7 +141,14 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       job.finish(grant ?? null);
     }
   };
-  const playerSourceRefresh = createCurrentSourceRefresh({onEvent: report});
+  let lastWebpackRequire = null;
+  const playerSourceRefresh = createCurrentSourceRefresh({
+    onEvent: report,
+    onPlayerObserved: () => {
+      if (lastWebpackRequire && !attached && !stopped)
+        findResource(lastWebpackRequire);
+    }
+  });
   let expiredSourceTrack = null, expiredSourceFailedTrack = null;
   let deferredSourceTrack = null, deferredSourceFailedTrack = null;
   let lastExpiredAttemptTrack = null, lastExpiredAttemptAt = 0;
@@ -554,17 +561,20 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       ? "NATIVE_MAPPING_ACCEPTED" : "NATIVE_CONNECTED";
   };
 
-  function findResource() {
+  function findResource(providedRequire = null) {
     if (attached || stopped) return attached;
     const chunks = window.webpackChunk_N_E;
-    if (!Array.isArray(chunks)) return false;
-    let webpackRequire;
-    try {
-      const tag = Symbol("celikom");
-      chunks.push([[tag], {}, r => { webpackRequire = r; }]);
-      chunks.pop();
-    } catch { return false; }
+    if (!providedRequire && !Array.isArray(chunks)) return false;
+    let webpackRequire = providedRequire;
+    if (!webpackRequire) {
+      try {
+        const tag = Symbol("celikom");
+        chunks.push([[tag], {}, r => { webpackRequire = r; }]);
+        chunks.pop();
+      } catch { return false; }
+    }
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
+    lastWebpackRequire = webpackRequire;
 
     // W183: wait until the pinned state getter has observed the actual live
     // player instance. Its concrete class may derive from the exported player
