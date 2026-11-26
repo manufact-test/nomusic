@@ -123,6 +123,10 @@ jobs:
               libdrm2 libpangoft2-1.0-0 libcairo-gobject2
               libharfbuzz0b libfontconfig1 libfreetype6
               libpixman-1-0 libxrender1 libxshmfence1
+              libavahi-common3 libavahi-client3
+              "$(apt_choice libpng16-16t64 libpng16-16)"
+              libxcb-render0 libxcb-shm0
+              libfribidi0 libthai0 libdatrie1 libxi6 libgraphite2-3
             )
             (
               cd "$libs_dir/debs"
