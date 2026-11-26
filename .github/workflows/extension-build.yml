@@ -41,7 +41,14 @@ jobs:
           npm run test:extension
           npm run build:extension
           npm --prefix extension run validate
-          npm run security
+
+      - name: Run real Chromium media and decoder regression
+        env:
+          REQUIRE_BROWSER_AUDIO: '1'
+        run: node scripts/test-audio-gain-browser.mjs
+
+      - name: Security audit
+        run: npm run security
 
       - name: Verify checksum
         run: cd extension/dist && sha256sum --check celikom-extension-*.zip.sha256
