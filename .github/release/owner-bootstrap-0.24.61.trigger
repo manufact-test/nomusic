@@ -1,1 +1,1 @@
-2026-11-26: W188 owner-only recovery candidate. W174 audio baseline plus exact Floki API-origin migration and privacy-safe login diagnostics. Version 0.24.61, signed sequence 8 from current release workflow defaults. Stage only through Floki private spool; customer stable remains unapproved and production publish must remain skipped.
+2026-11-26T20:42Z: W188 recovery branch signed owner candidate. Build exact W174-derived source 0.24.61 sequence 8, stage only to isolated Floki private spool. No customer stable publish, no public feed update, no mass OTA.
