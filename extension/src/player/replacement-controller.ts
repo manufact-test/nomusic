@@ -61,6 +61,7 @@
       if(explicitStart && this.operation)this.abort("explicit-retry");
       if (changed || explicitStart) { this.warmedAsset = null; this.networkRetries = 0; this.freshResolve = true; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.masterClock = null; if (!this.suspended) this.lastError = null; this.negativeResolution = null; }
       this.publishPolicy(changed||explicitStart);
+      if (this.enabled && !this.suspended) this.warmPendingTrack();
       this.reconcile();
     }
     suspendAccess(suspended, reason) {
@@ -84,6 +85,20 @@
         && Math.abs(player.duration * 1000 - track.metadata?.durationMs) <= 1500
         && this.manualBypass?.trackId !== track.id && this.blockedTrackId !== track.id;
     }
+    sameBoundResourceMetadataGap(operation, snapshot) {
+      const track = snapshot?.track, player = snapshot?.player;
+      const refreshPending = track?.evidence === "awaiting-track-refresh";
+      const observed = track?.metadata || {}, bound = operation?.masterMetadata || {};
+      const normalize = this.core.normalizeText;
+      const metadataMatches = ["title", "artist"].every(key =>
+        !observed[key] || !bound[key] || normalize(observed[key]) === normalize(bound[key]));
+      return Boolean(operation && track && !track.id && (track.ambiguous !== true || refreshPending) && !track.playbackMismatch
+        && metadataMatches && player && player.mediaId === operation.mediaId
+        && Number.isSafeInteger(operation.resourceRevision)
+        && player.resourceRevision === operation.resourceRevision
+        && !player.ended && player.readyState >= 1 && Number.isFinite(player.duration)
+        && Math.abs(player.duration * 1000 - operation.masterDurationMs) <= 1500);
+    }
     update(snapshot, eventType = "snapshot") {
       if (!snapshot || this.destroyed) return;
       if (this.snapshot && snapshot.observedAt < this.snapshot.observedAt) return;
@@ -92,8 +107,9 @@
       if(this.operation && (eventType === "SEEK" || snapshot.player?.seeking)) this.operation.userSought=true;
       const id = snapshot.track?.id;
       const player = snapshot.player;
-      if (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
-        || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
+      const metadataGap = this.sameBoundResourceMetadataGap(this.operation, snapshot);
+      if (!metadataGap && (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
+        || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3)) {
         this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
       if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy(); }
@@ -112,18 +128,20 @@
       const snapshot = this.snapshot, track = snapshot?.track, player = snapshot?.player;
       const id = this.core.normalizeTrackId(track?.id);
       if (this.warmedAsset && (this.warmedAsset.trackId !== id
-          || this.warmedAsset.mediaId !== player?.mediaId)) this.warmedAsset = null;
+          || (this.warmedAsset.mediaId && player?.mediaId && this.warmedAsset.mediaId !== player.mediaId))) this.warmedAsset = null;
+      if (this.warmedAsset && !this.warmedAsset.mediaId && player?.mediaId) this.warmedAsset.mediaId = player.mediaId;
       if (!this.enabled || this.suspended || this.destroyed || !this.bridge.isHealthy()
           || this.testTrackId || !this.resolveAsset || !id || track.ambiguous || track.confidence < 100
-          || !player || player.ended || this.manualBypass?.trackId === id || this.blockedTrackId === id
+          || (player && player.ended) || this.manualBypass?.trackId === id || this.blockedTrackId === id
           || this.operation?.trackId === id || this.warmedAsset
           || (this.negativeResolution?.trackId === id && this.negativeResolution.until > Date.now())) return;
       if (this.eligible(snapshot)) return;
-      // A finite duration mismatch outside a native loading/handoff is still
-      // rejected as before. Warm-up is not a weaker playback admission path.
-      if (player.readyState > 0 && Number.isFinite(player.duration)
+      // The selected Yandex track can be known several seconds before its native
+      // audio element exists. Resolve only its authorized descriptor now; this
+      // never creates audio, changes playback, or acquires an original guard.
+      if (player && player.readyState > 0 && Number.isFinite(player.duration)
           && snapshot.guard?.transitioning !== true) return;
-      const warm = {trackId:id, mediaId:player.mediaId, startedAt:Date.now(),
+      const warm = {trackId:id, mediaId:player?.mediaId || null, startedAt:Date.now(),
         fresh:this.networkRetries > 0 || this.freshResolve === true};
       this.warmedAsset = warm;
       // Handle rejection immediately: an obsolete warm-up must never become an
@@ -152,6 +170,20 @@
       }
       const operation = this.operation;
       const matching = operation && operation.trackId === this.snapshot?.track?.id && operation.mediaId === this.snapshot?.player?.mediaId;
+      if (this.sameBoundResourceMetadataGap(operation, this.snapshot)) {
+        // Yandex may briefly clear MediaMetadata while the exact same native
+        // resource keeps playing. Preserve its already-validated replacement;
+        // source revision, media element and duration still fence this grace.
+        if (this.phase === "REPLACEMENT_ACTIVE" && operation.player) {
+          const player = this.snapshot.player;
+          if (player.paused || player.seeking || player.readyState < 3) operation.player.pause();
+          else {
+            try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
+            catch (error) { this.abort(error.message, true); }
+          }
+        }
+        return;
+      }
       // A bound, already guarded master can temporarily have only metadata while
       // seeking/buffering. Keep the lease and pause replacement; admission still
       // requires current data, and emptied/changed/ambiguous masters fail open.
@@ -182,7 +214,7 @@
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { initialMasterTime:snapshot.player.currentTime,startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
+      const operation = { initialMasterTime:snapshot.player.currentTime,startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, resourceRevision:Number.isSafeInteger(snapshot.player.resourceRevision)?snapshot.player.resourceRevision:null, masterDurationMs:Math.round(snapshot.track.metadata?.durationMs || snapshot.player.duration*1000), masterMetadata:{title:String(snapshot.track.metadata?.title||""),artist:String(snapshot.track.metadata?.artist||"")}, sync: new this.SyncEngine(), player: null };
       operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";
@@ -191,7 +223,7 @@
         const warm = this.warmedAsset;
         this.warmedAsset = null;
         const useWarm = !this.testTrackId && warm?.trackId === operation.trackId
-          && warm.mediaId === operation.mediaId && Date.now()-warm.startedAt <= 5000
+          && (!warm.mediaId || warm.mediaId === operation.mediaId) && Date.now()-warm.startedAt <= 5000
           && (!(this.networkRetries > 0 || this.freshResolve === true) || warm.fresh);
         if (useWarm) {
           const result = await warm.result;
@@ -269,6 +301,21 @@
           if(this.snapshot.player.seeking||Math.abs(driftAt(audio.currentTime,target,audio.duration,false))>100)return;
           operation.joinAligned=true;
         }
+        if (!operation.completeJoin && (operation.initialMasterTime > 0.25 || this.snapshot.player.currentTime > 5)
+            && !operation.joinAligned && typeof operation.player.prepareMidSongPosition === "function") {
+          operation.stage="aligning-mid-song";
+          const aligned=await operation.player.prepareMidSongPosition(this.snapshot,async()=>{
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            this.update(await this.bridge.getSnapshot());
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            return this.snapshot;
+          });
+          if(!this.current(operation))return;
+          if(!this.eligible()||!aligned)return;
+          this.update(await this.bridge.getSnapshot());
+          if(!this.current(operation)||!this.eligible())return;
+          operation.joinAligned=true;
+        }
         if (!operation.completeJoin && operation.initialMasterTime<=0.25
             && this.snapshot.player.currentTime>0.25 && this.snapshot.player.currentTime<=5
             && !operation.userSought && !operation.joinAligned
@@ -310,7 +357,7 @@
     abort(reason, blockTrack = false, detail = null) {
       const operation = this.operation;
       if (blockTrack) { this.blockedTrackId = operation?.trackId || this.snapshot?.track?.id; this.lastError = reason; this.publishPolicy(); }
-      const transientNetwork = ["complete-join-timeout", "remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
+      const transientNetwork = ["complete-join-timeout", "mid-song-join-timeout", "remote-stream-route-blocked", "remote-stream-network", "remote-stream-timeout", "replacement-load-timeout", "api_network_error", "api_server_error", "api_unavailable"].includes(reason)
         || (reason === "remote-stream-http" && [429, 500, 502, 503, 504].includes(detail?.httpStatus))
         || (reason === "replacement-media-error" && detail?.mediaErrorCode === 2);
       if (blockTrack && (["bridge-timeout", "bridge-unhealthy", "snapshot-stale", "master-clock-stalled", "master-error", "audio-token-expired", "guard-lost:master-error"].includes(reason)
@@ -356,7 +403,7 @@
     canRecoverConnection() {
       const reason=this.retryBlock?.reason||this.lastError;
       return ["api_network_error","api_server_error","api_unavailable","remote-stream-network","remote-stream-route-blocked",
-        "remote-stream-timeout","replacement-load-timeout","bridge-timeout","bridge-unhealthy","snapshot-stale"].includes(reason)
+        "remote-stream-timeout","replacement-load-timeout","mid-song-join-timeout","bridge-timeout","bridge-unhealthy","snapshot-stale"].includes(reason)
         ||(reason==="remote-stream-http"&&Boolean(this.retryBlock));
     }
     recoverConnection() {

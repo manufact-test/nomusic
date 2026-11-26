@@ -317,6 +317,63 @@ function createGainChain(context, audio, db) {
       return !fresh.player.seeking && Math.abs(driftAt(audio.currentTime,
         targetTime(projectTime(fresh.player,fresh.observedAt,Date.now()),audio.duration,this.demoLoop),audio.duration,this.demoLoop))<=80;
     }
+    async prepareMidSongPosition(snapshot, refreshSnapshot) {
+      // A late join must finish its decoder seek while the native original is
+      // still audible. In particular, MSE may need to append several sequential
+      // ranges before a seek near the end of the song becomes decodable.
+      const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__;
+      const audio=this.audio,deadline=Date.now()+10000;
+      audio.muted=true;
+      const waitForDecoder=async()=>{
+        const remaining=deadline-Date.now();
+        if(remaining<=0)throw new Error("mid-song-join-timeout");
+        await new Promise((resolve,reject)=>{
+          let timer=null;
+          const cleanup=()=>{
+            this.environment.clearTimeout(timer);
+            this.cancelMidSongPosition=null;
+            audio.removeEventListener("seeked",ready);
+            audio.removeEventListener("canplay",ready);
+            audio.removeEventListener("error",failed);
+          };
+          const finish=error=>{cleanup();error?reject(error):resolve();};
+          const ready=()=>{if(!audio.seeking&&audio.readyState>=3)finish();};
+          const failed=()=>finish(new Error("mid-song-join-timeout"));
+          this.cancelMidSongPosition=()=>finish(new Error("Replacement cancelled"));
+          audio.addEventListener("seeked",ready);
+          audio.addEventListener("canplay",ready);
+          audio.addEventListener("error",failed);
+          timer=this.environment.setTimeout(failed,remaining);
+          ready();
+        });
+      };
+      for(let attempt=0;attempt<5;attempt++){
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        snapshot=await refreshSnapshot();
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        if(!snapshot?.player||snapshot.player.ended)throw new Error("mid-song-join-timeout");
+        // A user seek owns the native clock. Wait for its completion rather
+        // than fighting it or muting the original during the seek.
+        if(snapshot.player.seeking)return false;
+        const target=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),audio.duration,this.demoLoop);
+        if(!Number.isFinite(audio.currentTime)||!Number.isFinite(audio.duration)||audio.duration<=0)
+          throw new Error("mid-song-join-timeout");
+        if(Math.abs(driftAt(audio.currentTime,target,audio.duration,this.demoLoop))>80) {
+          try { audio.currentTime=target; }
+          catch(_error) { throw new Error("mid-song-join-timeout"); }
+        }
+        if(audio.seeking||audio.readyState<3)await waitForDecoder();
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        snapshot=await refreshSnapshot();
+        if(this.destroyed)throw new Error("Replacement cancelled");
+        if(!snapshot?.player||snapshot.player.ended)throw new Error("mid-song-join-timeout");
+        if(snapshot.player.seeking)return false;
+        const targetNow=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),audio.duration,this.demoLoop);
+        if(Math.abs(driftAt(audio.currentTime,targetNow,audio.duration,this.demoLoop))<=80)return true;
+        if(Date.now()>=deadline)break;
+      }
+      throw new Error("mid-song-join-timeout");
+    }
     async prepare(asset, options = {}) {
       const startedAt=Date.now();
       this.preparationTiming={nativeDownloadMs:null,sourceReadyMs:null,gainMs:null};
@@ -504,6 +561,7 @@ function createGainChain(context, audio, db) {
       this.fetchAbort?.abort();
       this.authorizationAbort?.abort();
       this.cancelIntroPosition?.();
+      this.cancelMidSongPosition?.();
       this.cancelLoad?.();
       this.cancelCompleteJoin?.();
       this.streamTask = null;

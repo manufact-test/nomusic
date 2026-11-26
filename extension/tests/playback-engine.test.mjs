@@ -75,9 +75,9 @@ test("sync projects only a running ready clock and wraps only explicit synthetic
 });
 
 function snapshot(id = "2", extra = {}) {
-  return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { durationMs: 200000 } }, player: { mediaId: "master", paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
+  return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { title: "Track 2", artist: "Artist 2", durationMs: 200000 } }, player: { mediaId: "master", resourceRevision: 1, paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
 }
-function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = false, resolveAsset } = {}) {
+function fixture({ loadGate, guardGate, joinGate, rejectGuard = false, playerThrows = false, resolveAsset } = {}) {
   const players = []; const requests = []; let current = snapshot(); let healthy = true;
   const bridge = {
     sessionId: "session-123", isHealthy: () => healthy, getSnapshot: async () => current,
@@ -98,6 +98,13 @@ function fixture({ loadGate, guardGate, rejectGuard = false, playerThrows = fals
     const player = {
       audio: new Media(), demoLoop: true, fatal, destroyed: false,
       prepare: async (asset) => { if (!asset.demoLoop) { player.audio.duration = 200; player.demoLoop = false; } if (loadGate) await loadGate.promise; },
+      prepareMidSongPosition: async (_snapshot, refreshSnapshot) => {
+        player.alignmentStarted = true;
+        if (joinGate) await joinGate.promise;
+        const latest = await refreshSnapshot();
+        player.alignedAt = latest.player.currentTime;
+        return true;
+      },
       applyState: (state) => { player.audio.volume = state.volume; player.audio.muted = state.muted; player.audio.playbackRate = state.playbackRate; },
       play: () => { player.audio.paused = false; }, pause: () => { player.audio.paused = true; },
       destroy: () => { player.destroyed = true; player.audio.paused = true; }
@@ -221,6 +228,39 @@ test("metadata-only buffering keeps a lease only while track, media and duration
   f.engine.snapshot = buffering; f.engine.tick();
   assert.equal(f.engine.restoreCount, 0); assert.equal(f.players[0].audio.paused, true);
 });
+test("temporary missing track metadata preserves a replacement only while its native resource is unchanged", async () => {
+  const f = fixture(); f.update(snapshot()); await settle();
+  const operation = f.engine.operation, replacement = f.players[0];
+  const unknown = snapshot(null);
+  unknown.track.ambiguous = true;
+  unknown.track.evidence = "awaiting-track-refresh";
+  f.update(unknown); await settle();
+  assert.equal(f.engine.operation, operation);
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(replacement.destroyed, false);
+  assert.equal(f.engine.restoreCount, 0);
+
+  const changedResource = snapshot(null);
+  changedResource.player.resourceRevision = 2;
+  f.update(changedResource); await settle();
+  assert.equal(replacement.destroyed, true);
+  assert.equal(f.engine.operation, null);
+  assert.equal(f.engine.restoreCount, 1);
+
+  const changedMetadataFixture = fixture(); changedMetadataFixture.update(snapshot()); await settle();
+  const changedMetadata = snapshot(null); changedMetadata.track.ambiguous = true;
+  changedMetadata.track.evidence = "awaiting-track-refresh";
+  changedMetadata.track.metadata.title = "Next song";
+  changedMetadataFixture.update(changedMetadata); await settle();
+  assert.equal(changedMetadataFixture.players[0].destroyed, true,
+    "a different visible title must not be mistaken for a temporary metadata gap");
+
+  const ambiguousFixture = fixture(); ambiguousFixture.update(snapshot()); await settle();
+  const ambiguous = snapshot(null); ambiguous.track.ambiguous = true; ambiguous.track.evidence = "candidate-conflict";
+  ambiguousFixture.update(ambiguous); await settle();
+  assert.equal(ambiguousFixture.players[0].destroyed, true,
+    "unrelated candidate ambiguity must still fail open");
+});
 test("guard denial and player construction errors fail open without automatic retry storms", async () => {
   for (const options of [{ rejectGuard: true }, { playerThrows: true }]) {
     const f = fixture(options); f.update(snapshot()); await settle();
@@ -313,6 +353,80 @@ test("track change during API resolve discards a late asset without muting the n
   assert.equal(f.players.length, 0); assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
 });
 
+test("mid-song activation waits for decoder positioning before acquiring the original guard", async () => {
+  const gate = deferred(), f = fixture({ joinGate: gate });
+  const start = snapshot(); start.player.currentTime = 137;
+  f.update(start); await settle();
+  assert.equal(f.engine.phase, "PREPARING");
+  assert.equal(f.players[0].alignmentStarted, true);
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false,
+    "the original must remain audible until the replacement seek is decoded");
+  gate.resolve(); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), true);
+  assert.equal(f.players[0].alignedAt, 137);
+});
+test("a slow intro load that advances beyond five seconds uses the same pre-guard mid-song alignment", async () => {
+  const loadGate = deferred(), joinGate = deferred(), f = fixture({ loadGate, joinGate });
+  const start = snapshot(); start.player.currentTime = 0.1;
+  f.update(start); await settle();
+  const late = snapshot(); late.player.currentTime = 6;
+  f.update(late);
+  loadGate.resolve(); await settle();
+  assert.equal(f.players[0].alignmentStarted, true);
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+  joinGate.resolve(); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.players[0].alignedAt, 6);
+});
+test("selected track descriptor is warmed before Yandex creates its native audio element", async () => {
+  let calls = 0;
+  const f = fixture({ resolveAsset: async () => { calls++; return remoteAsset(); } });
+  const metadataOnly = snapshot(); metadataOnly.player = null;
+  f.update(metadataOnly);
+  f.engine.configure(true, "");
+  await settle();
+  assert.equal(calls, 1);
+  assert.equal(f.engine.warmedAsset?.trackId, "2");
+  assert.equal(f.engine.warmedAsset?.mediaId, null);
+
+  await new Promise(resolve => setTimeout(resolve, 3));
+  f.update(snapshot()); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(calls, 1, "the prepared descriptor must be reused, not resolved after Play");
+  assert.ok(f.engine.startupHistory.at(-1).warmLeadMs > 0);
+});
+test("ReplacementPlayer aligns a mid-song seek while remaining muted until the caller hands off", async () => {
+  class SeekingMedia extends EventTarget {
+    constructor() {
+      super(); this.dataset = {}; this._time = 0; this.duration = 200; this.readyState = 4;
+      this.seeking = false; this.paused = true; this.muted = true; this.volume = 1; this.playbackRate = 1;
+    }
+    get currentTime() { return this._time; }
+    set currentTime(value) {
+      this._time = value; this.seeking = true; this.readyState = 1;
+      setTimeout(() => {
+        this.seeking = false; this.readyState = 4;
+        this.dispatchEvent(new Event("seeked")); this.dispatchEvent(new Event("canplay"));
+      }, 10);
+    }
+    pause() { this.paused = true; }
+    load() {}
+    removeAttribute() {}
+    remove() {}
+  }
+  const media = new SeekingMedia();
+  const env = { document: { createElement: () => media }, setTimeout, clearTimeout, AbortController, URL };
+  const player = new ReplacementPlayer(env, () => {});
+  const master = { observedAt: Date.now(), player: { currentTime: 137, duration: 200, playbackRate: 1,
+    paused: true, seeking: false, ended: false, readyState: 4 } };
+  const aligned = await player.prepareMidSongPosition(master, async () => master);
+  assert.equal(aligned, true);
+  assert.equal(media.currentTime, 137);
+  assert.equal(media.seeking, false);
+  assert.equal(media.muted, true, "positioning must not make replacement audible before guard handoff");
+  player.destroy();
+});
 async function remoteStreamFixture(statuses = [], onRetry = null) {
   const media = new Media(); media.readyState = 0;
   let source; let revoked = false; let cancelledBodies = 0; const calls = []; const chunks = []; const fatals = [];

@@ -6,7 +6,7 @@ const source=readFileSync(new URL('../dist/unpacked/player/main-world-entry.js',
 function fixture(){
  let time=10000,seq=0,sink,plays=0;const timers=new Map(),listeners=new Map(),posts=[],documentListeners=new Map();let watchdog;
  const media={src:'https://stream.example/one',paused:true,muted:false};
- const snapshot={track:{id:'2',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'m',paused:true,seeking:false,ended:false,readyState:4,currentTime:.1,duration:200}};
+ const snapshot={track:{id:'2',confidence:240,ambiguous:false,metadata:{title:'Track 2',artist:'Artist 2',durationMs:200000}},player:{mediaId:'m',resourceRevision:1,paused:true,seeking:false,ended:false,readyState:4,currentTime:.1,duration:200}};
  const adapter={mounted:false,service:'yandex',mount(s){sink=s;this.mounted=true},unmount(){this.mounted=false},getSnapshot(reason){return structuredClone({...snapshot,reason,triggerMediaId:'m'})},getMediaElement(){return media}};
  class Guard{
   constructor(){this.current=null;}
@@ -51,6 +51,18 @@ test('user pause and changed source cancel a pending native intro instead of rep
   else{f.media.src='https://stream.example/two';f.snapshot.track.id='3';f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'loadstart'});}
   await rejected;f.tick(3000);assert.equal(f.plays,0);
  }
+});
+test('temporary missing MediaSession metadata keeps the same guarded native resource',()=>{
+ const f=fixture();f.request();assert.equal(f.media.muted,true);
+ f.snapshot.track.id=null;f.snapshot.track.ambiguous=true;f.snapshot.track.evidence='awaiting-track-refresh';
+ f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'media-session-metadata'});
+ assert.equal(f.media.muted,true);
+ assert.equal(f.posts.some(m=>m.type==='GUARD_RELEASED'),false,
+   'metadata disappearance alone must not dispose the active replacement lease');
+ f.snapshot.track.id='3';f.snapshot.track.ambiguous=false;f.snapshot.track.evidence='title-exact';
+ f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'media-session-metadata'});
+ assert.equal(f.posts.some(m=>m.type==='GUARD_RELEASED'),true,
+   'a positively identified different track still starts the normal handoff');
 });
 test('negative or bypass policy never admits an intro hold; mid-song play is never delayed',()=>{
  for(const policy of [{bypassTrackId:'2'},{negative:{trackId:'2',until:20000}},{blockedTrackId:'2'}]){
