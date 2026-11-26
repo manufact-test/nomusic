@@ -1,1 +1,1 @@
-2026-11-26T20:42Z: W188 recovery branch signed owner candidate. Build exact W174-derived source 0.24.61 sequence 8, stage only to isolated Floki private spool. No customer stable publish, no public feed update, no mass OTA.
+2026-11-26T20:45Z: W188 signed owner candidate retry after aligning release-contract tests with the active 0.24.61 / sequence 8 Floki private pipeline. Recovery branch only; customer stable remains unapproved.
