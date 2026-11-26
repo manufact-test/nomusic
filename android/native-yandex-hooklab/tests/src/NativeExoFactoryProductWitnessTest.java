@@ -1,7 +1,8 @@
 package pro.celikom.a1exitwitness;
 
 public final class NativeExoFactoryProductWitnessTest {
-    static final class DataSource { }
+    interface DataSourceContract { }
+    static final class DataSource implements DataSourceContract { }
     static final class UniqueFactory {
         private DataSource makeSource() { return new DataSource(); }
     }
@@ -73,6 +74,17 @@ public final class NativeExoFactoryProductWitnessTest {
             NativeExoFactoryProductWitness.resolve(new WrongReturnFactory(), DataSource.class);
         check(wrongReturn.candidateCount == 0 && wrongReturn.method == null,
             "non-source return rejected");
+
+        final class ContractFactory {
+            DataSourceContract makeSource() { return new DataSource(); }
+        }
+        NativeExoFactoryProductWitness.Resolution interfaceReturn =
+            NativeExoFactoryProductWitness.resolve(new ContractFactory(),
+                DataSource.class, DataSourceContract.class);
+        check(interfaceReturn.candidateCount == 1 && interfaceReturn.method != null,
+            "DataSource interface return accepted");
+        check(interfaceReturn.method.getName().equals("makeSource"),
+            "interface-return factory method selected");
 
         NativeExoFactoryProductWitness.Resolution defaultMethod =
             NativeExoFactoryProductWitness.resolve(new DefaultOnlyFactory(), DataSource.class);
