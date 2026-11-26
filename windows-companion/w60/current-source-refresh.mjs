@@ -30,7 +30,7 @@ function playable(state) {
   return !!current && ALLOWED_STATUS.has(current.status);
 }
 
-export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
+export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved = () => {}} = {}) {
   let prototype = null, original = null, patchedGetter = null;
   let current = null, disposed = false, generation = 0;
   let chain = Promise.resolve();
@@ -59,7 +59,12 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
       if (!disposed) {
         // The vendor getter must keep its exact return/throw behavior even if
         // an exotic entity's metadata accessor rejects our observer.
-        try { if (currentEntity(state)) current = new WeakRef(this); } catch {}
+        try {
+          if (currentEntity(state)) {
+            current = new WeakRef(this);
+            try { onPlayerObserved(this); } catch {}
+          }
+        } catch {}
       }
       return state;
     };
