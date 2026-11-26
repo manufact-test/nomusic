@@ -1,3 +1,4 @@
+import { parse } from "acorn";
 import fs from "node:fs";
 import crypto from "node:crypto";
 
@@ -12,6 +13,99 @@ if (dataStart > bytes.length) throw new Error("W183_ASAR_DATA_START_INVALID");
 const header = JSON.parse(bytes.subarray(16, 16 + headerLength).toString("utf8"));
 if (!header?.files || typeof header.files !== "object") throw new Error("W183_ASAR_TREE_INVALID");
 const sha256 = value => crypto.createHash("sha256").update(value).digest("hex");
+
+
+const TARGET_MODULES = new Set(["7123","7695","92632","96820","72882"]);
+function astWalk(node, visit, parent = null) {
+  if (!node || typeof node !== "object" || typeof node.type !== "string") return;
+  visit(node, parent);
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "start" || key === "end" || key === "loc" || key === "range") continue;
+    if (Array.isArray(value)) {
+      for (const item of value) astWalk(item, visit, node);
+    } else if (value && typeof value === "object" && typeof value.type === "string") {
+      astWalk(value, visit, node);
+    }
+  }
+}
+function astName(node) {
+  if (!node) return "";
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "ThisExpression") return "this";
+  if (node.type === "Super") return "super";
+  if (node.type === "MemberExpression") {
+    const left = astName(node.object);
+    const right = node.computed ? (node.property?.value ?? "?") : node.property?.name;
+    return left && right ? left + "." + right : left;
+  }
+  if (node.type === "CallExpression") return astName(node.callee);
+  return node.type;
+}
+function astAnalyzeFactory(fn, id, path, source) {
+  const requireName = fn.params?.[2]?.type === "Identifier" ? fn.params[2].name : "";
+  const deps = new Set(), imports = [], calls = [], classes = [], assignments = [], constructions = [];
+  astWalk(fn.body, node => {
+    if (node.type === "CallExpression" && requireName &&
+        node.callee?.type === "Identifier" && node.callee.name === requireName) {
+      const arg = node.arguments?.[0];
+      if (arg?.type === "Literal" && /^\d+$/.test(String(arg.value)))
+        deps.add(String(arg.value));
+    }
+    if (node.type === "VariableDeclarator" && node.id?.type === "Identifier" &&
+        node.init?.type === "CallExpression" && requireName &&
+        node.init.callee?.type === "Identifier" && node.init.callee.name === requireName) {
+      const arg = node.init.arguments?.[0];
+      if (arg?.type === "Literal" && /^\d+$/.test(String(arg.value)))
+        imports.push({local:node.id.name,moduleId:String(arg.value)});
+    }
+    if (node.type === "CallExpression" && node.callee?.type === "MemberExpression") {
+      const method = node.callee.computed ? node.callee.property?.value : node.callee.property?.name;
+      if (["getFileInfo","getFileInfoBatch","getMediaSource","reloadEntity"].includes(method))
+        calls.push({method,receiver:astName(node.callee.object)});
+    }
+    if (node.type === "NewExpression")
+      constructions.push(astName(node.callee));
+    if (node.type === "ClassDeclaration" || node.type === "ClassExpression") {
+      const methods = (node.body?.body || []).filter(x => x.type === "MethodDefinition")
+        .map(x => ({name:x.key?.name ?? x.key?.value ?? "",kind:x.kind,static:x.static === true}));
+      classes.push({name:node.id?.name || "",base:astName(node.superClass),methods});
+    }
+    if (node.type === "AssignmentExpression" && node.left?.type === "MemberExpression" &&
+        node.left.object?.type === "ThisExpression") {
+      assignments.push({property:node.left.property?.name ?? node.left.property?.value ?? "",
+        valueType:node.right?.type || "", valueName:astName(node.right)});
+    }
+  });
+  const bodyText = source.slice(fn.start, fn.end);
+  const hasResourceMethod = /getFileInfo|getFileInfoBatch|getMediaSource|reloadEntity/.test(bodyText);
+  const related = TARGET_MODULES.has(id) || [...deps].some(x=>TARGET_MODULES.has(x)) ||
+    calls.length > 0 || hasResourceMethod;
+  if (!related) return null;
+  return {
+    path,moduleId:id,requireParameter:requireName,dependencies:[...deps].slice(0,160),
+    imports:imports.slice(0,80),exports:exportKeys(bodyText),
+    classes:classes.slice(0,40),thisAssignments:assignments.slice(0,100),
+    constructions:constructions.slice(0,80),calls:calls.slice(0,160)
+  };
+}
+function astAuditFile(source, path) {
+  if (!/(?:7123|7695|92632|96820|72882)/.test(source)) return [];
+  let ast;
+  try { ast = parse(source,{ecmaVersion:"latest",sourceType:"script",allowReturnOutsideFunction:true,allowHashBang:true}); }
+  catch { return []; }
+  const found = [];
+  astWalk(ast, node => {
+    if (node.type !== "Property" || node.computed || !node.value ||
+        !["FunctionExpression","ArrowFunctionExpression"].includes(node.value.type)) return;
+    const raw = node.key?.type === "Literal" ? node.key.value :
+      node.key?.type === "Identifier" ? node.key.name : "";
+    const id = String(raw);
+    if (!/^\d{1,6}$/.test(id)) return;
+    const item = astAnalyzeFactory(node.value,id,path,source);
+    if (item) found.push(item);
+  });
+  return found;
+}
 
 function moduleFactories(source) {
   const pattern = /(?:^|[,{])\s*["']?([0-9]{1,6})["']?\s*:\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g;
@@ -121,6 +215,7 @@ function summarizeModule(path, id, source) {
 }
 
 const relevant = [];
+const astRelevant = [];
 const pinned = [];
 let scanned = 0;
 function walk(files, prefix = "") {
@@ -134,6 +229,7 @@ function walk(files, prefix = "") {
         !Number.isSafeInteger(offset) || offset < 0 || dataStart+offset+size > bytes.length) continue;
     const source = bytes.subarray(dataStart+offset, dataStart+offset+size).toString("utf8");
     scanned++;
+    astRelevant.push(...astAuditFile(source,path));
     const factories = moduleFactories(source);
     for (let i=0;i<factories.length;i++) {
       const current=factories[i], next=factories[i+1];
@@ -161,13 +257,15 @@ const report = {
   archiveSha256: sha256(bytes),
   scannedJsFiles: scanned,
   pinnedModule7123: pinned,
-  playerMethodModules: relevant.slice(0,100)
+  playerMethodModules: relevant.slice(0,100),
+  astModuleGraph: astRelevant.slice(0,250)
 };
 fs.writeFileSync(reportPath,JSON.stringify(report,null,2),{flag:"w"});
 const output = {
   archiveBytes: report.archiveBytes, archiveSha256: report.archiveSha256,
   scannedJsFiles: scanned, pinnedModule7123: pinned,
-  playerMethodModules: relevant.slice(0,60)
+  playerMethodModules: relevant.slice(0,60),
+  astModuleGraph: astRelevant.slice(0,250)
 };
 console.log("W183_YANDEX_51280_PLAYER_CALLGRAPH_AUDIT",JSON.stringify(output));
 if (!relevant.some(x=>x.hasGetFileInfo) || !relevant.some(x=>x.hasGetMediaSource))
