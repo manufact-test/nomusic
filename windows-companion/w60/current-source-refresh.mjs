@@ -9,12 +9,8 @@
  */
 const ALLOWED_STATUS = new Set(["playing", "paused"]);
 const CURRENT_STATUS = new Set(["playing", "paused", "stopped"]);
-// Official signed Yandex 5.128.0: the live SonataProvider is module 7695.
- // 7123.VE is retained only for previously reviewed legacy builds.
-const PLAYER_MODULES = [
-  {id: 7695, name: "SonataProvider"},
-  {id: 7123, name: "VE"}
-];
+const MODULE_ID = 7123;
+const MODULE_EXPORT = "VE";
 const KNOWN_RELOAD_REASON = "QUALITY_CHANGE";
 const EXACT_ID = /^[1-9][0-9]{0,23}$/;
 
@@ -46,55 +42,38 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
     if (disposed) return false;
     if (prototype) return true;
     if (typeof webpackRequire !== "function" ||
-        typeof webpackRequire.m !== "object") return false;
-    for (const candidate of PLAYER_MODULES) {
-      if (typeof webpackRequire.m[candidate.id] !== "function") continue;
-      let klass;
-      try { klass = webpackRequire(candidate.id)?.[candidate.name]; }
-      catch { continue; }
-      if (typeof klass !== "function" || !klass.prototype ||
-          typeof klass.prototype.reloadEntity !== "function") continue;
-      // The state getter may be inherited. Patch its real owner while the
-      // current instance is observed with the original this-binding intact.
-      let stateOwner = klass.prototype, descriptor = null;
-      while (stateOwner && stateOwner !== Object.prototype) {
-        descriptor = Object.getOwnPropertyDescriptor(stateOwner, "state");
-        if (descriptor) break;
-        stateOwner = Object.getPrototypeOf(stateOwner);
-      }
-      if (!stateOwner || !descriptor?.configurable ||
-          typeof descriptor.get !== "function" || descriptor.set !== undefined)
-        continue;
+        typeof webpackRequire.m !== "object" ||
+        typeof webpackRequire.m[MODULE_ID] !== "function") return false;
+    let klass;
+    try { klass = webpackRequire(MODULE_ID)?.[MODULE_EXPORT]; }
+    catch { return false; }
+    if (typeof klass !== "function" || !klass.prototype ||
+        typeof klass.prototype.reloadEntity !== "function") return false;
+    const proto = klass.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, "state");
+    if (!descriptor?.configurable || typeof descriptor.get !== "function" ||
+        descriptor.set !== undefined) return false;
 
-      const observedGet = function() {
-        const state = descriptor.get.call(this);
-        if (!disposed) {
-          // The vendor getter must keep its exact return/throw behavior even if
-          // an exotic entity's metadata accessor rejects our observer.
-          try {
-            if (currentEntity(state)) {
-              current = new WeakRef(this);
-              try { onPlayerObserved(this); } catch {}
-            }
-          } catch {}
-        }
-        return state;
-      };
-      try {
-        Object.defineProperty(stateOwner, "state", { ...descriptor, get: observedGet });
-      } catch { continue; }
-      prototype = stateOwner;
-      original = descriptor;
-      patchedGetter = observedGet;
-      if (candidate.id === 7695) {
-        note("NATIVE_TOGGLE_PLAYER_OBSERVER_SONATA_READY");
-        note("NATIVE_TOGGLE_PLAYER_OBSERVER_READY");
-      } else {
-        note("NATIVE_TOGGLE_PLAYER_OBSERVER_LEGACY_READY");
+    const observedGet = function() {
+      const state = descriptor.get.call(this);
+      if (!disposed) {
+        try {
+          if (currentEntity(state)) {
+            current = new WeakRef(this);
+            try { onPlayerObserved(this); } catch {}
+          }
+        } catch {}
       }
-      return true;
-    }
-    return false;
+      return state;
+    };
+    try {
+      Object.defineProperty(proto, "state", { ...descriptor, get: observedGet });
+    } catch { return false; }
+    prototype = proto;
+    original = descriptor;
+    patchedGetter = observedGet;
+    note("NATIVE_TOGGLE_PLAYER_OBSERVER_READY");
+    return true;
   }
   function resourcePrototype() {
     if (disposed || !prototype) return null;
