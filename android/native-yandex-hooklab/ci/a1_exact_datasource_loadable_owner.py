@@ -110,7 +110,7 @@ def hierarchy_owners(owner, classes, seen=None):
     row = classes.get(owner)
     if row is None:
         return result
-    _dex, superclass, interfaces = row
+    _dex, superclass, interfaces, _access_flags = row
     if superclass is not None:
         result.update(hierarchy_owners(superclass, classes, seen))
     for interface in interfaces:
@@ -196,14 +196,17 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
         return {
             "class_defined": False,
             "nested_under_exact_Lo96": owner.startswith(PERIOD[:-1] + "$"),
+            "class_superclass": None,
+            "class_interfaces": [],
             "implements_media3_loader_loadable": False,
+            "loader_inner_contracts": [],
             "owner_period_field_count": 0,
             "owner_source_field_count": 0,
             "owner_constructor_count": 0,
             "constructors_with_exact_Lo96_parameter": [],
             "loadable_load_method_defined": False,
         }
-    dex, _superclass, _interfaces, _access_flags = row
+    dex, superclass, interfaces, _access_flags = row
     try:
         fields = audit.declared_fields_for_owner(dex, owner)
     except Exception as exc:
@@ -230,7 +233,10 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
     return {
         "class_defined": True,
         "nested_under_exact_Lo96": owner.startswith(PERIOD[:-1] + "$"),
-        "implements_media3_loader_loadable": implements(owner, LOADABLE, class_rows),
+        "class_superclass": superclass,
+        "class_interfaces": interfaces,
+        "implements_media3_loader_loadable": False,
+        "loader_inner_contracts": [],
         "owner_period_field_count": period_fields,
         "owner_source_field_count": source_fields,
         "owner_wrapper_field_count": wrapper_fields,
@@ -358,17 +364,24 @@ def scan_signed(apks):
     rows = []
     for method, row in sorted(open_callers.items()):
         owner_shape = inspect_owner_shape(method[0], class_rows, methods_by_owner)
+        loader_contracts = loader_contract_for_method(
+            method[0], method, class_rows, methods_by_owner
+        )
+        owner_shape["loader_inner_contracts"] = loader_contracts
+        owner_shape["implements_media3_loader_loadable"] = bool(loader_contracts)
         rows.append({
             **row,
             **owner_shape,
             "exact_open_and_read_same_method": row["same_method_exact_read_calls"] > 0,
             "exact_open_and_close_same_method": row["same_method_exact_close_calls"] > 0,
-            "method_is_loadable_load": is_loadable_load_method(
-                method, owner_shape["implements_media3_loader_loadable"]
-            ),
+            "method_is_loadable_load": bool(loader_contracts),
         })
 
     loadable_rows = [row for row in rows if row["method_is_loadable_load"]]
+    candidate_owners = {row["method"][0] for row in rows}
+    constructor_evidence = scan_candidate_constructor_callers(
+        dexes, candidate_owners, media_period_owners
+    )
     return {
         "verdict": (
             "ONE_EXACT_LOADABLE_OPENS_HOOKED_EXO_DATASOURCE"
@@ -410,6 +423,23 @@ def scan_signed(apks):
             row["method_is_loadable_load"] and any(
                 row["method"][0].startswith(period[:-1] + "$")
                 for period in media_period_owners
+            )
+            for row in rows
+        ),
+        **constructor_evidence,
+        "loadable_owner_constructed_inside_exact_Lo96_method": any(
+            row["method_is_loadable_load"] and any(
+                item["constructed_owner"] == row["method"][0]
+                and item["caller_is_exact_Lo96_method"]
+                for item in constructor_evidence["candidate_constructor_callsites"]
+            )
+            for row in rows
+        ),
+        "loadable_owner_constructed_inside_any_signed_media_period": any(
+            row["method_is_loadable_load"] and any(
+                item["constructed_owner"] == row["method"][0]
+                and item["caller_is_signed_MediaPeriod_implementer"]
+                for item in constructor_evidence["candidate_constructor_callsites"]
             )
             for row in rows
         ),
