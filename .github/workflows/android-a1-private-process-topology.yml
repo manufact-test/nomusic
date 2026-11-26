@@ -44,13 +44,19 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          sdkmanager --install 'build-tools;35.0.0' >/dev/null
-          aapt2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
-          test -x "$aapt2"
+          mkdir -p "$RUNNER_TEMP/a1-topology-aapt2"
+          aapt2="$RUNNER_TEMP/a1-topology-aapt2/aapt2"
+          curl -fLsS --retry 2 --max-time 90 \
+            -o "$aapt2" https://github.com/Commit451/android-arm-build-tools/releases/download/platform-tools-35.0.1/aapt2
+          echo "c57d02d2986d7d68147d74525ad8a5fbb105f12723b33f1ce9eab12acd238cf0  $aapt2" | sha256sum --check --status
+          chmod 700 "$aapt2"
+          "$aapt2" version >/dev/null
+          echo A1_PINNED_AAPT2_READY
           d="$(mktemp -d "$RUNNER_TEMP/a1-processtop.XXXXXXXX")"
           trap 'rm -rf -- "$d"' EXIT
           gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' | grep -qx 442137464
           gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$d" --clobber >/dev/null
+          echo A1_PRIVATE_RELEASE_DOWNLOADED
           x="$d/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$x")" = 45961661
           test "$(sha256sum "$x" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
