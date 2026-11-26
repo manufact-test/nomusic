@@ -7,7 +7,7 @@ import {stripTypeScriptTypes} from 'node:module';
 let binary,extraBrowserArgs=[];
 if(process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1'){
  const {default:chromium,inflate,setupLambdaEnvironment}=await import('@sparticuz/chromium');
- chromium.graphics=false;
+ chromium.setGraphicsMode=false;
  binary=await chromium.executablePath();
  const moduleUrl=import.meta.resolve('@sparticuz/chromium');
  const al2023Archive=fileURLToPath(new URL('../bin/al2023.tar.br',moduleUrl));

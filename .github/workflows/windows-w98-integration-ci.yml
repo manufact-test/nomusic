@@ -24,6 +24,7 @@ on:
       - '.github/ci/celikom-extension-build-trigger.txt'
       - '.github/workflows/extension-build.yml'
       - '.github/workflows/windows-w98-integration-ci.yml'
+      - 'scripts/test-audio-gain-browser.mjs'
       - '.github/deploy/floki-maintenance-request.sh'
       - '.github/workflows/celikom-win-portable-floki-preflight.yml'
       # Signed data-only Floki release handoff has its own pinned-contract CI.
