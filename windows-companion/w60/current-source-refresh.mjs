@@ -92,6 +92,32 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
     return null;
   }
 
+  function mediaSourceOwner() {
+    if (disposed || !prototype) return null;
+    const player = current?.deref();
+    if (!player) return null;
+    let descriptor;
+    try { descriptor = Object.getOwnPropertyDescriptor(player, "mediaProvider"); }
+    catch { return null; }
+    // The pinned Yandex 5.128 player assigns mediaProvider as an own data
+    // property. Never invoke a vendor getter while discovering the live path.
+    if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value"))
+      return null;
+    const provider = descriptor.value;
+    if (!provider || (typeof provider !== "object" && typeof provider !== "function"))
+      return null;
+    let owner = provider;
+    while (owner && owner !== Object.prototype) {
+      let method;
+      try { method = Object.getOwnPropertyDescriptor(owner, "getMediaSource"); }
+      catch { return null; }
+      if (method && typeof method.value === "function" &&
+          method.get === undefined && method.set === undefined) return owner;
+      try { owner = Object.getPrototypeOf(owner); } catch { return null; }
+    }
+    return null;
+  }
+
   function request(expectedTrackId = null) {
     if (disposed) return Promise.resolve(false);
     if (expectedTrackId !== null &&
@@ -186,7 +212,7 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
   function currentTrackId() { return currentTrack()?.id || ""; }
 
   return Object.freeze({attach, request, dispose, currentTrack, currentTrackId,
-    resourcePrototype,
+    resourcePrototype, mediaSourceOwner,
     get playerObserved() { return !!current?.deref(); },
     get attached() { return !!prototype && !disposed; }});
 }
