@@ -5,6 +5,8 @@ on:
     paths:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeCertifiedResolveBridgeTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredExoArmTest.java'
@@ -59,6 +61,8 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeCertifiedResolveBridgeTest.java \
@@ -66,6 +70,7 @@ jobs:
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredFactoryIdentityTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeTrackIdBetaTrialTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java
+          java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeIssuerCodecPreferenceTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeExoAlternateByteRouteTest
           java -cp "$RUNNER_TEMP/a1-native-renderer-observer" pro.celikom.a1exitwitness.NativeCertifiedResolveBridgeTest
@@ -77,6 +82,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           src=Path('android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java').read_text()
+          assert 'NativeIssuerCodecPreference' in src
+          assert 'ISSUER_CODEC_MP3_REQUESTED' in src
           assert 'installExact2025NativeRendererReadWitness(caller,loader);' in src
           assert 'Class.forName("LL2",false,loader)' in src
           assert 'Class.forName("mQ8",false,loader)' in src

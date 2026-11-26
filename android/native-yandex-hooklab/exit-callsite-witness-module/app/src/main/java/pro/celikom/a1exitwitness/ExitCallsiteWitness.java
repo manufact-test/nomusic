@@ -79,9 +79,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // BETA22: exact original period-to-renderer SampleStream reference witness; acoustic playback unproven.
+    // BETA23: owner-only exact FileInfoApi MP3 negotiation before original Exo prepare.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA22_EXACT_PERIOD_RENDERER_STREAM_IDENTITY_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA23_OWNER_EXACT_FILEINFO_MP3_DECODER_ALIGNMENT_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3734,10 +3734,13 @@ public final class ExitCallsiteWitness extends XposedModule {
         final java.lang.ref.WeakReference<Object> handler;
         final Method exactApiMethod;
         final int trackArgumentIndex;
-        IssuerTrackProxyLink(Object object,Method method,int index) {
+        final boolean originalFileInfoApi;
+        IssuerTrackProxyLink(Object object,Method method,int index,
+                boolean originalFileInfoApi) {
             handler=new java.lang.ref.WeakReference<>(object);
             exactApiMethod=method;
             trackArgumentIndex=index;
+            this.originalFileInfoApi=originalFileInfoApi;
         }
     }
     private final java.util.ArrayList<IssuerTrackProxyLink> issuerTrackProxyLinks=
@@ -3865,7 +3868,9 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
         if (issuerTrackProxyLinks.size() >= 48) return;
         IssuerTrackProxyLink link = new IssuerTrackProxyLink(
-            handler, publisherMethod, selectedIndex);
+            handler, publisherMethod, selectedIndex,
+            "com.yandex.music.shared.player.content.remote.fileinfo.FileInfoApi"
+                .equals(issuerApi.getName()));
         issuerTrackProxyLinks.add(link);
         if (!issuerTrackIdProxyMethods.add(concrete)) return;
         try {
@@ -3890,6 +3895,20 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
+                                        // BETA23: select an original MP3 response
+                                        // BEFORE the vendor builds the extractor.
+                                        // Only the owner-enabled, exact signed
+                                        // FileInfoApi and approved Ramil trial.
+                                        NativeOwnerControlPlane owner=nativeOwnerControl;
+                                        if (NativeIssuerCodecPreference
+                                                .preferMp3ForOwnedFileInfo(
+                                                    known.exactApiMethod,values,
+                                                    known.trackArgumentIndex,
+                                                    owner!=null&&owner.enabled(),
+                                                    known.originalFileInfoApi))
+                                            NativeTrackIdBetaPolicy.mark(
+                                                NativeTrackIdBetaPolicy.Step
+                                                    .ISSUER_CODEC_MP3_REQUESTED);
                                     } else {
                                         NativeTrackIdBetaPolicy.mark(
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_MISSING);
