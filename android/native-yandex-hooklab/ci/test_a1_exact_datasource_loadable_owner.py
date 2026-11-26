@@ -69,7 +69,7 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
         scope = hierarchy_owners(DATA_SOURCE, classes)
         self.assertEqual(
             scope,
-            {DATA_SOURCE, "Lbase;", "Ldatasource-contract;"}
+            {DATA_SOURCE, "Lbase;", "Ldatasource-contract;", "Ljava/lang/Object;"}
         )
 
         class FakeDex:
