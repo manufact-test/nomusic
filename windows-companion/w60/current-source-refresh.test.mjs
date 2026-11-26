@@ -45,20 +45,25 @@ test("W60 signed vendor class observer reloads current source without changing s
   assert.strictEqual(Object.getOwnPropertyDescriptor(h.NativeYandexPlayback.prototype,"state").get,h.getter);
 });
 
-test("W183 resolves getFileInfo from the observed derived live-player instance",()=>{
-  const h=harness(),r=createCurrentSourceRefresh();
+test("W183 pins Yandex 5.128 SonataProvider and resolves the observed derived player",()=>{
+  const h=harness(),events=[];
+  const webpackRequire=id=>id===7695
+    ? {SonataProvider:h.NativeYandexPlayback} : h.webpackRequire(id);
+  webpackRequire.m={...h.webpackRequire.m,7695:function sonataProviderFactory(){}};
+  const r=createCurrentSourceRefresh({onEvent:c=>events.push(c)});
   class LiveYandexPlayer extends h.NativeYandexPlayback {
     async getFileInfo(params) { return {fileInfo:{trackId:params.id}}; }
   }
-  assert.equal(r.attach(h.webpackRequire),true);
+  assert.equal(r.attach(webpackRequire),true);
   assert.equal(r.playerObserved,false);
   assert.equal(r.resourcePrototype(),null,
     "do not guess the resource owner before a live instance exists");
   const player=new LiveYandexPlayer();
-  void player.state; // inherited getter observes the actual derived instance
+  void player.state; // the pinned SonataProvider state getter observes this instance
   assert.equal(r.playerObserved,true);
   assert.strictEqual(r.resourcePrototype(),LiveYandexPlayer.prototype,
-    "hook target must be the prototype that actually owns getFileInfo");
+    "hook target must be the actual derived method owner");
+  assert.ok(events.includes("NATIVE_TOGGLE_PLAYER_OBSERVER_READY"));
   r.dispose();
   assert.equal(r.resourcePrototype(),null);
 });
