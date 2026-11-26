@@ -86,7 +86,7 @@ try{
  check(Math.abs(direct.audio.duration-3)<.1&&m4aRequests===2,'M4A temporary 503 retried in place and native duration preserved');
  direct.applyState({volume:1,muted:false,playbackRate:1});direct.play();
  for(let i=0;i<60&&(direct.audio.paused||direct.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
- check(!direct.audio.paused&&direct.audio.currentTime>0,'M4A native plays '+JSON.stringify({paused:direct.audio.paused,currentTime:direct.audio.currentTime,readyState:direct.audio.readyState,networkState:direct.audio.networkState,error:direct.audio.error?.message,fatal}));
+ check(!direct.audio.paused&&direct.audio.currentTime>0,'M4A native plays '+JSON.stringify({paused:direct.audio.paused,currentTime:direct.audio.currentTime,readyState:direct.audio.readyState,networkState:direct.audio.networkState,duration:direct.audio.duration,gainState:direct.gainContext?.state,gainClock:direct.gainContext?.currentTime,error:direct.audio.error?.message,fatal}));
  direct.audio.currentTime=1;
  await new Promise(r=>direct.audio.addEventListener('seeked',r,{once:true}));check(Math.abs(direct.audio.currentTime-1)<.3,'M4A native seeks');direct.pause();check(direct.audio.paused,'M4A pauses');direct.destroy();check(direct.audio.muted&&!direct.audio.getAttribute('src'),'M4A destroy releases local source');
 
@@ -354,7 +354,7 @@ try{
  const headlessArgs=usePipe?[]:['--headless=new'];
  const debugArgs=usePipe?['--remote-debugging-pipe']:['--remote-debugging-port=0'];
  const stdio=usePipe?['pipe','pipe','pipe','pipe','pipe']:['ignore','ignore','pipe'];
- const browserArgs=[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-vulkan','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600',...debugArgs,'--user-data-dir='+join(directory,'profile')];
+ const browserArgs=[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-vulkan','--disable-dev-shm-usage','--mute-audio','--autoplay-policy=no-user-gesture-required','--window-size=420,600',...debugArgs,'--user-data-dir='+join(directory,'profile')];
  if(!usePipe)browserArgs.push(pathToFileURL(file).href);
  browserArgs.push(...extraBrowserArgs);
  const browser=spawn(binary,browserArgs,{stdio,detached:process.platform!=='win32'});
