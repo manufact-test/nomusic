@@ -1,3 +1,20 @@
+# W180 update — 0.24.57 owner candidate delivered (26.11.2026)
+
+**The old W177 handoff below is historical.** The fresh 0.24.56 diagnostic was subsequently analyzed in `docs/windows/W178-02456-PLAYBACK-POSTCUTOVER-INVESTIGATION-20261126.md`. The next test package is now available:
+
+- **0.24.57 / P-256 sequence 4**, signed source commit `28587670e9efda35c73eb3a49d9702d2d72b3b8c`.
+- Direct owner EXE: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.57.exe`.
+- SHA-256: `bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47`.
+- Floki data-only stage [45817294570](https://github.com/manufact-test/nomusic/actions/runs/45817294570), attempt 2 SUCCESS.
+- Root owner HTTPS SHA receipt [45817998403](https://github.com/manufact-test/nomusic/actions/runs/45817998403) SUCCESS; exact EXE SHA confirmed after root verified both the versioned and owner-latest URLs with authenticated full HTTPS GETs.
+- This is **not** owner acceptance. Customer stable remains `approved:null`, baseline 0.24.55/seq2. Do not promote 0.24.57 to customers until the owner personally tests playback and says **«выпускай всем»**.
+
+Owner next action: install 0.24.57, listen to mapped «Ау» track 144530503 and another replacement, test ordinary/unmapped playback and Next/Play/Pause. If replacement is still absent, send fresh diagnostics from 0.24.57. Do not reuse W54 from 0.24.55 or the 0.24.56 diagnostics as if they were the new run.
+
+See [W180 delivery record](./W180-02457-OWNER-DELIVERY-20261126.md) and current [NEXT-CHAT](./NEXT-CHAT.md).
+
+---
+
 # CELIKOM Windows W177 — передача диагностики неисправной 0.24.56 (26.11.2026)
 
 ## Статус на момент передачи

@@ -1,11 +1,10 @@
 # CELIKOM — единый запуск инфраструктуры релизов FlokiNET (25.11.2026)
 
-> **ДОПОЛНЕНИЕ 26.11.2026 — актуальнее исходного статуса подготовки ниже.** Позднее в инфраструктурном чате root Windows owner-current был успешно переведён на подписанную **0.24.56**, её закрытая owner-ссылка выдана владельцу. Публичный Windows customer signed stable отдельно подтверждён для **0.24.55/sequence=2** (полный HTTPS 200+SHA256 `f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487`). Начальные формулировки ниже «VPS ещё не активирован» относятся к более ранней точке подготовки и не должны использоваться как текущий вердикт. Точные live-доказательства находятся в поздних разделах этого документа; новый полный owner HTTP-пруф в Windows-чате отдельно не выполнялся.
+> **ДОПОЛНЕНИЕ 26.11.2026 — W180.** Подписанная Windows owner candidate **0.24.57 / P-256 sequence 4** доставлена на закрытый `celikom.com`. EXE SHA-256 `bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47`; Floki data-only stage [45817294570](https://github.com/manufact-test/nomusic/actions/runs/45817294570) attempt 2 SUCCESS; root HTTPS SHA-only receipt [45817998403](https://github.com/manufact-test/nomusic/actions/runs/45817998403) SUCCESS. Root receipt подтверждает полный authenticated HTTPS 200 + size/SHA для versioned owner EXE и owner latest. Прямая ссылка владельцу: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.57.exe`. Подробности: [W180](../windows/W180-02457-OWNER-DELIVERY-20261126.md).
 
-> **Критически важно:** владелец сообщил, что последняя полученная **Windows 0.24.56 по-прежнему не работает по музыке**. Новая диагностика 0.24.56 будет приложена им в следующем чате; **это не принятый релиз**. Не менять `.github/release/windows-customer-stable.json` (там `approved:null`), не включать customer 0.24.56 и не считать клиентское автообновление проверенным. Новая точка передачи: [W177 Windows playback failure handoff](../windows/W177-OWNER-02456-PLAYBACK-FAILURE-HANDOFF-20261126.md).
+> **Граница приёмки:** 0.24.57 пока только owner test candidate; владелец ещё не проверил воспроизведение. `.github/release/windows-customer-stable.json` остаётся `approved:null`, customer baseline — подписанная 0.24.55/sequence 2, автообновление old→new не подтверждено. 0.24.56 по музыке не работает. Не продвигать 0.24.57 клиентам до личной приёмки и команды «выпускай всем».
 
-
-> **СТАТУС:** код и CI-публикация подготовлены, проверка на живом VPS и первая приёмка устройств **не выполнялись** в этом чате. Этот документ не является актом ввода в эксплуатацию. Старые Hostinger-клиенты продолжают работать до подтверждённого перехода.
+> **Исторический статус ниже:** строки «VPS ещё не активирован» и прежние блокеры относятся к более ранним попыткам подготовки, не к текущей доставке Windows owner 0.24.57.
 
 ## Правило владельца (обязательно)
 
@@ -20,7 +19,7 @@
 
 | Линия | Подготовленный механизм | Публикация/автообновление |
 | --- | --- | --- |
-| Windows owner | 0.24.56, подписанный P-256 feed, immutable root importer, защищённый latest и URL каждой версии | Автопубликация тестовых релизов после однократной установки; **VPS ещё не активирован** |
+| Windows owner | **0.24.57 / P-256 seq4**, immutable root importer, закрытый owner latest и versioned EXE | **Доставлена и подтверждена** полным authenticated HTTPS 200+SHA для versioned EXE и owner latest через root receipt; владелец ещё не принял воспроизведение |
 | Windows customer | Отдельная подпись+SHA проверка из доверенного immutable owner-store, `.github/release/windows-customer-stable.json`, динамический публичный `/downloads/windows/CELIKOM-Windows-stable.exe` и `/CELIKOM/Windows/Updates/stable/latest.json[.sig]` | `approved:null`, но при первоначальной установке отдельно публикуется **уже принятая подписанная 0.24.55 (seq2)** как база для возврата и автообновления; версия 0.24.56 остаётся тестовой, old→new ещё не испытан |
 | Legacy Android owner | Проверенный приватный оригинально подписанный 0.3.94/code95, hash `d43d2dd12dfa6a4cd79094abccabad67080c6f02542cd25edff55b3d36018469`; CI data-only stage `45683010606` успешен | Кандидат ожидает root signer/API/HTTPS проверки. Запланирован `/downloads/android/CELIKOM-Android-latest.apk`, закрытый Basic |
 | Legacy Android customer | Отдельный `.github/release/android-customer-stable.json`; публичный `/updates/android/stable.json` и immutable `/releases/android/<code>-<sha>.apk` | `approved:null`, **пустой до приёмки**. Старым клиентам нужен Hostinger bridge |
@@ -105,7 +104,8 @@
 ## Acceptance checklist
 
 - [ ] Один защищённый запуск root script, все таймеры active и site Nginx -t, ни одна ранее рабочая служба не ухудшилась.
-- [ ] Windows 56 owner complete GET SHA match, Windows customer default `approved:null`, HTTPS signed baseline 0.24.55 GET+SHA и отсутствие публичной тестовой 0.24.56.
+- [x] Windows owner 0.24.57/seq4 versioned EXE + owner latest: root-verified full HTTPS 200 + exact SHA; owner test pending.
+- [ ] Windows customer default `approved:null`, HTTPS signed baseline 0.24.55 GET+SHA и отсутствие публичной тестовой 0.24.57.
 - [ ] Android 95 owner root certificate/manifest/download proof, Android customer default `approved:null`, BETA16 сохранён.
 - [ ] Оба runner видят только нужные private data-only каталоги; самостоятельные последующие сборки проходят по обоим исполнителям.
 - [ ] Owner отклоняет неудачную версию без публикации для клиентов, принимает следующую exact версию.

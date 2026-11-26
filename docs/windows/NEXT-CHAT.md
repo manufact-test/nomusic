@@ -1,4 +1,48 @@
-# АКТУАЛЬНО — W179: GitHub-hosted CI восстановлен, 0.24.57 ожидает owner approval (26.11.2026)
+# CELIKOM Windows W180 — 0.24.57 доставлена на owner-сайт, ожидает проверки владельцем (26.11.2026)
+
+## Итог
+
+**Новая тестовая версия 0.24.57 уже опубликована на закрытом owner-download сайта CELIKOM и прошла независимую проверку полного SHA-256.** Владелец может скачать её напрямую; GitHub draft/Actions URL не использовать.
+
+- Репозиторий: `manufact-test/nomusic`, только `main`.
+- Source commit signed candidate: `28587670e9efda35c73eb3a49d9702d2d72b3b8c`.
+- Версия: **0.24.57**, P-256 signed release **sequence 4**.
+- EXE: **85,151,610 bytes**.
+- EXE SHA-256: `bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47`.
+- Закрытая owner-ссылка: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.57.exe`.
+- Owner latest: `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe`.
+
+## Доказательства выпуска
+
+1. Подписанный release run [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672), attempt 4: Windows `prepare` SUCCESS. P-256 trust, contracts, Windows/native builds, exact manifest signing, package hashes и два unpublished owner/feed drafts прошли. `publish` был skipped; customer channel не менялся.
+2. Отдельный Floki data-only stage [45817294570](https://github.com/manufact-test/nomusic/actions/runs/45817294570), attempt 2: SUCCESS. Точный signed bundle SHA-256 `6861384d71154f9562e19f8d12a4eb4527de303523b225589201419ea6eb91dc`, size 85,154,281 bytes, атомарно помещён в изолированный runner spool. Без SSH, root и signing secrets в runner.
+3. Root consumer независимо проверяет P-256 подпись, monotonic sequence, содержимое архива и полный package SHA, затем создаёт root-owned owner copy и latest hardlink. Только после owner website probe он пишет `owner-verified.json`.
+4. Public SHA-only receipt verification [45817998403](https://github.com/manufact-test/nomusic/actions/runs/45817998403): SUCCESS; endpoint `https://celikom.com/.well-known/celikom-release-receipt.json` подтвердил `channels.windows_owner_sha256` точно равным `bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47`. По контракту root consumer это подтверждение появляется только после полного authenticated HTTPS 200 + exact size + SHA проверки **обоих** URL: versioned EXE и owner latest. Анонимный запрос к закрытым owner URLs отдельно обязан возвращать 401.
+
+## Исправления delivery workflow
+
+- Первое owner approval разрешило только GitHub-hosted Windows `prepare`; старый reusable Floki stage повторно ждал то же protected environment. Чтобы не требовать второй ручной approval, изолированный data-only stage больше не использует production environment gate; он не имеет SSH/root/signing key и ничего не публикует.
+- Concurrency stage теперь привязана к exact release version, чтобы старый approval-waiting job не блокировал новый stage.
+- Репозиторий временно public по решению владельца. Draft-source validator допускает public/private visibility только для точного активного `manufact-test/nomusic` на `main`; обе release-записи должны оставаться drafts и совпадать с exact source commit/assets.
+- GitHub draft-asset GET на этом runner требует job `contents:write`; токен передаётся только exact downloader, выполняющему repository-scoped GET, и удаляется из environment до записи data-only spool. Никаких release mutation API, production publish или server credentials.
+- Один CDN DNS сбой при скачивании был устранён повторным запуском того же job; attempt 2 успешно передал точный candidate.
+
+## Границы каналов
+
+- **0.24.57 — owner test candidate, ещё НЕ принята владельцем.** Не утверждать, что музыка исправлена, пока владелец лично не установит и не услышит подмену.
+- `.github/release/windows-customer-stable.json` остаётся `approved:null`.
+- Клиентский подписанный baseline остаётся **0.24.55 / sequence 2**.
+- Автообновление установленного клиента old→new и откат ещё не приняты реальным тестом.
+- Не нажимать customer promotion, не публиковать 0.24.57 всем до явной команды владельца **«выпускай всем»**.
+- Не менять Android, browser extension, paid features, VPN/gain/audio architecture; не отключать Hostinger и не закрывать репозиторий без отдельной команды владельца.
+
+## Следующий шаг владельца
+
+Установить 0.24.57 поверх текущей CELIKOM. Проверить известный mapped трек **144530503 («Ау»)**, затем ещё одну замену, обычный unmapped трек, Next, Play/Pause. Оценивать именно слышимую музыку, а не наличие замены в интерфейсе. Если подмены нет — прислать свежую диагностику **0.24.57**; не путать её с W54 из 0.24.55 или диагностикой 0.24.56. Продолжить разбор по W178 investigation и сохранить все функции принятой 0.24.54.
+
+---
+
+# ИСТОРИЧЕСКАЯ ЗАПИСЬ — W179: GitHub-hosted CI восстановлен, 0.24.57 ожидает owner approval (26.11.2026)
 
 **Текущий main HEAD:** c336f9442cc6b1cb38423fe44ea128874633f089. Репозиторий manufact-test/nomusic подтверждён как public. До изменений сделана свежая backup-точка backup/windows-main-pre-floki-api-audit-20261126 на 41f823dd02d914d3b98f13360f34569974d9b2ad; более ранняя W178 backup остаётся на fb5e27d2c1e942a276d456174c7b35f56f118bce.
 
