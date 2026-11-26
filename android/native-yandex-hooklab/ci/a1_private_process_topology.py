@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 EVENT = re.compile(r'^(\s*)E: ([\w.:-]+)')
@@ -57,8 +58,28 @@ def summarize(found):
         media_named_main_process=sum(not separate(x) for x in media),
         application_explicit_process=bool(default))
 
-def inspect(xapk,aapt2):
-    if not xapk.is_file() or not aapt2.is_file():
+ANDROID='{http://schemas.android.com/apk/res/android}'
+def summarize_xml(root):
+    app=root.find('application')
+    default=app.get(ANDROID+'process') if app is not None else None
+    services=list(app.findall('service')) if app is not None else []
+    def separate(entry):
+        p=entry.get(ANDROID+'process',default)
+        return bool(p and (p.startswith(':') or
+                     (default and p!=default) or
+                     p.rsplit(':',1)[-1] in ('player','playback','audio','media','music')))
+    media=[x for x in services if MEDIA.search(x.get(ANDROID+'name',''))]
+    return dict(
+        services=len(services),
+        service_explicit_process=sum(x.get(ANDROID+'process') is not None for x in services),
+        service_separate_process=sum(separate(x) for x in services),
+        media_named_services=len(media),
+        media_named_separate_process=sum(separate(x) for x in media),
+        media_named_main_process=sum(not separate(x) for x in media),
+        application_explicit_process=bool(default))
+
+def inspect(xapk,editor):
+    if not xapk.is_file() or not editor.is_file():
         raise ValueError('VERIFIED_INPUT_REQUIRED')
     entries=[]
     with zipfile.ZipFile(xapk) as bundle:
@@ -68,13 +89,16 @@ def inspect(xapk,aapt2):
             for i,part in enumerate(parts):
                 if part.file_size>250_000_000:raise ValueError('APK_PART_TOO_LARGE')
                 tmp=Path(td)/('part-'+str(i)+'.apk')
+                outdir=Path(td)/('decoded-'+str(i))
                 with bundle.open(part) as inp,tmp.open('wb') as out:
                     shutil.copyfileobj(inp,out)
-                run=subprocess.run([str(aapt2),'dump','xmltree',str(tmp),
-                    'AndroidManifest.xml'],capture_output=True,timeout=45)
-                if run.returncode!=0 or len(run.stdout)>8000000:
-                    raise ValueError('MANIFEST_READ_FAILED')
-                entries.append(summarize(parse_manifest(run.stdout.decode('utf-8','replace'))))
+                run=subprocess.run(['java','-Xmx1g','-jar',str(editor),
+                    'd','-t','xml','-dex','-i',str(tmp),'-o',str(outdir)],
+                    capture_output=True,timeout=140)
+                if run.returncode!=0:raise ValueError('SIGNED_MANIFEST_DECODE_FAILED')
+                manifest=outdir/'AndroidManifest.xml'
+                if not manifest.is_file():raise ValueError('MANIFEST_FILE_MISSING')
+                entries.append(summarize_xml(ET.parse(manifest).getroot()))
     names=tuple(entries[0].keys())
     out={k:(any(x[k] for x in entries) if k=='application_explicit_process'
          else sum(x[k] for x in entries)) for k in names}
@@ -84,7 +108,7 @@ def inspect(xapk,aapt2):
 if __name__=='__main__':
     p=argparse.ArgumentParser()
     p.add_argument('--xapk',required=True,type=Path)
-    p.add_argument('--aapt2',required=True,type=Path)
+    p.add_argument('--editor',required=True,type=Path)
     args=p.parse_args()
-    print('A1_PRIVATE_PROCESS_TOPOLOGY '+json.dumps(inspect(args.xapk,args.aapt2),
+    print('A1_PRIVATE_PROCESS_TOPOLOGY '+json.dumps(inspect(args.xapk,args.editor),
          sort_keys=True),flush=True)

@@ -1,5 +1,6 @@
 import unittest
-from a1_private_process_topology import parse_manifest,summarize
+from a1_private_process_topology import parse_manifest,summarize,summarize_xml
+import xml.etree.ElementTree as ET
 
 class ProcessTopologyTest(unittest.TestCase):
     def test_nested_intent_filter_must_not_overwrite_service_name(self):
@@ -22,6 +23,14 @@ class ProcessTopologyTest(unittest.TestCase):
         self.assertEqual(result['media_named_services'],1)
         self.assertEqual(result['media_named_separate_process'],1)
         self.assertEqual(result['service_separate_process'],2)
+
+    def test_signed_xml_process_categories(self):
+        xml='''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+          <application><service android:name="com.test.AudioService"
+            android:process=":player"/></application></manifest>'''
+        result=summarize_xml(ET.fromstring(xml))
+        self.assertEqual(result['services'],1)
+        self.assertEqual(result['media_named_separate_process'],1)
 
     def test_main_service_is_not_secondary(self):
         tree='''E: manifest
