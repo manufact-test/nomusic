@@ -75,7 +75,19 @@ try{
  document.body.dataset.gainStep='M4A direct playback';
  const m4aBytes=Uint8Array.from(atob('${m4a.toString('base64')}'),c=>c.charCodeAt(0));
  let m4aRequests=0;
- const m4aEnvironment={document,URL,AbortController,AudioContext,setTimeout:window.setTimeout.bind(window),clearTimeout:window.clearTimeout.bind(window),fetch:async(url,options)=>{
+ // Floki has no physical audio output. Keep the actual Chromium decoder and gain graph
+ // running against Chrome's documented silent sink; never change production behavior.
+ class HeadlessSilentAudioContext extends AudioContext {
+  async resume(){
+   if(!this._silentSinkReady){
+    if(typeof this.setSinkId!=='function')throw Error('Chrome silent audio sink unsupported');
+    this._silentSinkReady=this.setSinkId({type:'none'});
+   }
+   await this._silentSinkReady;
+   return super.resume();
+  }
+ }
+ const m4aEnvironment={document,URL,AbortController,AudioContext:HeadlessSilentAudioContext,setTimeout:window.setTimeout.bind(window),clearTimeout:window.clearTimeout.bind(window),fetch:async(url,options)=>{
   m4aRequests++;if(m4aRequests===1)return new Response('{}',{status:503,headers:{'content-type':'application/json'}});const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);check(Boolean(range),'M4A signed Range');
   const from=Number(range[1]),last=Math.min(Number(range[2]),m4aBytes.length-1);
   return new Response(m4aBytes.slice(from,last+1),{status:206,headers:{'Content-Type':'audio/mp4','Content-Range':'bytes '+from+'-'+last+'/'+m4aBytes.length}});
