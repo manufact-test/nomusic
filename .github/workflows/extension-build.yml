@@ -46,33 +46,68 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          if ! command -v google-chrome-stable >/dev/null 2>&1; then
+          browser_bin=""
+          for candidate in google-chrome-stable google-chrome chromium chromium-browser; do
+            if command -v "$candidate" >/dev/null 2>&1; then
+              browser_bin="$(command -v "$candidate")"
+              break
+            fi
+          done
+          if [[ -z "$browser_bin" ]]; then
+            for candidate in /usr/bin/google-chrome-stable /usr/bin/google-chrome /usr/bin/chromium /usr/bin/chromium-browser /opt/google/chrome/chrome; do
+              if [[ -x "$candidate" ]]; then browser_bin="$candidate"; break; fi
+            done
+          fi
+          if [[ -z "$browser_bin" ]]; then
+            echo "No system Chromium found; downloading official Chrome for Testing without system installation."
+            tmp="$RUNNER_TEMP/celikom-chrome"
+            mkdir -p "$tmp/chrome"
+            node --input-type=module <<'NODE'
+          import {createWriteStream} from "node:fs";
+          import {Readable} from "node:stream";
+          import {pipeline} from "node:stream/promises";
+          const meta=await fetch("https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json").then(r=>{if(!r.ok)throw Error("Chrome version lookup failed: "+r.status);return r.json();});
+          const url=meta.channels?.Stable?.downloads?.chrome?.find(x=>x.platform==="linux64")?.url;
+          if(!url)throw Error("Stable Chrome for Testing linux64 URL missing");
+          const response=await fetch(url);
+          if(!response.ok||!response.body)throw Error("Chrome download failed: "+response.status);
+          await pipeline(Readable.fromWeb(response.body),createWriteStream(process.env.RUNNER_TEMP+"/celikom-chrome/chrome.zip"));
+          console.log("Downloaded Chrome for Testing "+meta.channels.Stable.version);
+          NODE
+            if command -v python3 >/dev/null 2>&1; then
+              python3 -m zipfile -e "$tmp/chrome.zip" "$tmp/chrome"
+            elif command -v unzip >/dev/null 2>&1; then
+              unzip -q "$tmp/chrome.zip" -d "$tmp/chrome"
+            else
+              echo "ZIP_EXTRACTOR_REQUIRED"
+              exit 1
+            fi
+            browser_bin="$tmp/chrome/chrome-linux64/chrome"
+            chmod +x "$browser_bin"
+          fi
+          if ! command -v ffmpeg >/dev/null 2>&1; then
             if [[ "$(id -u)" == "0" ]]; then
               SUDO=()
             elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
               SUDO=(sudo)
             else
-              echo "CHROMIUM_MISSING_AND_RUNNER_CANNOT_INSTALL_SYSTEM_PACKAGES"
+              echo "FFMPEG_MISSING_AND_RUNNER_CANNOT_INSTALL_SYSTEM_PACKAGES"
               id
               exit 1
             fi
             command -v apt-get >/dev/null 2>&1 || { echo APT_GET_REQUIRED; exit 1; }
             "${SUDO[@]}" apt-get update
-            "${SUDO[@]}" apt-get install -y ffmpeg ca-certificates curl
-            tmp="$(mktemp -d)"
-            trap 'rm -rf -- "$tmp"' EXIT
-            curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o "$tmp/google-chrome-stable.deb"
-            "${SUDO[@]}" apt-get install -y "$tmp/google-chrome-stable.deb"
+            "${SUDO[@]}" apt-get install -y ffmpeg
           fi
-          command -v google-chrome-stable
+          [[ -n "$browser_bin" && -x "$browser_bin" ]] || { echo "CHROMIUM_BINARY_NOT_EXECUTABLE"; exit 1; }
+          "$browser_bin" --version
           command -v ffmpeg
-          google-chrome-stable --version
           ffmpeg -version | head -n 1
+          echo "CELIKOM_BROWSER_BINARY=$browser_bin" >> "$GITHUB_ENV"
 
       - name: Run real Chromium media and decoder regression
         env:
           REQUIRE_BROWSER_AUDIO: '1'
-          CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome-stable
         run: node scripts/test-audio-gain-browser.mjs
 
       - name: Security audit

@@ -1,1 +1,1 @@
-extension-0.4.89-combined-playback-chromium-installed-regression-20261126
+extension-0.4.90-audio-continuity-user-space-chromium-20261126
