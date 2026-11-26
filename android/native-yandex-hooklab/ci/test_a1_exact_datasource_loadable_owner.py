@@ -4,6 +4,7 @@ import unittest
 
 from a1_exact_datasource_loadable_owner import (
     CLOSE, DATA_SOURCE, DATA_SPEC, LOADABLE, OPEN, PERIOD, READ,
+    collect_dispatch_targets, hierarchy_owners,
     is_exact_datasource_target, is_loadable_load_method, implements,
 )
 
@@ -44,6 +45,40 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
         self.assertFalse(is_loadable_load_method(
             ("Lx;", "load", "(J)V"), True
         ))
+
+    def test_datasource_dispatch_is_restricted_to_its_exact_type_hierarchy(self):
+        classes = {
+            DATA_SOURCE: (None, "Lbase;", ["Ldatasource-contract;"]),
+            "Lbase;": (None, "Ljava/lang/Object;", []),
+            "Ldatasource-contract;": (None, "Ljava/lang/Object;", []),
+            "Lunrelated;": (None, "Ljava/lang/Object;", []),
+        }
+        scope = hierarchy_owners(DATA_SOURCE, classes)
+        self.assertEqual(
+            scope,
+            {DATA_SOURCE, "Lbase;", "Ldatasource-contract;"}
+        )
+
+        class FakeDex:
+            method_count = 3
+            methods = [
+                ("Ldatasource-contract;", "open", "(LUC2;)J"),
+                ("Lunrelated;", "open", "(LUC2;)J"),
+                (DATA_SOURCE, "if", "(LUC2;)J"),
+            ]
+            def method(self, index):
+                return self.methods[index]
+
+        targets = collect_dispatch_targets(
+            [FakeDex()], scope, "(LUC2;)J"
+        )
+        self.assertEqual(
+            targets,
+            {
+                ("Ldatasource-contract;", "open", "(LUC2;)J"),
+                (DATA_SOURCE, "if", "(LUC2;)J"),
+            }
+        )
 
     def test_period_hierarchy_walk_is_bounded_and_exact(self):
         classes = {
