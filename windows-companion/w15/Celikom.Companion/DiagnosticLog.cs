@@ -68,6 +68,7 @@ public static class DiagnosticLog
          code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
          (code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE") ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+            code.StartsWith("LOGIN_", StringComparison.Ordinal) ||
          code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.Contains("DISCONNECT", StringComparison.Ordinal) ||
          code.Contains("NETWORK", StringComparison.Ordinal) ||
@@ -257,6 +258,7 @@ public static class DiagnosticLog
             code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
             (code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+            code.StartsWith("LOGIN_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||
             code.Contains("FAILED", StringComparison.Ordinal) ||
             code.Contains("FORBIDDEN", StringComparison.Ordinal) ||

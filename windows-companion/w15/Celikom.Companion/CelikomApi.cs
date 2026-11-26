@@ -25,11 +25,54 @@ public sealed class CelikomApi : IDisposable
     private readonly object _sessionCommitLock = new();
     private SecretRecord _current;
     private const int MaxJsonBytes = 48 * 1024;
+    public const string ProductionOrigin = "https://api.celikom.com";
+    private const string LegacyProductionOrigin = "https://darkred-camel-588676.hostingersite.com";
+
+    // Only the exact former first-party origin may carry its existing session
+    // to the new first-party endpoint. Never migrate an arbitrary custom URL.
+    public static SecretRecord MigrateProductionOrigin(SecretRecord session) =>
+        string.Equals(session.Origin, LegacyProductionOrigin, StringComparison.Ordinal)
+            ? session with { Origin = ProductionOrigin }
+            : session;
+
+    // This returns only an allowlisted class. Never write the supplied origin
+    // or a URL to diagnostics.
+    public static string GetLoginTargetClass(string origin)
+    {
+        try
+        {
+            var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
+            if (string.Equals(normalized, ProductionOrigin, StringComparison.Ordinal)) return "FLOKI";
+            if (string.Equals(normalized, LegacyProductionOrigin, StringComparison.Ordinal)) return "LEGACY";
+            return "CUSTOM";
+        }
+        catch { return "INVALID"; }
+    }
+
+    private static void RecordLoginApiFailure(ApiFailure failure)
+    {
+        if (failure.HttpStatus is >= 100 and <= 599)
+            DiagnosticLog.Record($"LOGIN_HTTP_{failure.HttpStatus}");
+        DiagnosticLog.Record(failure.Category switch
+        {
+            "INVALID_CREDENTIALS" => "LOGIN_ERROR_INVALID_CREDENTIALS",
+            "INVALID_SESSION" => "LOGIN_ERROR_INVALID_SESSION",
+            "ACCESS_DENIED" => "LOGIN_ERROR_ACCESS_DENIED",
+            "RATE_LIMITED" => "LOGIN_ERROR_RATE_LIMITED",
+            "EMAIL_VERIFICATION_REQUIRED" => "LOGIN_ERROR_EMAIL_UNVERIFIED",
+            "INVALID_API_JSON" => "LOGIN_INVALID_JSON",
+            "RESPONSE_TOO_LARGE" => "LOGIN_RESPONSE_TOO_LARGE",
+            "REDIRECT_FORBIDDEN" => "LOGIN_REDIRECT_BLOCKED",
+            _ => "LOGIN_API_FAILURE"
+        });
+    }
 
     public CelikomApi(SessionStore store, HttpMessageHandler? handler = null)
     {
         _store = store;
-        _current = store.LoadOrCreate();
+        var saved = store.LoadOrCreate();
+        _current = MigrateProductionOrigin(saved);
+        if (_current != saved) store.Save(_current);
         _http = handler is null
             ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
             : new HttpClient(handler);
@@ -95,15 +138,55 @@ public sealed class CelikomApi : IDisposable
 
     public async Task LoginAsync(string origin, string email, string password, CancellationToken ct = default)
     {
+        var targetClass = GetLoginTargetClass(origin);
+        DiagnosticLog.Record("LOGIN_TARGET_" + targetClass);
         var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
         if (string.IsNullOrWhiteSpace(email) || password.Length == 0 || password.Length > 512)
+        {
+            DiagnosticLog.Record("LOGIN_ERROR_INVALID_CREDENTIALS");
             throw new ApiFailure(400, "INVALID_CREDENTIALS");
+        }
         var previous = Settings;
-        var response = await RequestAsync(
-            new Uri(normalized + "/api/v1/auth/login"), HttpMethod.Post,
-            new { email = email.Trim(), password, installation_id = previous.InstallationId }, null, ct);
+        JsonElement response;
+        try
+        {
+            response = await RequestAsync(
+                new Uri(normalized + "/api/v1/auth/login"), HttpMethod.Post,
+                new { email = email.Trim(), password, installation_id = previous.InstallationId }, null, ct);
+        }
+        catch (ApiFailure ex)
+        {
+            RecordLoginApiFailure(ex);
+            throw;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            DiagnosticLog.Record("LOGIN_TIMEOUT");
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            DiagnosticLog.Record("LOGIN_CANCELLED");
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            DiagnosticLog.Record("LOGIN_TRANSPORT_FAILURE");
+            throw;
+        }
+        catch
+        {
+            // Deliberately omit exception messages and request/response data.
+            DiagnosticLog.Record("LOGIN_UNEXPECTED_FAILURE");
+            throw;
+        }
+
         var tokens = ReadTokens(response);
-        if (tokens is null) throw new ApiFailure(403, "EMAIL_VERIFICATION_REQUIRED");
+        if (tokens is null)
+        {
+            DiagnosticLog.Record("LOGIN_ERROR_EMAIL_UNVERIFIED");
+            throw new ApiFailure(403, "EMAIL_VERIFICATION_REQUIRED");
+        }
         var next = previous with
         {
             Origin = normalized,
@@ -116,10 +199,14 @@ public sealed class CelikomApi : IDisposable
         lock (_sessionCommitLock)
         {
             if (!ReferenceEquals(Settings, previous))
+            {
+                DiagnosticLog.Record("LOGIN_ERROR_INVALID_SESSION");
                 throw new ApiFailure(401, "INVALID_SESSION");
+            }
             _store.Save(next);
             Volatile.Write(ref _current, next);
         }
+        DiagnosticLog.Record("LOGIN_RESPONSE_ACCEPTED");
     }
 
     public async Task LogoutAsync(CancellationToken ct = default)
@@ -425,7 +512,7 @@ public sealed class CelikomApi : IDisposable
     {
         await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
             Settings.Origin.Length > 0 ? Settings.Origin :
-                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/request-reset"),
+                ProductionOrigin) + "api/v1/auth/request-reset"),
             HttpMethod.Post, new { email = email.Trim() }, null, ct);
     }
 
@@ -434,7 +521,7 @@ public sealed class CelikomApi : IDisposable
     {
         await RequestAsync(new Uri(GrantValidator.NormalizeOrigin(
             Settings.Origin.Length > 0 ? Settings.Origin :
-                "https://darkred-camel-588676.hostingersite.com") + "api/v1/auth/reset-password"),
+                ProductionOrigin) + "api/v1/auth/reset-password"),
             HttpMethod.Post,
             new { email = email.Trim(), code = code.Trim(), new_password = newPassword }, null, ct);
     }
@@ -442,7 +529,7 @@ public sealed class CelikomApi : IDisposable
     public Task<JsonElement> GetConfigAsync(CancellationToken ct = default)
     {
         var origin = Settings.Origin.Length != 0 ? Settings.Origin :
-            "https://darkred-camel-588676.hostingersite.com";
+            ProductionOrigin;
         return RequestAsync(new Uri(origin + "/api/v1/config"),
             HttpMethod.Get, null, null, ct);
     }
