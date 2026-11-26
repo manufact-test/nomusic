@@ -26,8 +26,24 @@ const hits = [];
 let scanned = 0;
 function moduleIdsNear(text, index) {
   const before = text.slice(Math.max(0, index - 24000), index);
-  const matches = [...before.matchAll(/(?:^|[,{])\s*([0-9]{1,6})\s*:\s*function\b/g)];
-  return [...new Set(matches.slice(-3).map(match => match[1]))];
+  const matches = [...before.matchAll(/(?:^|[,{])\s*["']?([0-9]{1,6})["']?\s*:\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g)];
+  return [...new Set(matches.slice(-6).map(match => match[1]))];
+}
+function methodShape(source, name) {
+  const pattern = new RegExp("(?:async\\\\s+)?"+name+"\\\\s*\\\\(([^)]*)\\\\)\\\\s*\\\\{");
+  const match = pattern.exec(source);
+  if (!match) return null;
+  const parameters = match[1].split(",").map(x => x.trim()).filter(Boolean);
+  const body = source.slice(pattern.lastIndex, pattern.lastIndex + 2400);
+  return {
+    parameterCount: parameters.length,
+    parameterNames: parameters.filter(x => /^[A-Za-z_$][\\\\w$]*$/.test(x)),
+    readsTrackId: /\\\\.trackId\\\\b/.test(body),
+    readsTrackIds: /\\\\.trackIds\\\\b/.test(body),
+    readsId: /\\\\.id\\\\b/.test(body),
+    readsIds: /\\\\.ids\\\\b/.test(body),
+    readsTrack_id: /\\\\.track_id\\\\b/.test(body)
+  };
 }
 function walk(files, prefix = "") {
   for (const [name, node] of Object.entries(files)) {
@@ -56,6 +72,10 @@ function walk(files, prefix = "") {
       if (key.startsWith("endpoint_") && first >= 0) {
         counts.moduleIdsNearEndpoint = moduleIdsNear(source, first);
       }
+    }
+    if (counts.endpoint_get_file_info || counts.endpoint_file_info_path) {
+      counts.getFileInfoShape = methodShape(source, "getFileInfo");
+      counts.getFileInfoBatchShape = methodShape(source, "getFileInfoBatch");
     }
     if (Object.keys(counts).length) hits.push({ path, size, counts });
   }
