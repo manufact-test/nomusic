@@ -321,7 +321,7 @@ jobs:
           test -s "$apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$apk"
-      - name: Deliver accepted owner-phone APK as private draft release
+      - name: Deliver accepted owner-phone APK as unpublished owner-only draft release
         if: success() && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[export-beta-audio]')) || (github.event_name == 'workflow_dispatch' && inputs.export_diagnostic_apk))
         shell: bash
         env:
@@ -331,7 +331,7 @@ jobs:
           umask 077
           test "$GITHUB_REPOSITORY" = manufact-test/nomusic
           test "$GITHUB_REF_NAME" = experiment/android-a1-metrica-init-state-observer-arm13-20261112
-          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PRIVATE
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PUBLIC
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ && "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
           apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA17-HONOR50-20261126.apk"
@@ -372,7 +372,7 @@ jobs:
           gh release create "$tag" "$apk" README-RU.txt BUILD-PROVENANCE.json SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --target main --draft \
             --title "CELIKOM A1 — private owner diagnostic $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT" \
-            --notes "Private owner-only delivery envelope on main, not a source release. Actual Android build source: $GITHUB_SHA ($GITHUB_REF_NAME). See BUILD-PROVENANCE.json and SHA256SUMS.txt. Native launch passed; acoustic replacement not proven. Do not publish."
+            --notes "Unpublished owner-only delivery envelope on main, not a source release. Actual Android build source: $GITHUB_SHA ($GITHUB_REF_NAME). See BUILD-PROVENANCE.json and SHA256SUMS.txt. Native launch passed; acoustic replacement not proven. Do not publish."
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,tagName,targetCommitish,assets,url > "$RUNNER_TEMP/celikom-a1-delivery-receipt.json"
           python3 - "$RUNNER_TEMP/celikom-a1-delivery-receipt.json" "$tag" "$bundle" <<'PY'
           import json, os, pathlib, sys

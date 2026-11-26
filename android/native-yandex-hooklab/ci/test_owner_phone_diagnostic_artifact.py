@@ -95,10 +95,10 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         self.assertIn("RAMIL-AU-BETA17", OUTPUT_NAME)
         self.assertIn("HONOR50", OUTPUT_NAME)
 
-    def test_delivery_keeps_native_success_gate_and_private_draft(self):
+    def test_delivery_keeps_native_success_gate_and_owner_draft(self):
         workflow = Path(__file__).resolve().parents[3] / ".github/workflows/android-a1-metrica-init-state-observer-arm13.yml"
         raw = workflow.read_text()
-        start = raw.index("      - name: Deliver accepted owner-phone APK as private draft release")
+        start = raw.index("      - name: Deliver accepted owner-phone APK as unpublished owner-only draft release")
         end = raw.index("      - name: Remove all original/clone private files", start)
         block = raw[start:end]
         self.assertIn("if: success() &&", block)
@@ -109,7 +109,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         self.assertIn('receipt["targetCommitish"] == "main"', block)
         self.assertIn('distribution_only": True', block)
         self.assertIn('BUILD-PROVENANCE.json', block)
-        self.assertIn('= PRIVATE', block)
+        self.assertIn('= PUBLIC', block)
         self.assertIn('receipt["isDraft"] is True', block)
         self.assertNotIn("actions/upload-artifact", block)
         self.assertNotIn("gh release edit", block)
