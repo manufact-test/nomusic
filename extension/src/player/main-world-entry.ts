@@ -159,6 +159,7 @@
       guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;
       guard.current.resourceRevision=player.resourceRevision;
       guard.current.durationMs=Math.round(player.duration*1000);
+      guard.current.trackMetadata={title:String(track.metadata?.title||""),artist:String(track.metadata?.artist||"")};
       handoff={token,admission:true,startedAt:now(),timer:root.setTimeout(()=>release("admission-timeout",token),1000)};
       trace(snapshot,"admission-guarded");
     }catch(_error){release("admission-unavailable",token);}
@@ -199,8 +200,12 @@
       // exact same native resource. Its resource revision and duration are the
       // binding; do not tear down a working replacement for metadata alone.
       const refreshPending = snapshot.track.evidence === "awaiting-track-refresh";
+      const observed = snapshot.track.metadata || {}, bound = lease.trackMetadata || {};
+      const normalize = root.__CELIKOM_PLAYER_CORE_V1__?.normalizeText || (value => String(value ?? "").normalize("NFKC").toLocaleLowerCase().trim());
+      const metadataMatches = ["title", "artist"].every(key =>
+        !observed[key] || !bound[key] || normalize(observed[key]) === normalize(bound[key]));
       const sameResource = (snapshot.track.ambiguous !== true || refreshPending) && !snapshot.track.playbackMismatch
-        && player?.mediaId === lease.mediaId && !player?.ended && player.readyState >= 1
+        && metadataMatches && player?.mediaId === lease.mediaId && !player?.ended && player.readyState >= 1
         && Number.isSafeInteger(lease.resourceRevision)
         && player.resourceRevision === lease.resourceRevision
         && Number.isFinite(player.duration)
@@ -357,6 +362,7 @@
       guard.current.source = element.currentSrc || element.src || "";
       guard.current.resourceRevision = player.resourceRevision;
       guard.current.durationMs = Math.round(player.duration*1000);
+      guard.current.trackMetadata = {title:String(snapshot.track.metadata?.title||""),artist:String(snapshot.track.metadata?.artist||"")};
       // Only an existing transition mute can be reserved while a verified
       // replacement loads. This cannot mute an unrelated initial playback.
       if (payload.preparing) {

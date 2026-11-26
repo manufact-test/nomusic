@@ -88,8 +88,12 @@
     sameBoundResourceMetadataGap(operation, snapshot) {
       const track = snapshot?.track, player = snapshot?.player;
       const refreshPending = track?.evidence === "awaiting-track-refresh";
+      const observed = track?.metadata || {}, bound = operation?.masterMetadata || {};
+      const normalize = this.core.normalizeText;
+      const metadataMatches = ["title", "artist"].every(key =>
+        !observed[key] || !bound[key] || normalize(observed[key]) === normalize(bound[key]));
       return Boolean(operation && track && !track.id && (track.ambiguous !== true || refreshPending) && !track.playbackMismatch
-        && player && player.mediaId === operation.mediaId
+        && metadataMatches && player && player.mediaId === operation.mediaId
         && Number.isSafeInteger(operation.resourceRevision)
         && player.resourceRevision === operation.resourceRevision
         && !player.ended && player.readyState >= 1 && Number.isFinite(player.duration)
@@ -210,7 +214,7 @@
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { initialMasterTime:snapshot.player.currentTime,startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, resourceRevision:Number.isSafeInteger(snapshot.player.resourceRevision)?snapshot.player.resourceRevision:null, masterDurationMs:Math.round(snapshot.track.metadata?.durationMs || snapshot.player.duration*1000), sync: new this.SyncEngine(), player: null };
+      const operation = { initialMasterTime:snapshot.player.currentTime,startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, resourceRevision:Number.isSafeInteger(snapshot.player.resourceRevision)?snapshot.player.resourceRevision:null, masterDurationMs:Math.round(snapshot.track.metadata?.durationMs || snapshot.player.duration*1000), masterMetadata:{title:String(snapshot.track.metadata?.title||""),artist:String(snapshot.track.metadata?.artist||"")}, sync: new this.SyncEngine(), player: null };
       operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";

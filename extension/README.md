@@ -62,6 +62,6 @@ docs/handoff/EXTENSION-0481-VPN-RECOVERY-2026-11-25.md.
 
 ## Кандидат 0.4.90 — непрерывный старт и подключение посреди песни
 
-Разбираются две проблемы 0.4.89: позднее разрешение выбранного трека до появления native audio element и переключение на подмену до завершения mid-song seek. Дополнительно временный `awaiting-track-refresh` больше не должен сбрасывать замену, если прежний native resource подтверждён теми же media ID, resource revision и длительностью. Подробности и границы проверки: `docs/handoff/CELIKOM-EXTENSION-090-AUDIO-CONTINUITY-20261126.md`.
+Разбираются две проблемы 0.4.89: позднее разрешение выбранного трека до появления native audio element и переключение на подмену до завершения mid-song seek. Дополнительно временный `awaiting-track-refresh` больше не должен сбрасывать замену, если прежний native resource подтверждён теми же media ID, resource revision и длительностью, а видимые title/artist не изменились. Подробности и границы проверки: `docs/handoff/CELIKOM-EXTENSION-090-AUDIO-CONTINUITY-20261126.md`.
 
 0.4.90 — кандидат владельца, не принятая версия. Не публиковать клиентам и не менять owner promotion manifest до прохождения Floki/Chromium проверок и прослушивания владельцем.

@@ -6,7 +6,7 @@ const source=readFileSync(new URL('../dist/unpacked/player/main-world-entry.js',
 function fixture(){
  let time=10000,seq=0,sink,plays=0;const timers=new Map(),listeners=new Map(),posts=[],documentListeners=new Map();let watchdog;
  const media={src:'https://stream.example/one',paused:true,muted:false};
- const snapshot={track:{id:'2',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'m',resourceRevision:1,paused:true,seeking:false,ended:false,readyState:4,currentTime:.1,duration:200}};
+ const snapshot={track:{id:'2',confidence:240,ambiguous:false,metadata:{title:'Track 2',artist:'Artist 2',durationMs:200000}},player:{mediaId:'m',resourceRevision:1,paused:true,seeking:false,ended:false,readyState:4,currentTime:.1,duration:200}};
  const adapter={mounted:false,service:'yandex',mount(s){sink=s;this.mounted=true},unmount(){this.mounted=false},getSnapshot(reason){return structuredClone({...snapshot,reason,triggerMediaId:'m'})},getMediaElement(){return media}};
  class Guard{
   constructor(){this.current=null;}

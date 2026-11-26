@@ -75,7 +75,7 @@ test("sync projects only a running ready clock and wraps only explicit synthetic
 });
 
 function snapshot(id = "2", extra = {}) {
-  return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { durationMs: 200000 } }, player: { mediaId: "master", resourceRevision: 1, paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
+  return { observedAt: Date.now(), track: { id, confidence: 260, ambiguous: false, metadata: { title: "Track 2", artist: "Artist 2", durationMs: 200000 } }, player: { mediaId: "master", resourceRevision: 1, paused: false, ended: false, seeking: false, readyState: 4, currentTime: 7, duration: 200, volume: 0.012, muted: false, playbackRate: 1 }, ...extra };
 }
 function fixture({ loadGate, guardGate, joinGate, rejectGuard = false, playerThrows = false, resolveAsset } = {}) {
   const players = []; const requests = []; let current = snapshot(); let healthy = true;
@@ -246,6 +246,14 @@ test("temporary missing track metadata preserves a replacement only while its na
   assert.equal(replacement.destroyed, true);
   assert.equal(f.engine.operation, null);
   assert.equal(f.engine.restoreCount, 1);
+
+  const changedMetadataFixture = fixture(); changedMetadataFixture.update(snapshot()); await settle();
+  const changedMetadata = snapshot(null); changedMetadata.track.ambiguous = true;
+  changedMetadata.track.evidence = "awaiting-track-refresh";
+  changedMetadata.track.metadata.title = "Next song";
+  changedMetadataFixture.update(changedMetadata); await settle();
+  assert.equal(changedMetadataFixture.players[0].destroyed, true,
+    "a different visible title must not be mistaken for a temporary metadata gap");
 
   const ambiguousFixture = fixture(); ambiguousFixture.update(snapshot()); await settle();
   const ambiguous = snapshot(null); ambiguous.track.ambiguous = true; ambiguous.track.evidence = "candidate-conflict";
