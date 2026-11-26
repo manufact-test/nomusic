@@ -609,6 +609,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
             return true;
           }
         }
+        // 7695 is the W183-pinned 5.128 provider module. If it exists but its
+        // export shape differs, do not silently fall back to the old endpoint.
+        report("RESOURCE_PROVIDER_PIN_MISMATCH");
+        return false;
       }
       // Compatibility for a reviewed build where getFileInfo is actually
       // inherited by the observed current player rather than SonataProvider.
