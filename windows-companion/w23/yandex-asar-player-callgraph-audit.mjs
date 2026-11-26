@@ -74,13 +74,36 @@ function callReceivers(source, name) {
   const pattern = new RegExp("([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\." + name + "\\s*\\(", "g");
   return [...new Set([...source.matchAll(pattern)].map(x => x[1]))].slice(0, 30);
 }
+function factoryArgs(source) {
+  const header = source.slice(0, 500).match(/(?:^|[,{])\\s*["']?[0-9]{1,6}["']?\\s*:\\s*(?:function\\s*\\(([^)]*)\\)|\\(([^)]*)\\)\\s*=>|([A-Za-z_$][\\w$]*)\\s*=>)/);
+  return (header?.[1] || header?.[2] || header?.[3] || "")
+    .split(",").map(x => x.trim()).filter(Boolean);
+}
+function classDeclarations(source) {
+  return [...source.matchAll(/\\bclass\\s+([A-Za-z_$][\\w$]*)(?:\\s+extends\\s+([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*))?/g)]
+    .slice(0, 40).map(x => ({name:x[1], base:x[2] || ""}));
+}
+function prototypeAssignments(source) {
+  return [...source.matchAll(/([A-Za-z_$][\\w$]*)\\.prototype\\.([A-Za-z_$][\\w$]*)\\s*=/g)]
+    .slice(0, 80).map(x => ({owner:x[1], method:x[2]}));
+}
+function constructorPropertyAssignments(source) {
+  return [...source.matchAll(/this\\.([A-Za-z_$][\\w$]*)\\s*=\\s*(?:new\\s+)?([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)/g)]
+    .slice(0, 80).map(x => ({property:x[1], valueType:x[2]}));
+}
 function summarizeModule(path, id, source) {
   const has = name => source.includes(name);
   return {
-    path, moduleId: id, exportKeys: exportKeys(source),
+    path, moduleId: id, factoryArgs: factoryArgs(source),
+    exportKeys: exportKeys(source),
     webpackDependencies: moduleDependencies(source),
+    classDeclarations: classDeclarations(source),
+    prototypeAssignments: prototypeAssignments(source),
+    constructorPropertyAssignments: constructorPropertyAssignments(source),
     getFileInfoCallReceivers: callReceivers(source, "getFileInfo"),
+    getFileInfoBatchCallReceivers: callReceivers(source, "getFileInfoBatch"),
     getMediaSourceCallReceivers: callReceivers(source, "getMediaSource"),
+    reloadEntityCallReceivers: callReceivers(source, "reloadEntity"),
     methodCounts: {
       getFileInfo: (source.match(/getFileInfo/g) || []).length,
       getFileInfoBatch: (source.match(/getFileInfoBatch/g) || []).length,
