@@ -18,6 +18,7 @@ on:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java'
       - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/ExitCallsiteWitness.java'
       - 'android/native-companion/addon/src/pro/celikom/nativeprobe/identitydiag/UpdateCenter.java'
       - 'android/native-companion/addon/test_update_center_floki_origin.py'
@@ -161,6 +162,15 @@ jobs:
           assert 'exitEngine(' in src
           assert 'ENGINE_HOLDER_STREAM_ARRAY_MATCH' in model
           assert 'ENGINE_HOLDER_READ_RETURN_MINUS4' in model
+          assert 'WRAPPER_ADAPTERS_FIELD_NAME' in src
+          assert 'ADAPTER_CHILD_STREAM_FIELD_NAME' in src
+          assert 'nav47PeriodStreamAdapterFieldsReady' in src
+          assert 'setExactActivePeriodStreamFields(' in src
+          assert 'PERIOD_STREAM_ADAPTER' in src
+          assert 'observeRendererStreamAdapter(matchedHolder,stream)' in model
+          assert 'PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH' in model
+          assert 'adapterChildStreamField.get(rendererStream)' in model
+          assert 'originalPeriodIdStillCurrent(live.engine.get(),live.holder.get())' in model
 
           assert 'private static final String PACKAGE = "pro.celikom.yandex.nativeclonelab";' in src
           print('NAV17_EXACT_RENDERER_OBSERVER_SCOPE_PASS')

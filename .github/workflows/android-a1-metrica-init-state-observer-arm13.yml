@@ -84,16 +84,6 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java \
             android/native-yandex-hooklab/tests/src/NativeExoFactoryProductWitnessTest.java
           java -cp "$d" pro.celikom.a1exitwitness.NativeExoFactoryProductWitnessTest
-      - name: Verify exact active MediaPeriod-to-Renderer stream adapter identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          d=$(mktemp -d)
-          trap 'rm -rf -- "$d"' EXIT
-          javac --release 17 -d "$d" \
-            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
-            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
-          java -cp "$d" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
 
   actual-2025-own-lspatch2-disposable-native-arm13:
     needs: jvm-issuer-proxy-contract
