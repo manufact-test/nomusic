@@ -31,7 +31,7 @@ jobs:
               .id == $id and .head_sha == $sha
               and .head_branch == "experiment/android-a1-metrica-init-state-observer-arm13-20261112"
               and (.path | startswith(".github/workflows/android-a1-metrica-init-state-observer-arm13.yml"))
-              and (.head_commit.message | contains("[export-beta-audio]") | not)
+              and .run_attempt == 1
             ' <<< "$data" >/dev/null
             status=$(jq -r .status <<< "$data")
             if [[ "$status" == completed ]]; then
