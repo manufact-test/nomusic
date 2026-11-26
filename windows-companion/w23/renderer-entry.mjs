@@ -566,23 +566,30 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     } catch { return false; }
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
 
-    // W182 / Yandex 5.128: getFileInfo moved from the old endpoint wrapper
-    // onto the live player class (sometimes inherited from its base class).
-    // Attach to the method's real owner so every actual player instance passes
-    // through CELIKOM. The endpoint-module scan below remains a compatibility
-    // fallback for older reviewed Yandex builds.
+    // W183: wait until the pinned state getter has observed the actual live
+    // player instance. Its concrete class may derive from the exported player
+    // base; inspecting only the base prototype can silently hook the wrong
+    // endpoint wrapper while reloadEntity still appears to succeed.
+    let playerObserverAttached = false;
     try {
-      playerSourceRefresh.attach(webpackRequire);
+      playerObserverAttached = playerSourceRefresh.attach(webpackRequire);
       const owner = playerSourceRefresh.resourcePrototype();
       if (owner && typeof owner.getFileInfo === "function") {
         adapter.attach(owner);
         attached = true;
+        report("RESOURCE_HOOK_ATTACHED_PLAYER");
         report("RESOURCE_HOOK_ATTACHED");
         console.info("[CELIKOM] Native file-info source connector attached");
         return true;
       }
     } catch {}
+    // Do not prematurely attach the legacy endpoint wrapper before the live
+    // player's first state read. On Yandex 5.128 that creates a false-positive
+    // RESOURCE_HOOK_ATTACHED while the real player bypasses the wrapper.
+    if (playerObserverAttached && !playerSourceRefresh.playerObserved) return false;
 
+    // Compatibility fallback is retained only after a real current player has
+    // been observed and confirmed not to own/inherit getFileInfo.
     for (const id in webpackRequire.m) {
       let source;
       try { source = webpackRequire.m[id].toString(); } catch { continue; }
@@ -600,6 +607,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           // Exact original Yandex 5.126.1, no alternate media player.
           // Failure to bind is safely a no-op; core replacement stays intact.
           playerSourceRefresh.attach(webpackRequire);
+          report("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK");
           report("RESOURCE_HOOK_ATTACHED");
           console.info("[CELIKOM] Native file-info source connector attached");
           return true;
