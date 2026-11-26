@@ -242,8 +242,14 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     originalBatch = typeof proto.getFileInfoBatch === 'function' ? proto.getFileInfoBatch : null;
 
     ownSingle = async function (params, ...rest) {
+      if (!enabled || disposed) return originalSingle.call(this, params, ...rest);
       const id = validId(params?.trackId);
-      if (!enabled || !id || disposed) return originalSingle.call(this, params, ...rest);
+      if (!id) {
+        // Keep the original Yandex call untouched, but expose that the hooked
+        // method was reached with an argument shape CELIKOM does not recognize.
+        emit('NATIVE_FILEINFO_ID_UNRECOGNIZED');
+        return originalSingle.call(this, params, ...rest);
+      }
       if (id !== current) trackChanged(id);
       emit('NATIVE_FILEINFO_REQUEST', id);
       const rev = revision;
@@ -304,7 +310,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         const raw = Array.isArray(params?.trackIds)
           ? params.trackIds : typeof params?.trackIds === 'string' ? params.trackIds.split(',') : [];
         const ids = [...new Set(raw.map(validId).filter(Boolean))];
-        if (!enabled || disposed || ids.length === 0) return originalBatch.call(this, params, ...rest);
+        if (!enabled || disposed) return originalBatch.call(this, params, ...rest);
+        if (ids.length === 0) {
+          emit('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED');
+          return originalBatch.call(this, params, ...rest);
+        }
         emit('SOURCE_BATCH_REQUEST', ids[0]);
         const rev = revision;
         // Batch is often requested BEFORE any single file-info. Resolve a small

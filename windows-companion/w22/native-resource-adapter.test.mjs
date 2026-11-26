@@ -33,6 +33,26 @@ const create=(resolve=async id=>grant(id), settings={})=>createNativeResourceAda
   deadlineMs:150,...settings
 });
 
+test('W181 single file-info hook reports an unrecognized argument shape without altering Yandex',async()=>{
+  const events=[];
+  const a=create(async()=>null,{onEvent:code=>events.push(code)});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const value=await proto.getFileInfo({id:'123'});
+  assert.deepEqual(value,orig);
+  assert.ok(events.includes('NATIVE_FILEINFO_ID_UNRECOGNIZED'));
+  assert.ok(!events.includes('RESOLVE_START'));
+  a.dispose();
+});
+test('W181 batch file-info hook reports an unrecognized argument shape without altering Yandex',async()=>{
+  const events=[];
+  const a=create(async()=>null,{onEvent:code=>events.push(code)});
+  const {proto}=resource();a.attach(proto);a.enable();
+  const value=await proto.getFileInfoBatch({ids:['123']});
+  assert.equal(value.downloadInfos[0].trackId,'123');
+  assert.ok(events.includes('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED'));
+  assert.ok(!events.includes('RESOLVE_START'));
+  a.dispose();
+});
 test('disabled is transparent: no CELIKOM request',async()=>{
   let calls=0;const a=create(async()=>{calls++;return grant()});const {proto}=resource();a.attach(proto);
   assert.deepEqual(await proto.getFileInfo({trackId:'123'}),orig);
