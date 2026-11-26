@@ -66,7 +66,7 @@ function moduleDependencies(source) {
   const args = (header?.[1] || header?.[2] || header?.[3] || "")
     .split(",").map(x => x.trim()).filter(Boolean);
   const requireName = args[2] || "";
-  if (!requireName || !/^[A-Za-z_$][\\w$]*$/.test(requireName)) return [];
+  if (!requireName || !/^[A-Za-z_$][\w$]*$/.test(requireName)) return [];
   const pattern = new RegExp("\\b" + requireName + "\\s*\\(\\s*([0-9]{1,6})\\s*\\)", "g");
   return [...new Set([...source.matchAll(pattern)].map(x => x[1]))].slice(0, 100);
 }
