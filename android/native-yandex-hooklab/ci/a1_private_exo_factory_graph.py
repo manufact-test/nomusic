@@ -56,7 +56,7 @@ def inspect(path):
             if not part.filename.endswith(".apk") or part.file_size>60_000_000:continue
             with zipfile.ZipFile(io.BytesIO(xapk.read(part))) as apk:
                 for name in apk.namelist():
-                    if re.fullmatch(r"classes[0-9]*\\.dex",name):
+                    if re.fullmatch(r"classes[0-9]*\.dex",name):
                         info=apk.getinfo(name)
                         if info.file_size<=25_000_000:records.append(Dex(apk.read(info)))
     if len(records)!=6:raise ValueError("DEX_COUNT")
