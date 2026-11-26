@@ -1,3 +1,12 @@
+# CURRENT HANDOFF — 27 November 2026 (BETA23 signed Floki delivery verified)
+
+- Native source `d598c0fc043aa4fedf5a27223b4797af474b8955`, run `45903557070` (attempt 1) **SUCCESS**, separate JVM `45903454018` and clone differential `45903409452` both **SUCCESS**. APK `CELIKOM-A1-RAMIL-AU-BETA23-HONOR50-20261127.apk` size `71593964`, sha256 `5b008cc092b1b24ad6b916efb474b096e8b1a4fc5a370ace1f24adaff747b439`, unpublished draft release `459959795`.
+- Main request `.github/deploy/a1-owner-download-request.json` contains run ID `45903557070`, attempt `1`, release `459959795`. Trusted-main Floki spool `45904921524` **SUCCESS**, exact original app signer/package verified, root receipt verified, actual HTTPS digest and size verified, owner URL committed to unpublished draft/read back. **Capability URL only sent privately to owner**, never in public source/docs/Actions summaries.
+- CI runner `celikom-floki-ci02` assigned original delivery `45904842417` and stuck before any job step. Attempted exact cancel/force-cancel via one-time narrow hosted action `45905031509` **SUCCESS** (cancellation requested; stuck runner may take time to settle). Recovery used a separate concurrency group and healthy `celikom-floki-ci01` for success. Do not let a stale CI02 job block subsequent deliveries; restore the normal group only after previous job is actually canceled or runner repaired. No CI root/SSH/network permission changes.
+- This build changes owner-only signed original FileInfoApi codec negotiation `codecs=mp3` for exactly the Ramil trial, to test AAC original decoder vs alternate MPEG mismatch identified in BETA22 private phone diagnostics. No acoustic confirmation yet; stable Android, Windows, API, Nginx, signer and root consumer unchanged.
+
+---
+
 # CURRENT HANDOFF — 27 November 2026 (BETA22 owner delivery confirmed)
 
 - Source commit `a535cbf3de21faaff7aa32ea6fb3c75a93459b70` experimental Android; signed native/export workflow run `45899350738` attempt 1 **SUCCESS**; separate clone differential run `45899350523` **SUCCESS**. APK `CELIKOM-A1-RAMIL-AU-BETA22-HONOR50-20261127.apk` size `71593964`, SHA256 `836be0f0ed2006455cd6c4e20f3f0a2a45a82455626d1eb530e250c25eeca7de`, unpublished owner draft release `459934139`.
