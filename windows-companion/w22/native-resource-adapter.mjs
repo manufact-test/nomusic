@@ -515,9 +515,11 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     // The live media provider may also expose a batch-prefetch method. Reuse
     // the existing bounded batch adapter, but leave its single getFileInfo
     // method untouched: getMediaSource is the proven player-facing boundary.
-    if (!prototype && typeof owner.getFileInfo === 'function' &&
-        typeof owner.getFileInfoBatch === 'function') {
-      const originalGetFileInfo = owner.getFileInfo;
+    const singleDescriptor = Object.getOwnPropertyDescriptor(owner, 'getFileInfo');
+    const batchDescriptor = Object.getOwnPropertyDescriptor(owner, 'getFileInfoBatch');
+    if (!prototype && typeof singleDescriptor?.value === 'function' &&
+        typeof batchDescriptor?.value === 'function') {
+      const originalGetFileInfo = singleDescriptor.value;
       try {
         attach(owner);
         if (owner.getFileInfo === ownSingle) owner.getFileInfo = originalGetFileInfo;
