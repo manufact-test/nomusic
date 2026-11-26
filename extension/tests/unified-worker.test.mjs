@@ -15,7 +15,7 @@ function fixture() {
  const networkListeners=new Map(),timers=new Map();let timerId=0;
  let handler,allowed=true,trialStarted=0,localSession=true,controller={track:{id:"144530503"},player:{mediaId:"1"},phase:"READY",bridge:{healthy:true}},connectionError=null;
  const local={enabled:false},sent=[],icons=[];
- const commands={getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
+ const commands={reloadMismatchedPlayer:'CELIKOM_RELOAD_MISMATCHED_PLAYER',getStatus:'CELIKOM_STATUS_GET',setEnabled:'CELIKOM_ENABLED_SET',setTestTrack:'CELIKOM_TEST_TRACK_SET',retryReplacement:'CELIKOM_REPLACEMENT_RETRY',restoreOriginal:'CELIKOM_RESTORE_ORIGINAL'};
  const chrome={action:{setIcon:async value=>icons.push(value),setTitle:async()=>{}},runtime:{id:'worker',getManifest:()=>({version:'0.4.7'}),getURL:p=>'chrome-extension://worker/'+p,onInstalled:{addListener(){}},onStartup:{addListener(){}},onMessage:{addListener:fn=>{handler=fn}}},storage:{local:{get:async()=>({...local}),set:async x=>Object.assign(local,x)}},tabs:{query:async()=>[{id:1,url:'https://music.yandex.ru/'}],sendMessage:async(id,m)=>{sent.push(m);return {ok:true}}}};
  const auth={withDiagnosticsAccess:async()=>{throw Error('access_denied')},installationId:async()=>'',perform:async action=>action==='account-preview'?{ok:true,localSession}:{ok:true},withEntitledAccess:async()=>{},entitlement:async activation=>{if(activation)trialStarted++;return {allowed,valid_until:new Date(Date.now()+432000000).toISOString(),reason:allowed?'trial_active':'trial_inactive'}}};
  vm.runInNewContext(source,{setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,at:Date.now()+ms});return id},clearTimeout:id=>timers.delete(id),addEventListener:(name,fn)=>networkListeners.set(name,fn),chrome,publicPlaybackState,redactDiagnostics,buildSupportReport,startAccessError,COMMANDS:commands,normalizeEnabled:v=>v===true,registerTabRecovery,createActionIcon,createMusicTabs,createAuthBroker:()=>auth,createApiBroker:()=>async()=>({ok:true}),createUploadBroker,createUploadJournal,createControllerBootstrap:()=>({ensure:async()=>({status:controller,error:connectionError}),ensureOpenTabs:async()=>{}}),Date,URL,Promise});
@@ -328,3 +328,9 @@ test('ordinary accounts collect a bounded support attachment but cannot export f
  assert.equal((await f.send('CELIKOM_DIAGNOSTICS_GET')).error,'access_denied');
  const denied=await f.send('CELIKOM_SUPPORT_STATUS_GET',{}, {id:'worker',url:'https://music.yandex.ru/'});assert.equal(denied.error,'invalid_sender');
 });
+
+ test('page cannot request native page reload through the popup recovery channel',async()=>{
+ const f=fixture();
+ const result=await f.send('CELIKOM_RELOAD_MISMATCHED_PLAYER',{trackId:'42',since:10000},{id:'worker',url:'https://music.yandex.ru/'});
+ assert.equal(result.error,'invalid_sender');assert.equal(f.sent.length,0);
+ });

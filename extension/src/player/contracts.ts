@@ -37,6 +37,7 @@ export interface DetectedTrack {
   candidates: TrackCandidate[];
   metadata: TrackMetadata;
   catalogSize: number;
+  playbackMismatch?: { since: number; trackId: string; boundTrackId: string | null; expectedDurationMs: number; actualDurationMs: number } | null;
 }
 
 export interface PlayerState {
@@ -53,6 +54,7 @@ export interface PlayerState {
   readyState: number;
   networkState: number;
   source: string;
+  resourceRevision?: number;
   connected: boolean;
   guarded?: boolean;
 }

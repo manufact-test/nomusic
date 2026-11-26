@@ -178,7 +178,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 
   // Only the extension-owned popup may inspect or change user intent.
   // Content scripts have a separate, narrowly scoped heartbeat/API channel.
-  const popupCommand = [COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
+  const popupCommand = [COMMANDS.reloadMismatchedPlayer, COMMANDS.getStatus, COMMANDS.setEnabled, COMMANDS.setTestTrack,
     COMMANDS.restoreOriginal, "CELIKOM_DIAGNOSTICS_GET", "CELIKOM_SUPPORT_STATUS_GET", "CELIKOM_ADD_TRACK_OPENED", "CELIKOM_AUTH"].includes(type as string);
   if (popupCommand && !trustedUi) {
     sendResponse({ ok: false, error: "invalid_sender" }); return false;
@@ -312,6 +312,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   if (type === "CELIKOM_DIAGNOSTICS_GET") {
     void userAuth.withDiagnosticsAccess(async () => redactDiagnostics({...await readState(false,true),uploads:await uploadJournal.snapshot()}))
       .then(state => sendResponse({ok:true,state})).catch(() => sendResponse({ok:false,error:"access_denied"}));
+    return true;
+  }
+  if (type === COMMANDS.reloadMismatchedPlayer) {
+    void musicTabs.reloadMismatchedPlayer(message).then(sendResponse);
     return true;
   }
   if (type === COMMANDS.getStatus) {

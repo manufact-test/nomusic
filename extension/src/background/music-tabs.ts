@@ -30,5 +30,25 @@ export function createMusicTabs(api, bootstrap) {
     if (target.tabId === null) return null;
     return api.tabs.sendMessage(target.tabId, message).catch(() => null);
   }
-  return { connection, send };
+  let reloadPending = false;
+  async function reloadMismatchedPlayer(expected) {
+    if (reloadPending) return {ok:false,error:"reload_pending"};
+    if (!/^[1-9]\d{0,23}$/.test(expected?.trackId) || !Number.isFinite(expected?.since))
+      return {ok:false,error:"invalid_recovery"};
+    reloadPending = true;
+    try {
+      const target = await connection();
+      const mismatch = target.status?.track?.playbackMismatch;
+      if (target.error || !mismatch || mismatch.trackId !== expected.trackId || mismatch.since !== expected.since)
+        return {ok:false,error:"player_changed"};
+      // The popup supplies no URL or tab ID. Revalidate the selected tab after
+      // all asynchronous controller discovery, so a navigated page is untouched.
+      const tab = await api.tabs.get(target.tabId);
+      if (!isSupportedPage(tab.url)) return {ok:false,error:"player_changed"};
+      await api.tabs.reload(target.tabId);
+      return {ok:true};
+    } catch (_) { return {ok:false,error:"reload_failed"}; }
+    finally { reloadPending = false; }
+  }
+  return { connection, send, reloadMismatchedPlayer };
 }

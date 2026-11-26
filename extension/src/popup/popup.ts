@@ -51,8 +51,8 @@ function render(state: ExtensionState): void {
     REPLACEMENT_ACTIVE: "Подмена активна",
     RESTORING: "Возвращаем оригинал…"
   };
-  status.textContent = incidentStatus.active() ? "Сбой интеграции" : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : presentation.label || labels[state.phase] || "Проверка…";
-  const connected=state.enabled && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError && !["CONNECTING"].includes(state.phase);
+  status.textContent = incidentStatus.active() ? "Сбой интеграции" : state.track?.playbackMismatch ? presentation.label : !state.enabled ? labels.STOPPED : state.suspended ? state.replacementError === "service_incident" ? "Сбой интеграции" : "Восстанавливаем связь…" : state.manualBypass ? "Оригинал" : state.replacementError ? state.recovering ? "Оригинал · восстанавливаем связь" : "Оригинал · ошибка подмены" : presentation.label || labels[state.phase] || "Проверка…";
+  const connected=state.enabled && !state.track?.playbackMismatch && !incidentStatus.active() && state.phase!=="ERROR" && !state.connection?.error && state.bridge?.healthy===true && !state.suspended && !state.replacementError && !state.startupError && !["CONNECTING"].includes(state.phase);
   status.dataset.active = String(connected);
   document.querySelector<HTMLElement>(".mark")?.setAttribute("data-active",String(connected));
   startButton.disabled = presentation.startDisabled;
@@ -62,7 +62,9 @@ function render(state: ExtensionState): void {
   if (track) {
     const title = state.track?.metadata?.title?.trim();
     const artist = state.track?.metadata?.artist?.trim();
-    const label = state.track?.id
+    const label = state.track?.playbackMismatch
+      ? "Название песни и аудио Яндекса не совпадают. Обновите Яндекс и включите песню снова."
+      : state.track?.id
       ? [title || `Track ID ${state.track.id}`, artist].filter(Boolean).join(" — ")
       : state.connection?.detail || (state.enabled ? "Запустите трек в Яндекс Музыке" : "CELIKOM остановлен");
     stableText(track, label);
@@ -89,8 +91,16 @@ startButton?.addEventListener("click", async () => {
   startButton.disabled = true;
   if (stopButton) stopButton.disabled = false;
   const access = document.querySelector<HTMLElement>("[data-access-status]");
-  if (access) { access.textContent = "Проверяем доступ…"; access.dataset.kind = "loading"; }
   try {
+    if (lastState?.track?.playbackMismatch) {
+      const mismatch = lastState.track.playbackMismatch;
+      const result = await send<{ok:boolean}>({type:COMMANDS.reloadMismatchedPlayer,
+        trackId:mismatch.trackId,since:mismatch.since});
+      if (result?.ok) { window.close(); return; }
+      render(await send<ExtensionState>({type:COMMANDS.getStatus}));
+      return;
+    }
+    if (access) { access.textContent = "Проверяем доступ…"; access.dataset.kind = "loading"; }
     const state = await send<ExtensionState>({ type: COMMANDS.setEnabled, enabled: true });
     if (generation !== startGeneration) return;
     if (state.accessError === "sign_in_required") accountPanel?.requireLogin();

@@ -592,3 +592,64 @@ test("genuine next-song metadata is emitted immediately and unmount cancels pend
     assert.equal(seen.length,before);assert.equal(adapter.pendingMetadataClear,null);
   } finally {adapter.unmount();}
 });
+
+test('paused B resource with stale A metadata is reported after a bounded settle and clears on real source recovery',async()=>{
+ const media=new FakeMedia(),{environment}=createEnvironment(media),adapter=createAdapter(environment);
+ let clock=10000;adapter.now=()=>clock;
+ adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+ try {
+  adapter.ingestTrackPayload({id:'48591518',title:'B',artists:[{name:'Artist B'}],durationMs:334600},'fixture');
+  adapter.ingestTrackPayload({id:'48592143',title:'Не стесняйся',artists:[{name:'АК-47'},{name:'Ноггано'}],durationMs:250210},'fixture');
+  media.src=media.currentSrc='https://strm-rad-25.strm.yandex.net/B';media.duration=334.6;
+  environment.navigator.mediaSession.metadata={title:'B',artist:'Artist B',album:'',artwork:[]};
+  assert.equal(adapter.getSnapshot().track.id,'48591518');
+  media.currentTime=28.489;media.pause();
+  environment.navigator.mediaSession.metadata={title:'Не стесняйся',artist:'АК-47, Ноггано',album:'',artwork:[]};
+  const unchangedSource=media.src;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null,'normal metadata-first transitions have time to settle');
+  clock+=1500;
+  const mismatchedTrack=adapter.getSnapshot().track;
+  assert.equal(mismatchedTrack.id,null,"uploads and suggestions must not target stale visible metadata");
+  assert.equal(mismatchedTrack.ambiguous,true);
+  const conflict=mismatchedTrack.playbackMismatch;
+  assert.equal(conflict.trackId,'48592143');assert.equal(conflict.boundTrackId,'48591518');
+  assert.equal(conflict.expectedDurationMs,250210);assert.equal(conflict.actualDurationMs,334600);
+  await media.play();clock+=9*60000;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch.since,conflict.since,'paused/resume/polls cannot hide or renew the same mismatch');
+  assert.equal(media.src,unchangedSource,'detection must never write native source');assert.equal(media.currentTime,28.489);
+  media.src=media.currentSrc='https://strm-rad-25.strm.yandex.net/A';media.duration=250.265;media.currentTime=0;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null,'fresh matching audio automatically returns to normal');
+  assert.equal(adapter.getSnapshot().track.id,'48592143');
+ }finally{adapter.unmount();}
+});
+
+test('normal metadata-before-source transition, seek and unloaded resource never latch a mismatch warning',()=>{
+ const media=new FakeMedia(),{environment}=createEnvironment(media),adapter=createAdapter(environment);
+ let clock=10000;adapter.now=()=>clock;adapter.mount({onSnapshot(){},onPlayerEvent(){}});
+ try{
+  adapter.ingestTrackPayload({id:'42',title:'Next',artists:[{name:'Next Artist'}],durationMs:250210},'fixture');
+  environment.navigator.mediaSession.metadata={title:'Next',artist:'Next Artist',album:'',artwork:[]};
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null);
+  clock+=1000;media.src=media.currentSrc='https://strm-rad-25.strm.yandex.net/new';media.duration=250.265;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null);
+  clock+=9000;media.seeking=true;media.currentTime=99;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null);
+  media.readyState=0;media.duration=193.283;clock+=9000;
+  assert.equal(adapter.getSnapshot().track.playbackMismatch??null,null);
+ }finally{adapter.unmount();}
+});
+
+ test('persistent mismatch is published even while native time stays paused and polling signature would otherwise be unchanged',()=>{
+ const media=new FakeMedia(),{environment}=createEnvironment(media),adapter=createAdapter(environment),seen=[];
+ let clock=10000;adapter.now=()=>clock;adapter.mount({onSnapshot:s=>seen.push(s),onPlayerEvent(){}});
+ try{
+  media.paused=true;media.duration=334.6;adapter.emitSnapshot('poll');const before=seen.length;
+  const revision=adapter.getSnapshot().player.resourceRevision;
+  clock+=1500;adapter.emitSnapshot('poll');
+  assert.equal(seen.length,before+1);assert(seen.at(-1).track.playbackMismatch);
+  assert.equal(seen.at(-1).player.resourceRevision,revision);
+  const encoded=JSON.stringify(seen.at(-1).track.playbackMismatch);assert(!encoded.includes('https:'));
+  media.src=media.currentSrc='https://strm-rad-25.strm.yandex.net/next';
+  assert.equal(adapter.getSnapshot().player.resourceRevision,revision+1);
+ }finally{adapter.unmount();}
+ });

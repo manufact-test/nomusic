@@ -1,4 +1,5 @@
 export const COMMANDS = {
+  reloadMismatchedPlayer: "CELIKOM_RELOAD_MISMATCHED_PLAYER",
   getStatus: "CELIKOM_STATUS_GET",
   setEnabled: "CELIKOM_ENABLED_SET",
   setTestTrack: "CELIKOM_TEST_TRACK_SET",
@@ -35,6 +36,7 @@ export interface ExtensionState {
     confidence: number;
     source: string | null;
     ambiguous: boolean;
+    playbackMismatch?: { since: number; trackId: string; boundTrackId: string | null; expectedDurationMs: number; actualDurationMs: number } | null;
     metadata?: {
       title?: string;
       artist?: string;

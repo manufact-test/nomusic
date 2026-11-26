@@ -1,5 +1,7 @@
 import type { ExtensionState } from "../shared/messages.js";
 export function playbackPresentation(state: ExtensionState) {
+  if (state.track?.playbackMismatch) return {label:"Сбой плеера Яндекса",retry:true,
+    startDisabled:false,startLabel:"Обновить Яндекс"};
   const waiting=state.phase==="PREPARING";
   const retry=state.phase==="ERROR"||Boolean(state.replacementError||state.manualBypass||state.suspended)
     ||(waiting&&(state.preparation?.elapsedMs??0)>=10000);

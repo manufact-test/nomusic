@@ -180,6 +180,7 @@
         readyState: Number(element.readyState || 0),
         networkState: Number(element.networkState || 0),
         source: core.summarizeMediaSource(element.currentSrc || element.src || "", baseUrl),
+        resourceRevision: this.mediaIdentities.get(element)?.revision || 0,
         connected: Boolean(element.isConnected)
       };
     }
@@ -548,6 +549,7 @@
         awaitingRefresh = Boolean(pending);
         this.mediaIdentities.set(master, {
           source: source || previous?.source || "",
+          revision: (previous?.revision || 0) + (sourceChanged || !previous ? 1 : 0),
           // Metadata can also arrive before the stream. Keep the identity that
           // first accompanied this resource rather than relabeling it early.
           id: !previous || sourceChanged || (previous.pending && !pending)
@@ -555,16 +557,34 @@
           fingerprint, sessionObject, pending
         });
       }
+      // Report a persistent disagreement, rather than claiming that the visible
+      // song is ready while the old native resource keeps playing. This is
+      // observational: no native seek, pause, reload or metadata writes here.
+      const nativeDurationMs = master?.readyState >= 2 && Number.isFinite(master.duration)
+        ? Math.round(master.duration * 1000) : null;
+      const mismatch = !awaitingSource && !conflict && !awaitingRefresh
+        && canonicalDuration > 0 && nativeDurationMs > 0
+        && Math.abs(canonicalDuration - nativeDurationMs) > 1500;
+      const mismatchKey = mismatch ? JSON.stringify([this.registerMedia(master),
+        master.currentSrc || master.src || "", result.selected?.id, canonicalDuration, nativeDurationMs]) : null;
+      if (!mismatchKey) this.pendingPlaybackMismatch = null;
+      else if (this.pendingPlaybackMismatch?.key !== mismatchKey)
+        this.pendingPlaybackMismatch = { key: mismatchKey, since: this.now() };
+      const playbackMismatch = mismatchKey && this.now() - this.pendingPlaybackMismatch.since >= 1500
+        ? { since: this.pendingPlaybackMismatch.since, trackId: result.selected.id,
+            boundTrackId: this.mediaIdentities.get(master)?.id || null,
+            expectedDurationMs: canonicalDuration, actualDurationMs: nativeDurationMs } : null;
       const identityIssue = awaitingSource ? "awaiting-media-source" : conflict ? "playback-metadata-conflict" : awaitingRefresh ? "awaiting-track-refresh" : null;
       return {
-        id: identityIssue ? null : result.selected?.id || null,
+        id: identityIssue || playbackMismatch ? null : result.selected?.id || null,
         confidence: result.selected?.score || 0,
         source: result.selected?.source || null,
-        evidence: identityIssue || result.selected?.evidence || "",
-        ambiguous: Boolean(identityIssue) || result.ambiguous,
+        evidence: identityIssue || (playbackMismatch ? "playback-duration-mismatch" : result.selected?.evidence) || "",
+        ambiguous: Boolean(identityIssue || playbackMismatch) || result.ambiguous,
         candidates: result.ranked,
         metadata: { ...metadata, durationMs: canonicalDuration > 0 ? canonicalDuration : metadata.durationMs },
-        catalogSize: this.trackCatalog.size
+        catalogSize: this.trackCatalog.size,
+        playbackMismatch
       };
     }
 
@@ -909,6 +929,7 @@
     }
 
     unmount() {
+      this.pendingPlaybackMismatch = null;
       if (!this.mounted) return;
       this.mounted = false;
       this.window.removeEventListener?.("popstate", this.onNavigation);

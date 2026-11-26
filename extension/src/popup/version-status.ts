@@ -51,7 +51,7 @@ export function initVersionStatus(transport) {
   async function refreshVersion(state) {
     latestState = state;
     if (!node) return;
-    const id = state.track?.id || "";
+    const id = state.track?.playbackMismatch ? "" : state.track?.id || "";
     if (id !== trackId) {
       trackId = id; checkedAt = 0; loading = false; request++;
       cached = null; verifiedAt = 0;

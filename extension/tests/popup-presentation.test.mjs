@@ -117,3 +117,19 @@ test('stalled version and access checks time out, release their flags and recove
   finishOld?.({ok:true,status:'approved'});await Promise.resolve();assert.match(fx.version.textContent,/ещё не загружена/);
  }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage}
 });
+
+test('stale A presence response cannot restore an available label after a native audio mismatch',async()=>{
+ const oldDocument=globalThis.document,oldStorage=globalThis.localStorage;
+ globalThis.localStorage={getItem:()=>null,setItem(){},removeItem(){}};
+ const fx=fixture();globalThis.document=fx.document;
+ try{
+  let finish;const refresh=initVersionStatus(()=>new Promise(r=>finish=r));
+  const pending=refresh(state('48592143'));
+  await refresh({phase:'READY',track:{id:'48592143',playbackMismatch:{since:10000}}});
+  finish({ok:true,status:'approved'});await pending;
+  assert.equal(fx.version.hidden,true);assert.equal(fx.version.textContent,'');
+  const {playbackPresentation}=await import('../dist/unpacked/popup/playback-presentation.js');
+  const presentation=playbackPresentation({enabled:true,phase:'READY',track:{id:'48592143',playbackMismatch:{since:10000}}});
+  assert.equal(presentation.startDisabled,false);assert.equal(presentation.startLabel,'Обновить Яндекс');
+ }finally{globalThis.document=oldDocument;globalThis.localStorage=oldStorage;}
+});
