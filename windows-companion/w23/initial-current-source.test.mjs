@@ -9,22 +9,27 @@ const tick=()=>new Promise(r=>setImmediate(r));
 function harness() {
  const clock={now:Date.now()},handlers={},intervals=[];
  class Resource {
-   async getFileInfo(p){return {downloadInfo:{trackId:String(p.trackId),url:"https://yandex.example/old"}};}
+   async getMediaSource(params){
+     const id=params?.entity?.id ?? params?.trackId ?? params?.id;
+     return {downloadInfo:{trackId:String(id),url:"https://yandex.example/old"}};
+   }
+   async getFileInfo(p){return this.getMediaSource({entity:{id:p.trackId}});}
  }
  class Player {
    reasons=[];urls=[];
+   mediaProvider=new Resource();
    snapshot={queueState:{currentEntity:{value:{entity:{data:{meta:{id:"123"}}}}}},
      playerState:{status:{value:"playing"},progress:{value:{position:77}}}};
    get state(){return this.snapshot;}
    async reloadEntity(reason) {
      this.reasons.push(reason);
      const currentId=String(this.snapshot.queueState.currentEntity.value.entity.data.meta.id);
-     const data=await new Resource().getFileInfo({trackId:currentId});
+     const data=await this.mediaProvider.getMediaSource({entity:{id:currentId}});
      this.urls.push(data.downloadInfo.url);
    }
  }
- const req=id=>id==="resource"?{Resource}:id===7123?{VE:Player}:null;
- req.m={resource:function factory(){return '"get-file-info"';},7123:function player(){}};
+ const req=id=>id===7123?{VE:Player}:null;
+ req.m={7123:function player(){}};
  const chunks=[];chunks.push=p=>{p[2](req);return 1;};chunks.pop=()=>null;
  const window={location:{protocol:"musicapplication:",hostname:"desktop",origin:"null"},
     webpackChunk_N_E:chunks,addEventListener:(name,fn)=>{handlers[name]=fn;}};
