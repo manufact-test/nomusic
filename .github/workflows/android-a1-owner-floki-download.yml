@@ -204,10 +204,12 @@ jobs:
           release=matches[0]
           body=release.get('body') or ''
           marker='A1_OWNER_DOWNLOAD_URL='
-          assert marker not in body
-          url=(p/'url').read_text()
-          assert re.fullmatch(r'https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_-]{1,100}\.apk',url)
-          notes=body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
+          found=re.findall(r'^A1_OWNER_DOWNLOAD_URL=(https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_-]{1,100}\.apk)$',body,re.M)
+          if found:
+              assert found==[url]
+              notes=body
+          else:
+              notes=body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
           (p/'release_id').write_text(str(release['id']))
           (p/'release-patch.json').write_text(json.dumps({'body':notes},separators=(',',':')))
           PY
