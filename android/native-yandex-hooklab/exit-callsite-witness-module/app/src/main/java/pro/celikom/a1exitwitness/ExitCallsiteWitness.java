@@ -2480,6 +2480,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 installPrivateMediaDataReadWitness(loader);
                                 installExactNativeSourceDtoWitness(loader);
                                 installExactNativeExoSourceWitness(loader);
+                                installPlatformAudioOutputWitness();
                                 installExact2025NativeRendererReadWitness(caller,loader);
                                 installMetricaStateProbe(loader);
                                 installMetricaPublicProbe(loader);
@@ -4385,6 +4386,85 @@ public final class ExitCallsiteWitness extends XposedModule {
             emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD", "REGISTERED");
         } catch (Throwable ignored) {
             emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD", "NO_HOOK");
+        }
+    }
+
+    // Read-only platform decoder/output state. No PCM, buffer content,
+    // paths, URLs, MediaFormat fields beyond finite MIME categories, or
+    // audio mutation. These counts do not claim selected original source.
+    private boolean platformAudioOutputWitnessAttempted;
+    private final java.util.WeakHashMap<Object,Boolean> configuredAudioCodecs =
+        new java.util.WeakHashMap<>();
+
+    private synchronized void installPlatformAudioOutputWitness() {
+        if(platformAudioOutputWitnessAttempted
+                || !PACKAGE.equals(Application.getProcessName()))return;
+        platformAudioOutputWitnessAttempted=true;
+        try {
+            Method configure=android.media.MediaCodec.class.getDeclaredMethod(
+                "configure",android.media.MediaFormat.class,
+                android.view.Surface.class,android.media.MediaCrypto.class,int.class);
+            hook(configure).setExceptionMode(
+                XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result=chain.proceed(); // unchanged framework configure
+                try {
+                    Object value=chain.getArg(0);
+                    if(value instanceof android.media.MediaFormat) {
+                        String mime=((android.media.MediaFormat)value).getString(
+                            android.media.MediaFormat.KEY_MIME);
+                        if(mime!=null && mime.startsWith("audio/")) {
+                            synchronized(configuredAudioCodecs) {
+                                configuredAudioCodecs.put(chain.getThisObject(),Boolean.TRUE);
+                            }
+                            if("audio/mpeg".equals(mime))
+                                NativeTrackIdBetaPolicy.mark(
+                                    NativeTrackIdBetaPolicy.Step.CODEC_CONFIG_MPEG);
+                            else if(mime.contains("mp4a") || mime.contains("aac"))
+                                NativeTrackIdBetaPolicy.mark(
+                                    NativeTrackIdBetaPolicy.Step.CODEC_CONFIG_AAC);
+                            else
+                                NativeTrackIdBetaPolicy.mark(
+                                    NativeTrackIdBetaPolicy.Step.CODEC_CONFIG_OTHER_AUDIO);
+                        }
+                    }
+                } catch(Throwable ignored) { }
+                return result;
+            });
+            emit("AUDIO_DECODE_WITNESS","CODEC_CONFIG","REGISTERED");
+        } catch(Throwable ignored) {
+            emit("AUDIO_DECODE_WITNESS","CODEC_CONFIG","NO_HOOK");
+        }
+        try {
+            Method start=android.media.MediaCodec.class.getDeclaredMethod("start");
+            hook(start).setExceptionMode(
+                XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result=chain.proceed(); // no decoder control changes
+                try {
+                    synchronized(configuredAudioCodecs) {
+                        if(Boolean.TRUE.equals(configuredAudioCodecs.get(
+                                chain.getThisObject())))
+                            NativeTrackIdBetaPolicy.mark(
+                                NativeTrackIdBetaPolicy.Step.CODEC_AUDIO_START);
+                    }
+                } catch(Throwable ignored) { }
+                return result;
+            });
+            emit("AUDIO_DECODE_WITNESS","CODEC_START","REGISTERED");
+        } catch(Throwable ignored) {
+            emit("AUDIO_DECODE_WITNESS","CODEC_START","NO_HOOK");
+        }
+        try {
+            Method play=android.media.AudioTrack.class.getDeclaredMethod("play");
+            hook(play).setExceptionMode(
+                XposedInterface.ExceptionMode.PROTECTIVE).intercept(chain -> {
+                Object result=chain.proceed(); // unchanged platform AudioTrack
+                NativeTrackIdBetaPolicy.mark(
+                    NativeTrackIdBetaPolicy.Step.PLATFORM_AUDIOTRACK_PLAY);
+                return result;
+            });
+            emit("AUDIO_DECODE_WITNESS","AUDIOTRACK_PLAY","REGISTERED");
+        } catch(Throwable ignored) {
+            emit("AUDIO_DECODE_WITNESS","AUDIOTRACK_PLAY","NO_HOOK");
         }
     }
 

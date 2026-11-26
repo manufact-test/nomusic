@@ -212,6 +212,11 @@ public final class NativeTrackIdBetaTrialTest {
         sourceAndPrepare(LESHA);
         sourceAndPrepare(NativeTrackIdBetaPolicy.RAMIL_AU);
         noGrantNoAudio();
+        String diagnostic=String.join("\n",NativeTrackIdBetaPolicy.diagnosticSummary());
+        check(diagnostic.contains("origin=CODEC_CONFIG_MPEG;error=NONE")
+            && diagnostic.contains("origin=CODEC_CONFIG_AAC;error=NONE")
+            && diagnostic.contains("origin=PLATFORM_AUDIOTRACK_PLAY;error=NONE"),
+            "AUDIO_OUTPUT_WITNESS_MUST_REPORT_NO_FAKE_PROOF");
         System.out.println("NATIVE_TWO_TRACK_CONSENTED_BETA_STRICT_SOURCE_PASS");
     }
 }
