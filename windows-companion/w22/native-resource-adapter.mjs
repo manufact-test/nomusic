@@ -18,6 +18,33 @@ function validId(raw) {
     ? String(raw) : typeof raw === 'string' ? raw : '';
   return exactTrackId({ id });
 }
+
+function trackIdFromArgs(args) {
+  for (const value of args) {
+    const id = validId(value?.trackId ?? value?.id);
+    if (id) return id;
+  }
+  return null;
+}
+function trackIdsFromArgs(args) {
+  for (const value of args) {
+    const raw = Array.isArray(value?.trackIds) ? value.trackIds
+      : typeof value?.trackIds === 'string' ? value.trackIds.split(',')
+      : Array.isArray(value?.ids) ? value.ids
+      : typeof value?.ids === 'string' ? value.ids.split(',') : [];
+    const ids = [...new Set(raw.map(item =>
+      validId(item?.trackId ?? item?.id ?? item)).filter(Boolean))];
+    if (ids.length) return ids;
+  }
+  return [];
+}
+function qualityFromArgs(args) {
+  for (const value of args) {
+    if (value && typeof value === 'object' &&
+        typeof value.quality === 'string') return value.quality;
+  }
+  return undefined;
+}
 // W48 read-only structure witness. Never export field contents, URLs,
 // ciphertext, crypto material, Yandex metadata, or signed CELIKOM grants.
 // Static shape hints do not prove the native decoder accepted the source.
@@ -243,7 +270,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
 
     ownSingle = async function (params, ...rest) {
       if (!enabled || disposed) return originalSingle.call(this, params, ...rest);
-      const id = validId(params?.trackId);
+      const args = [params, ...rest];
+      const id = trackIdFromArgs(args);
       if (!id) {
         // Keep the original Yandex call untouched, but expose that the hooked
         // method was reached with an argument shape CELIKOM does not recognize.
@@ -288,7 +316,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       }
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
       observeOriginalFileInfo(value[field], emit, id);
-      const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
+      const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType,
+        qualityFromArgs(args));
       markMapped(id);
       setClassification(id, 'ACTIVE_REPLACEMENT');
       emit('SOURCE_ACTIVE_REPLACEMENT', id);
@@ -307,9 +336,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
 
     if (originalBatch) {
       ownBatch = async function (params, ...rest) {
-        const raw = Array.isArray(params?.trackIds)
-          ? params.trackIds : typeof params?.trackIds === 'string' ? params.trackIds.split(',') : [];
-        const ids = [...new Set(raw.map(validId).filter(Boolean))];
+        const args = [params, ...rest];
+        const ids = trackIdsFromArgs(args);
         if (!enabled || disposed) return originalBatch.call(this, params, ...rest);
         if (ids.length === 0) {
           emit('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED');
@@ -361,7 +389,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
           if (index < 0 || !list[index] || typeof list[index] !== 'object') continue;
           observeOriginalFileInfo(list[index], emit, id);
           list[index] = toDownloadInfo(list[index],
-            id, grant.signedUrl, grant.mimeType, params?.quality);
+            id, grant.signedUrl, grant.mimeType, qualityFromArgs(args));
           markMapped(id);
           setClassification(id, 'ACTIVE_REPLACEMENT');
           emit('SOURCE_ACTIVE_REPLACEMENT', id);

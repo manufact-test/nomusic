@@ -54,6 +54,40 @@ test('W181 batch file-info hook reports an unrecognized argument shape without a
   assert.ok(!events.includes('RESOLVE_START'));
   a.dispose();
 });
+test('W182 player getFileInfo({id}) is mapped',async()=>{
+  const a=create(async id=>({signedUrl:signed(id),mimeType:'audio/mpeg'}));
+  const {proto}=resource();a.attach(proto);a.enable();
+  const value=await proto.getFileInfo({id:'123'});
+  assert.equal(value.downloadInfo.trackId,'123');
+  assert.equal(value.downloadInfo.url,signed('123')+'&celikom_native_query_guard=0');
+  a.dispose();
+});
+test('W182 two-argument Yandex getFileInfo reads trackId from the second object',async()=>{
+  const a=create(async id=>({signedUrl:signed(id),mimeType:'audio/mpeg'}));
+  const proto={
+    async getFileInfo(context,params) {
+      return {downloadInfo:{trackId:params.trackId,url:'https://official.yandex.example/source'}};
+    }
+  };
+  a.attach(proto);a.enable();
+  const value=await proto.getFileInfo({quality:'hq'},{trackId:'123'});
+  assert.equal(value.downloadInfo.trackId,'123');
+  assert.equal(value.downloadInfo.url,signed('123')+'&celikom_native_query_guard=0');
+  assert.equal(value.downloadInfo.quality,'hq');
+  a.dispose();
+});
+test('W182 batch getFileInfoBatch({ids}) is mapped',async()=>{
+  const a=create(async id=>id==='123'?{signedUrl:signed(id),mimeType:'audio/mpeg'}:null);
+  const proto={
+    async getFileInfoBatch(params) {
+      return {downloadInfos:[{trackId:'123',url:'https://official.yandex.example/source'}]};
+    }
+  };
+  a.attach(proto);a.enable();
+  const value=await proto.getFileInfoBatch({ids:['123']});
+  assert.equal(value.downloadInfos[0].url,signed('123')+'&celikom_native_query_guard=0');
+  a.dispose();
+});
 test('disabled is transparent: no CELIKOM request',async()=>{
   let calls=0;const a=create(async()=>{calls++;return grant()});const {proto}=resource();a.attach(proto);
   assert.deepEqual(await proto.getFileInfo({trackId:'123'}),orig);
