@@ -185,6 +185,9 @@ try {
         $readOnly=$cfg; $readOnly['user_uploads_enabled']=false;
         expect((new Celikom\Application($readOnly))->handle('GET','/api/v1/tracks/version-status',$presenceQuery,$headers)->status===200,'Read-only status independent of upload switch');
         expect($app->handle('GET', '/api/v1/resolve', $query)->status === 401, 'anonymous denied');
+        expect($app->handle('GET', '/api/v1/resolve', $query,
+            ['Authorization'=>'Bearer '.$cfg['test_api_token']])->status === 401,
+            'legacy service bearer must not bypass account entitlement');
         expect($app->handle('GET', '/api/v1/resolve', $query, $headers)->status === 403, 'no auto-start from resolve');
         expect($app->handle('POST', '/api/v1/auth/activate', [], $headers, '{}')->status === 200, 'verified activation');
         $decision = $app->handle('GET', '/api/v1/entitlement', [], $headers);
@@ -197,6 +200,13 @@ try {
         $path = (string)parse_url($data['audio_url'], PHP_URL_PATH);
         expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=0-3'])->status === 206, 'real Range');
         expect($app->handle('HEAD', $path, $signed)->status === 200, 'signed HEAD');
+        $legacySigned = ['expires'=>$signed['expires'],
+            'token'=>(new Celikom\Application\AudioTokenService($cfg['audio_signing_key']))
+                ->sign($data['replacement_id'],$data['version'],(int)$signed['expires'])];
+        foreach (['GET','HEAD'] as $legacyMethod) {
+            expect($app->handle($legacyMethod,$path,$legacySigned,['Range'=>'bytes=0-3'])->status===403,
+                'unbound legacy audio must not bypass account entitlement');
+        }
         expect($app->handle('GET', $path, $signed, ['Range' => 'bytes=999999999-'])->status === 416, 'signed 416');
         $tampered = $signed; $tampered['sid'] = (string)($sessionId + 1);
         expect($app->handle('GET', $path, $tampered)->status === 403, 'cannot move capability to another session');

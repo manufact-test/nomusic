@@ -1,0 +1,119 @@
+name: Desktop access readiness audit
+on:
+  push:
+    branches: [audit/desktop-access-readiness-20261110]
+    paths:
+      - .github/workflows/desktop-access-readiness-audit.yml
+      - .github/scripts/desktop-access-config-readonly.php
+permissions:
+  contents: read
+jobs:
+  accepted-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 63d8cd891e1db82e0245122391fd4ab5cdd323be
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify accepted version and run extension regression
+        run: |
+          node -e 'if(JSON.parse(require("fs").readFileSync("extension/package.json")).version!=="0.4.73")process.exit(1)'
+          npm run test:extension
+          npm --prefix extension run validate
+          npm run security
+  server-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-disposable-mysql
+          MYSQL_DATABASE: celikom_test
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-disposable-mysql"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: celikom_test
+      DB_USER: root
+      DB_PASSWORD: ci-disposable-mysql
+      STORAGE_PATH: /tmp/celikom-access-audit-audio
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 16
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_mysql, fileinfo
+          tools: composer:v2
+          coverage: none
+      - name: Validate server and autoload
+        run: |
+          composer --working-dir=server validate --strict
+          composer --working-dir=server dump-autoload --no-interaction
+      - name: Synthetic database, authentication, trial, promos, expiry, refunds and concurrency
+        run: |
+          set -euo pipefail
+          php server/tests/database.php
+          cp server/src/Application.php "$RUNNER_TEMP/audit-patched-Application.php"
+          cp server/src/Http/AudioController.php "$RUNNER_TEMP/audit-patched-AudioController.php"
+          trap 'cp "$RUNNER_TEMP/audit-patched-Application.php" server/src/Application.php; cp "$RUNNER_TEMP/audit-patched-AudioController.php" server/src/Http/AudioController.php' EXIT
+          git show 7e648eacaeb50cc371842590ed7a30284e440d2a:server/src/Application.php > server/src/Application.php
+          git show 7e648eacaeb50cc371842590ed7a30284e440d2a:server/src/Http/AudioController.php > server/src/Http/AudioController.php
+          if php server/tests/entitlement.php > "$RUNNER_TEMP/audit-baseline-resolve.log" 2>&1; then
+            echo 'Baseline unexpectedly passed the new legacy resolve restriction'; exit 1
+          fi
+          grep -Fq 'legacy service bearer must not bypass account entitlement' "$RUNNER_TEMP/audit-baseline-resolve.log"
+          cp "$RUNNER_TEMP/audit-patched-Application.php" server/src/Application.php
+          if php server/tests/entitlement.php > "$RUNNER_TEMP/audit-baseline-audio.log" 2>&1; then
+            echo 'Baseline audio unexpectedly passed the new session requirement'; exit 1
+          fi
+          grep -Fq 'unbound legacy audio must not bypass account entitlement' "$RUNNER_TEMP/audit-baseline-audio.log"
+          cp "$RUNNER_TEMP/audit-patched-AudioController.php" server/src/Http/AudioController.php
+          echo 'Both legacy bypasses reproduced on the original synthetic baseline; checking the candidate fixes next.'
+          php server/tests/auth.php
+          php server/tests/entitlement.php
+          php server/tests/promos.php
+          php server/tests/uploads.php
+          php server/tests/admin.php
+          php server/tests/support.php
+          php server/tests/incidents.php
+          php server/tests/billing.php
+          php server/tests/referrals.php
+          php server/tests/rewards.php
+          php server/tests/reward-policy.php
+          php server/tests/automatic-rewards.php
+
+  live-config-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 16
+      - name: Read active release flags and source hashes without database access
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          dir=$(mktemp -d)
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$dir/key"
+          chmod 600 "$dir/key"
+          ssh-keygen -y -P '' -f "$dir/key" > "$dir/key.pub"
+          test "$(ssh-keygen -lf "$dir/key.pub" -E sha256 | awk '{print $2}')" = 'SHA256:Q6FyifXRq6garceQdIIjBmXhkk81Ic1p/x9JTSYHWUk'
+          printf '%s\n' '[92.113.19.189]:65002 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAf8M2EVwq0oJI8I9KZ0NFE8P8yDOvDATEhkQti/Kk/0' > "$dir/known_hosts"
+          opts=(-i "$dir/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null -o ConnectTimeout=15)
+          ssh -p 65002 "${opts[@]}" u235811320@92.113.19.189 /opt/alt/php83/usr/bin/php < .github/scripts/desktop-access-config-readonly.php > "$dir/observed.json"
+          python3 .github/scripts/desktop-access-config-report.py "$dir/observed.json"

@@ -29,6 +29,11 @@ final class AudioController
         if (!$this->tokens->valid($id, (int) $row['version'], is_string($query['expires'] ?? null) ? $query['expires'] : '', is_string($query['token'] ?? null) ? $query['token'] : '', sessionId: $sessionId)) {
             return Response::json(403, ['error' => 'invalid_audio_token']);
         }
+        // Account mode must also reject previously minted unbound legacy URLs.
+        // Keeping resolve strict alone would leave those capabilities usable until TTL.
+        if ($this->access !== null && $sessionId === null) {
+            return Response::json(403, ['error' => 'access_denied']);
+        }
         if ($sessionId !== null && !($this->access?->allowed($sessionId) ?? false)) {
             return Response::json(403, ['error' => 'access_denied']);
         }
