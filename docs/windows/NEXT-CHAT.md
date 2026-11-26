@@ -1,3 +1,38 @@
+# АКТУАЛЬНО — W179: GitHub-hosted CI восстановлен, 0.24.57 ожидает owner approval (26.11.2026)
+
+**Текущий main HEAD:** c336f9442cc6b1cb38423fe44ea128874633f089. Репозиторий manufact-test/nomusic подтверждён как public. До изменений сделана свежая backup-точка backup/windows-main-pre-floki-api-audit-20261126 на 41f823dd02d914d3b98f13360f34569974d9b2ad; более ранняя W178 backup остаётся на fb5e27d2c1e942a276d456174c7b35f56f118bce.
+
+## Windows candidate 0.24.57
+
+- Версия/sequence: **0.24.57 / P-256 sequence 4**, source commit 28587670e9efda35c73eb3a49d9702d2d72b3b8c.
+- GUI, Update Supervisor и Inno Setup metadata на current main всё ещё 0.24.57. Сравнение candidate commit с current main показало **никаких последующих Windows runtime source changes**; после candidate добавлялись docs/CI и независимые extension changes. Поэтому signed candidate source актуален.
+- Signed release run [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672), attempt **4**, сейчас **WAITING**, а не failure: GitHub-hosted Windows job prepare остановлен на protected environment windows-stable-production. Pending-deployment API подтверждает current_user_can_approve=true, reviewer — владелец manufact-test. Нужно нажать **Review deployments → windows-stable-production → Approve and deploy** на странице run. Это открывает только P-256 signing + unpublished owner draft и следующий private Floki stage; для push event publish_to_production false. Клиентский канал не затрагивается. В reusable private-stage workflow также используется тот же protected environment — проверить, не потребуется ли отдельное подтверждение после prepare.
+- После approval: проверить Windows prepare job до конца, exact unpublished owner/feed draft assets, private stage run и root Floki receipt; затем проверить обе owner URLs через owner-auth HTTP200 + полный EXE SHA. Только после этого выдать одну ссылку https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.57.exe (или verified owner latest). GitHub URLs владельцу не выдавать.
+- windows-customer-stable.json остаётся approved:null; signed customer baseline — 0.24.55/seq2. Никакой customer promotion/OTA до личного прослушивания и явного «выпускай всем».
+
+## GitHub runner recovery and current CI
+
+- Репозиторий public; hosted runner allocation восстановлена. Protected signed job больше не падает с runner_id=0; теперь он корректно ждёт owner review.
+- Current-main Windows integration run [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): portable Linux extension/server package job SUCCESS; Windows integration job was still running at documentation time — inspect terminal result.
+- Generic CI run [45813153516](https://github.com/manufact-test/nomusic/actions/runs/45813153516) was still running at documentation time — inspect terminal result.
+- Temporary public visibility is recovery-only. Close the repository after the accepted Windows candidate, verified delivery, and the required project recovery steps; do not change repo visibility without owner command.
+
+## Floki API/admin read-only audit — corrected origin
+
+- New no-secret workflow [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575) SUCCESS; it explicitly targets https://api.celikom.com (Floki), not Hostinger.
+- Floki: /api/v1/health 200, /api/v1/config 200, /admin/login 200 with form/CSRF/login/password fields and login cookie, anonymous /admin redirects 303 to /admin/login, anonymous /api/v1/auth/me and /api/v1/resolve return expected 401.
+- This proves public API and admin login page/routes are alive. It does **not** prove owner credentials work, admin POST login succeeds, dashboard/database actions work, or exact catalog/grant state. No credentials were used or read.
+- Important correction: the older celikom-api-availability.yml monitor still targets https://darkred-camel-588676.hostingersite.com. Its green result is a Hostinger check and must NOT be represented as a Floki check.
+- The one-time W178 production DB/owner-auth read-only audit remains undone. floki-maintenance-request.sh is still a deliberate safe-no-op; do not assume the persistent/temporary root maintenance gateway is installed. Any live DB check requires a separately approved, narrowly scoped read-only root procedure.
+
+## Playback acceptance remains outstanding
+
+0.24.56 still fails audible replacement; 0.24.57 W178 source-catch-up and privacy-safe queue diagnostics are only a candidate, not a fix proven by CI. After owner install, test the known mapped track 144530503 («Ау») plus ordinary/unmapped tracks, Next/Play/Pause, and send fresh diagnostics. Inspect RESOLVE_QUEUED, RESOLVE_DEQUEUED, RESOLVE_REPLY_RECEIVED, the new RESOLVE_SERVER_NO_GRANT / session / grant validation classes, NATIVE_CURRENT_CATCHUP_*, native file-info and decoder proof. Do not confuse a login page or SignedIn=true with an authenticated signed audio grant or audible replacement.
+
+No Android, extension runtime, paid features, Hostinger retirement, VPN/gain/audio architecture or customer stable changes in this Windows task.
+
+---
+
 # АКТУАЛЬНО — W178: 0.24.57 source prepared, подписанный EXE БЛОКИРОВАН (26.11.2026)
 
 Владелец прав: 0.24.56 не подменяет музыку. Исходная свежая диагностика 0.24.56 разобрана и сохранена в [W178 audit/implementation](./W178-02456-PLAYBACK-POSTCUTOVER-INVESTIGATION-20261126.md). Основная подтверждённая последовательность: `RESOLVE_MISS track=18697033` (не known mapped `144530503`) → `NATIVE_INITIAL_SOURCE_REVALIDATE` → `RESOLVE_START`, без `NATIVE_FILEINFO_REQUEST`, активной замены либо подтверждения звука. Реальная причина отсутствия доступного grant для сессии владельца пока не подтверждена серверным аудитом. Админка музыки по адресу `https://api.celikom.com/admin/login` также, по заявлению владельца, не работает; live owner login/action не проверены.

@@ -53,3 +53,19 @@ Read-only одноразовый audit request (live DB `findActive` для 1869
 
 - Exact 0.24.57 source/metadata commit `28587670e9efda35c73eb3a49d9702d2d72b3b8c`: [Floki cross-build 45707797544](https://github.com/manufact-test/nomusic/actions/runs/45707797544) **SUCCESS**, including W178 native renderer tests and `dotnet build` for both Windows Companion and Update Supervisor. This is not an actual owner installer, and Linux pipeline's optional unsigned PE publish step was intentionally SKIPPED (no `[qa-exe]` flag).
 - [Protected P-256 signing 45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672) was retried a THIRD time; still FAILED before any steps, Windows hosted `runner_id=0`, `steps=[]`. No exact 0.24.57 signed installer, no verified owner publication, no link. Do not repeat runner retries endlessly or weaken signing isolation.
+
+## W179 follow-up — public GitHub runner recovery and exact Floki admin route probe (26 Nov)
+
+- Owner opened manufact-test/nomusic; GitHub API confirms private=false, default branch main. New current-main commit at this checkpoint: c336f9442cc6b1cb38423fe44ea128874633f089.
+- Signed owner release [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672), attempt 4, now reaches GitHub Actions but is **WAITING on the protected windows-stable-production environment**. pending_deployments reports owner manufact-test can approve. This is the P-256 signing-secret gate, not runner allocation or a failed build. Approval must be by owner in GitHub UI; do not remove environment protection. Push-triggered run has no production-publish input, and windows-customer-stable.json remains approved:null.
+- Current main Windows integration [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): portable build job SUCCESS; inspect Windows job final state. Generic CI [45813153516] was still running at this checkpoint.
+- Added .github/workflows/celikom-floki-api-readonly-audit.yml and .github/scripts/celikom-floki-api-readonly-audit.mjs at commit c336f9442cc6b1cb38423fe44ea128874633f089. Workflow [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575) SUCCESS. It made no authenticated requests and read no secrets:
+  - Floki /api/v1/health 200, /api/v1/config 200.
+  - /admin/login 200; form, CSRF, login, password inputs and login cookie present.
+  - Anonymous /admin -> 303 /admin/login.
+  - Anonymous /api/v1/auth/me and /api/v1/resolve -> expected 401.
+  This proves route/form availability only, not owner login or admin actions/DB.
+- **Correction:** the pre-existing .github/scripts/celikom-api-monitor.mjs uses https://darkred-camel-588676.hostingersite.com; previous green API monitor run [45759107905](https://github.com/manufact-test/nomusic/actions/runs/45759107905) checked Hostinger, not Floki. The new audit above is the first exact unauthenticated Floki API/admin-form proof in this thread.
+- floki-maintenance-request.sh remains safe no-op. Do not claim production DB audit ran. Any DB/admin identity check requires a separate explicitly reviewed read-only maintenance payload.
+- Playback remains unaccepted: 0.24.57 needs signed owner release, root Floki promotion + full owner HTTPS SHA, installation/listening, and fresh diagnostics before calling it fixed.
+
