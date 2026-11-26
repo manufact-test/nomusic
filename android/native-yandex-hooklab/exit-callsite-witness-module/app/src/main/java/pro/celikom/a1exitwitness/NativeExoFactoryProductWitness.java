@@ -1,6 +1,8 @@
 package pro.celikom.a1exitwitness;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.lang.reflect.Modifier;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -87,5 +89,52 @@ final class NativeExoFactoryProductWitness {
                 return true;
         }
         return false;
+    }
+
+    /**
+     * A signed original c.for result is an obfuscated wrapper, not a direct
+     * DataSource factory. Require one Java identity reference path (<=2 fields)
+     * to the exact original $b.for receiver. Never call vendor methods.
+     */
+    static boolean uniquelyReferencesNestedFactory(Object outer,Object nested) {
+        if(outer==null || nested==null || outer==nested)return false;
+        ClassLoader loader=nested.getClass().getClassLoader();
+        if(loader==null || outer.getClass().getClassLoader()!=loader)return false;
+        ArrayList<Object> first=new ArrayList<>();
+        if(!collectReferences(outer,loader,first))return false;
+        int matches=0;
+        for(Object child:first) {
+            if(child==nested)matches++;
+            if(child==null || child==outer || child==nested
+                    || child.getClass().getClassLoader()!=loader)continue;
+            ArrayList<Object> second=new ArrayList<>();
+            if(!collectReferences(child,loader,second))return false;
+            for(Object grandchild:second)if(grandchild==nested)matches++;
+            if(matches>1)return false;
+        }
+        return matches==1;
+    }
+
+    private static boolean collectReferences(Object obj,ClassLoader loader,
+            ArrayList<Object> values) {
+        int examined=0;
+        for(Class<?> type=obj.getClass();type!=null && type!=Object.class;
+                type=type.getSuperclass()) {
+            if(type.getClassLoader()!=loader)break;
+            for(Field field:type.getDeclaredFields()) {
+                if(Modifier.isStatic(field.getModifiers()) || field.isSynthetic()
+                        || field.getType().isPrimitive())continue;
+                if(++examined>32)return false;
+                try {
+                    field.setAccessible(true);
+                    Object value=field.get(obj);
+                    if(value!=null && value.getClass().getClassLoader()==loader) {
+                        if(values.size()>=32)return false;
+                        values.add(value);
+                    }
+                } catch(Throwable ignored) {return false;}
+            }
+        }
+        return true;
     }
 }
