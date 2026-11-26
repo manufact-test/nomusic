@@ -579,38 +579,25 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
     lastWebpackRequire = webpackRequire;
 
-    // W185: restore the exact resource-discovery strategy from the last
-    // personally accepted Windows baseline 0.24.54 (W174). That build already
-    // ran against official Yandex 5.128.0. Static presence of a class/method
-    // in module 7695 did not prove that the live playback call chain invoked it;
-    // W183's synthetic fixture forced that unverified assumption.
-    for (const id in webpackRequire.m) {
-      let source;
-      try { source = webpackRequire.m[id].toString(); } catch { continue; }
-      if (!source.includes('"get-file-info"') &&
-          !source.includes('"resources/v2/file-info"')) continue;
-      let module;
-      try { module = webpackRequire(id); } catch { continue; }
-      for (const name in module) {
-        const klass = module[name];
-        if (typeof klass !== "function" || !klass.prototype ||
-            typeof klass.prototype.getFileInfo !== "function") continue;
-        try {
-          adapter.attach(klass.prototype);
-          attached = true;
-          // Preserve the known-good W174 endpoint discovery. The current-player
-          // observer remains a separate state/reload mechanism, not the hook
-          // target. The diagnostic distinguishes this exact attachment path.
-          playerSourceRefresh.attach(webpackRequire);
-          report("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK");
-          report("RESOURCE_HOOK_ATTACHED");
-          console.info("[CELIKOM] Native file-info source connector attached");
-          if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
-          return true;
-        } catch {}
-      }
+    // W186: observe the pinned live player first, then resolve the exact
+    // mediaProvider object injected into that player instance. The 5.128
+    // player calls mediaProvider.getMediaSource; do not attach to an endpoint
+    // wrapper or an unrelated webpack export merely because it has getFileInfo.
+    if (!playerSourceRefresh.attach(webpackRequire)) return false;
+    const owner = playerSourceRefresh.mediaSourceOwner();
+    if (!owner || typeof owner.getMediaSource !== "function") return false;
+    try {
+      adapter.attachMediaSource(owner);
+      attached = true;
+      report("RESOURCE_HOOK_ATTACHED_LIVE_MEDIA_PROVIDER");
+      report("RESOURCE_HOOK_ATTACHED");
+      console.info("[CELIKOM] Live Yandex media-source connector attached");
+      if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
+      return true;
+    } catch {
+      report("RESOURCE_MEDIA_PROVIDER_UNSUPPORTED");
+      return false;
     }
-    return false;
   }
 
   const finder = setInterval(() => {
