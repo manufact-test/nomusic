@@ -19,13 +19,14 @@ Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
 - Added JVM regression tests for unique/inherited/overridden methods, interface return types, default methods, ambiguity, static and wrong-return rejection. Local run: `NATIVE_EXO_FACTORY_PRODUCT_WITNESS_PASS assertions=14`.
 - Updated owner marker/output/instructions to BETA18. BETA18 is to install over the owner's BETA17 test build; no app data wipe.
 
-## Build and delivery boundary
+## BETA18 build and Floki delivery — CONFIRMED 26.11.2026
 
-- The final source push carries `[export-beta-audio]`. The existing ARM13 publisher-first workflow must pass its JVM and native gates before it can export the signed owner BETA18 package. A failed gate must not export.
-- Expected package: `CELIKOM-A1-RAMIL-AU-BETA18-HONOR50-20261126.apk`.
-- Successful source workflow completion triggers the trusted-main Floki spool workflow. Wait for its root receipt with matching run/attempt/name/size/SHA and `https_verified=true`; only then is the owner link ready.
-- Current build/export/delivery outcome is **not yet verified in this handoff**. Do not claim BETA18 built, delivered, or audible until the actual run and receipt confirm it.
-- After delivery: install BETA18 over BETA17, test Ramil `144530503`, album `38902809`, 00:43–00:54, export TXT. The decisive expected progress is `TRACK_FACTORY_SOURCE_LINK` followed by `DATASOURCE_ARMED`, `AUDIO_OPEN`, and `AUDIO_READ`. Still require the owner to confirm the audible replacement.
+- Owner APK source workflow: run `45833293758`, attempt `1`, source commit `22f217ad0f69af69cd0cf09149146558d7379eda`. JVM and publisher-first native ARM13 jobs both **SUCCESS**; the owner export step completed and created the unpublished draft release `459494184`.
+- Package: `CELIKOM-A1-RAMIL-AU-BETA18-HONOR50-20261126.apk`, 71,589,868 bytes, SHA-256 `b9371ef319ff2c03e1b34106dee95d96ee67f4a6ac73034aeaa0b3ef16cb7ecf`.
+- Trusted-main Floki spool run: `45835668712` — **SUCCESS**. The runner independently verified the persistent signing certificate and package identity, staged the exact APK, received matching root receipt with `https_verified=true`, and read back the owner-only HTTPS URL in the unpublished release draft.
+- The owner-only capability URL is deliberately NOT copied into Git, docs, or logs. It is present only in the unpublished owner draft.
+- BETA18 instructions: install over BETA17, do not clear app data; play Ramil `144530503` from album `38902809`, listen at 00:43–00:54, then export the CELIKOM TXT.
+- **Audio replacement is still unproven.** BETA18 is delivered for owner testing, not product acceptance. The next diagnostic must show whether `TRACK_FACTORY_SOURCE_LINK` now appears, followed by `DATASOURCE_ARMED`, `AUDIO_OPEN`, and `AUDIO_READ`. Owner listening confirmation is still required.
 - BETA16 stable and all other channels remain untouched. Never publish the owner draft or copy its capability URL into Git/docs/logs.
 
 ---
