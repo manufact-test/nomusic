@@ -1,3 +1,28 @@
+# CURRENT HANDOFF — 26.11.2026 (BETA21 delivered; awaiting Honor 50 acoustic verification)
+
+**Сейчас:** владелец получил BETA21 через FlokiNET. Ждём новый TXT и подтверждение звучания на реальном Honor 50. НЕ утверждать, что подмена заработала, на основании APK/CI/Exo read.
+
+## BETA20 не сработала: что доказано
+
+- Реальная приватная TXT диагностика BETA20 (`CELIKOM-A1-Diagnostics-1795710702903.txt`, только в исходном чате — НЕ выкладывать в публичный GitHub): `AUDIO_EXO_FIRST_OPEN_ARM=EXACT_BOUND`, `DATASOURCE_ARMED=ONE`, `AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`; `OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `OWNER_AUDIO_RANGE_VALID=ONE`. Это подтверждает encoded alternate byte read, **НЕ выбор текущего декодера/PCM/акустический выход**.
+- В том же TXT `ENGINE_HOLDER_RENDERER_TYPE1=MANY`, `ENGINE_HOLDER_TYPE1_STATE_NOT2=MANY`, `ENGINE_HOLDER_TYPE1_STATE2=NONE`, `ENGINE_HOLDER_READ_RETURN_MINUS3=MANY`, `ENGINE_HOLDER_READ_RETURN_MINUS4=NONE`; нет доказанного активного non-EOS audio sample. `AUDIO_STAGE_B_STATUS=NOT_CONNECTED` — статически захардкоженное поле. Лог обрезается `KEEP_LAST_32KB`.
+- Выявлен и закрыт **второй** преждевременный factory-product deferred arm в `installExactExoFactoryProductWitness()`: он всё ещё срабатывал на construction, хотя BETA20 уже переносила другой factory arm на первый реальный `open()`. Fix commit `7fe6dcdd8fa98252eaff19dab9a3156b4b1ab645`. JVM `45860410408`, native `45860410635`, clone differential `45860410413` SUCCESS.
+- Отдельная строго read-only проверка подписанного исходного Yandex 2025 XAPK на изолированном CI: `android-a1-private-process-topology.yml`, green run `45862436035` — 32 services, 2 separate-process, только 3 media-named services и все 3 в main, явных `audio/player/playback/media` secondary process нет. Это **не подтверждает**, что кто-либо реально воспроизводил аудио, но не даёт оснований переносить hook в другой процесс.
+- Дополнительный read-only framework audio output witness: `MediaCodec.configure` (finite MPEG/AAC/other MIME), `MediaCodec.start`, `AudioTrack.play`, без чтения PCM или модификации звука. Codec instrumentation commit `4a6ca016ffed59f4b1e2c9507ea1100a934d130a`. Наличие framework events — **не** доказательство, что выбран именно этот original Exo source.
+
+## BETA21 — точные исходники и проверенная доставка
+
+- Experimental Android branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; BETA21 export/source commit `4b3e966aeab71d90b307110a72f222fefde46fdd`.
+- Source native/export run `45863084301`, attempt `1`, JVM and native ARM13 jobs **SUCCESS**. Clone differential run `45863084416` **SUCCESS**. Owner APK `CELIKOM-A1-RAMIL-AU-BETA21-HONOR50-20261126.apk`; exact size `71593964` bytes, SHA-256 `80f4b0056107486ae43bb656e9331d6b7b96d21493f9e0aba7ceb171ece2db91`. Unpublished draft release `459698802`.
+- Trusted `main` Floki signed-spool workflow run `45865042744` **SUCCESS**: exact selected signed APK verified, independent root receipt + HTTPS verified, owner URL committed to **unpublished draft body only** and read back. Main delivery request `.github/deploy/a1-owner-download-request.json`: `{"run_id":45863084301,"attempt":1,"release_id":459698802}`. **Owner download capability URL must never be copied into docs/GitHub/Actions logs**; it was sent directly in user chat.
+- No changes to stable Android/Windows, original publisher package, API, Nginx, root consumer, signer or Floki security. Legacy SSH workflow must remain disabled.
+- `acoustic_replacement_proven=false`. Need owner to install BETA21 over BETA20 without clearing data and check `144530503` from album `38902809`, especially 00:43–00:54, then send TXT. Check BETA21 marker `A1_TRACKID_BETA21_ACTUAL_OPEN_ONLY_CODEC_OUTPUT_WITNESS_20261126`, `AUDIO_EXO_FIRST_OPEN_ARM`, `AUDIO_OPEN/READ`, `CODEC_CONFIG_MPEG/AAC/OTHER_AUDIO`, `CODEC_AUDIO_START`, `PLATFORM_AUDIOTRACK_PLAY`, and active renderer state; missing codec counters may be a hook registration limitation. Do not equate codec start with audible PCM.
+- New APK **only** after identifying evidence-backed next root cause and running native/JVM gates; publish through FlokiNET signed spool and independent root receipt, not direct SSH or GitHub asset URLs.
+
+## Historical records below
+
+---
+
 # CURRENT HANDOFF — 26.11.2026 (BETA20 delivered, awaiting Honor 50 audio check)
 
 **Актуальная задача:** получить TXT-диагностику после установки BETA20 на Honor 50, проверить реальное воспроизведение альтернативного аудио. **Никакой новой сборки до результатов телефона.**
