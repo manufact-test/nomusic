@@ -21,8 +21,17 @@ function validId(raw) {
 
 function trackIdFromArgs(args) {
   for (const value of args) {
-    const id = validId(value?.trackId ?? value?.id);
-    if (id) return id;
+    const candidates = [
+      value?.trackId, value?.id,
+      value?.entity?.id, value?.entity?.data?.meta?.id,
+      value?.data?.meta?.id,
+      value?.track?.id, value?.track?.meta?.id,
+      value?.track?.data?.meta?.id
+    ];
+    for (const candidate of candidates) {
+      const id = validId(candidate);
+      if (id) return id;
+    }
   }
   return null;
 }
@@ -120,6 +129,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   let enabled = false, disposed = false, revision = 0, current = null;
   let prototype = null, originalSingle = null, originalBatch = null;
   let ownSingle = null, ownBatch = null;
+  let mediaSourceOwner = null, mediaSourceDescriptor = null;
+  let originalMediaSource = null, ownMediaSource = null;
   const pending = new Map();
   const cache = new Map();
   const mappedTracks = new Set();
@@ -413,6 +424,89 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     }
     return adapter;
   }
+  function attachMediaSource(owner) {
+    if (disposed || !owner || typeof owner !== 'object' && typeof owner !== 'function')
+      throw new Error('W22_UNSUPPORTED_MEDIA_SOURCE');
+    if (mediaSourceOwner) {
+      if (mediaSourceOwner === owner) return adapter;
+      throw new Error('W22_MEDIA_SOURCE_ALREADY_ATTACHED');
+    }
+    const descriptor = Object.getOwnPropertyDescriptor(owner, 'getMediaSource');
+    if (!descriptor || typeof descriptor.value !== 'function' ||
+        descriptor.get !== undefined || descriptor.set !== undefined)
+      throw new Error('W22_UNSUPPORTED_MEDIA_SOURCE');
+    const original = descriptor.value;
+
+    const wrapped = async function (params, ...rest) {
+      if (!enabled || disposed) return original.call(this, params, ...rest);
+      const args = [params, ...rest];
+      const id = trackIdFromArgs(args);
+      if (!id) {
+        emit('NATIVE_MEDIASOURCE_ID_UNRECOGNIZED');
+        return original.call(this, params, ...rest);
+      }
+      if (id !== current) trackChanged(id);
+      emit('NATIVE_MEDIASOURCE_REQUEST', id);
+      const rev = revision;
+      const native = Promise.resolve().then(() => original.call(this, params, ...rest))
+        .then(value => {
+          emit('NATIVE_MEDIASOURCE_OK', id);
+          return { value };
+        }, error => {
+          emit('NATIVE_MEDIASOURCE_ERROR', id);
+          return { error };
+        });
+      const grant = await lookup(id, rev);
+      const base = await native;
+      if ('error' in base) throw base.error;
+      if (!grant || !isLive(id, rev)) {
+        if (isLive(id, rev))
+          emit(classificationForTrack(id) === 'ORIGINAL' ? 'SOURCE_ORIGINAL' : 'SOURCE_UNKNOWN', id);
+        if (rev === revision) status = enabled ? 'ORIGINAL' : 'OFF';
+        return base.value;
+      }
+      const value = base.value;
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        emit('MEDIASOURCE_SHAPE_MISSING', id);
+        status = 'ORIGINAL';
+        return value;
+      }
+      const field = value.fileInfo && typeof value.fileInfo === 'object'
+        ? 'fileInfo' : value.downloadInfo && typeof value.downloadInfo === 'object'
+          ? 'downloadInfo' : null;
+      if (!field || Array.isArray(value[field])) {
+        emit('MEDIASOURCE_SHAPE_MISSING', id);
+        status = 'ORIGINAL';
+        return value;
+      }
+      emit(field === 'fileInfo' ? 'MEDIASOURCE_SHAPE_FILE' : 'MEDIASOURCE_SHAPE_DOWNLOAD', id);
+      observeOriginalFileInfo(value[field], emit, id);
+      const replacement = toDownloadInfo(value[field], id, grant.signedUrl,
+        grant.mimeType, qualityFromArgs(args));
+      markMapped(id);
+      setClassification(id, 'ACTIVE_REPLACEMENT');
+      emit('SOURCE_ACTIVE_REPLACEMENT', id);
+      if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
+          grant.gainDb <= 12 && grant.gainDb !== 0)
+        emit(grant.gainApplied === true ? 'GAIN_OFFLINE_VARIANT_MAPPED' :
+          'GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
+      emit('SOURCE_MAPPED', id);
+      status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
+      return { ...value, [field]: replacement };
+    };
+
+    try {
+      Object.defineProperty(owner, 'getMediaSource', { ...descriptor, value: wrapped });
+    } catch {
+      throw new Error('W22_MEDIA_SOURCE_NOT_PATCHABLE');
+    }
+    mediaSourceOwner = owner;
+    mediaSourceDescriptor = descriptor;
+    originalMediaSource = original;
+    ownMediaSource = wrapped;
+    return adapter;
+  }
+
   function dispose() {
     if (disposed) return;
     disable(); disposed = true;
@@ -423,9 +517,17 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       if (originalBatch && prototype.getFileInfoBatch === ownBatch)
         prototype.getFileInfoBatch = originalBatch;
     }
+    if (mediaSourceOwner &&
+        Object.getOwnPropertyDescriptor(mediaSourceOwner, 'getMediaSource')?.value === ownMediaSource) {
+      try { Object.defineProperty(mediaSourceOwner, 'getMediaSource', mediaSourceDescriptor); } catch {}
+    }
     prototype = null;
+    mediaSourceOwner = null;
+    mediaSourceDescriptor = null;
+    originalMediaSource = null;
+    ownMediaSource = null;
   }
-  const adapter = Object.freeze({ attach, prime, enable, disable, original,
+  const adapter = Object.freeze({ attach, attachMediaSource, prime, enable, disable, original,
     trackChanged, hasMappedTrack, forgetMappedTrack, classificationForTrack, dispose,
     get status() { return status; },
     get enabled() { return enabled && !disposed; }
