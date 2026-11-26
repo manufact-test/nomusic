@@ -137,21 +137,17 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
-test("W183 Yandex 5.128 pins SonataProvider and hooks getFileInfo on its live instance",async()=>{
+test("W183 Yandex 5.128 hooks SonataProvider while leaving the old endpoint wrapper untouched",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
-  void player.state; // inherited base getter observes the derived live player
-  r.runIntervals();   // the production finder retries after that state read
-  assert.ok(r.logs.some(s=>s.includes("Native file-info source connector attached")));
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin
   });
-  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
-    "the old endpoint wrapper must not receive the 5.128 player hook");
+  void player.state;
   const pending=player.reloadEntity("QUALITY_CHANGE");
   await tick();
   const requests=r.window.__celikomBridgeNativeDrain();
-  assert.equal(requests.length,1,"reloadEntity must pass through the real player's getFileInfo");
+  assert.equal(requests.length,1,"reloadEntity must pass through SonataProvider.getFileInfo");
   assert.equal(requests[0].trackId,"123");
   r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
   const result=await pending;
@@ -161,10 +157,13 @@ test("W183 Yandex 5.128 pins SonataProvider and hooks getFileInfo on its live in
   const events=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
   assert.ok(events.includes("NATIVE_FILEINFO_REQUEST"));
   assert.ok(events.includes("SOURCE_MAPPED"));
-  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_PLAYER"));
+  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_PROVIDER"));
   assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
-  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
-    "the old endpoint wrapper stays untouched");
+  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false);
+  assert.equal(Object.hasOwn(r.LegacyResource.prototype,"getFileInfo"),false);
+  const legacy=await new r.LegacyResource().getFileInfo({trackId:"123"});
+  assert.equal(legacy.downloadInfo.url,"https://official.yandex.example/stream",
+    "the old endpoint wrapper must remain original and unpatched");
   r.handlers.beforeunload();
 });
 
