@@ -1390,6 +1390,49 @@ final class StageBAudioEvidence {
         return true;
     }
 
+    /** Validated immutable child coroutine iLb source identity only. */
+    synchronized Object exactOriginalChildCoroutineSource() {
+        ArrayList<OriginalChildCoroutineCapture> scopes=activeOriginalChildSourceScopes.get();
+        if(scopes==null || scopes.isEmpty())return null;
+        OriginalChildCoroutineCapture frame=scopes.get(scopes.size()-1);
+        return frame==null || frame.conflict || frame.coroutine.get()==null
+            ?null:frame.source.get();
+    }
+
+    /**
+     * The signed child receives an Of6 produced by another original method,
+     * not the parent iLb constructor Of6. Only the exact immutable iLb
+     * source + successful original Player setter + constructor owner/config
+     * + creator-owned Track/Album-or-beta references can bridge it.
+     * Never choose by title, latest playing item or inferred track ID.
+     */
+    synchronized boolean onOriginalChildSelectedSetterDescriptor(
+            Object owner,Object configuration,Object item,Object source,
+            Object wrapper,Object track,Object albumOrBeta,Object descriptor) {
+        if(owner==null || configuration==null || item==null || source==null ||
+                source!=exactOriginalChildCoroutineSource() ||
+                wrapper==null || track==null || albumOrBeta==null ||
+                descriptor==null)return false;
+        OriginalMediaSourceItemLink unique=null;
+        for(OriginalMediaSourceItemLink candidate:originalMediaSourceItems) {
+            if(candidate.source.get()!=source)continue;
+            if(unique!=null)return false;
+            unique=candidate;
+        }
+        if(unique==null || unique.conflicted || unique.wrapper.get()!=wrapper ||
+                unique.owner.get()!=owner ||
+                unique.configuration.get()!=configuration ||
+                unique.item.get()==null)return false;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.track==null || link.track.get()!=track)return false;
+        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+        if(creator==null || creator.length!=2 || creator[0]!=track ||
+                creator[1]!=albumOrBeta)return false;
+        if(!bindOriginalDescriptor(wrapper,descriptor))return false;
+        mark(childCoroutineDescriptorLinks);
+        return true;
+    }
+
     synchronized void onOriginalChildHookRegistered() {
         mark(originalChildHookRegistered);
     }
@@ -1688,6 +1731,34 @@ final class StageBAudioEvidence {
                 mark(trackSourceAlbumLinks);
             mark(trackFactorySourceLinks);
         }
+    }
+
+
+    /**
+     * The signed c.for result is an outer wrapper. The pinned nested
+     * $b.for source factory must be Java-identity reachable by one unique
+     * bounded path from that exact descriptor's outer factory result.
+     * Do not pass an unbound DataSource to the playback admission gate.
+     */
+    synchronized Object exactOuterFactoryForNested(Object nestedFactory,
+            java.util.function.BiPredicate<Object,Object> uniquePath) {
+        if(nestedFactory==null || uniquePath==null)return null;
+        Object result=null;
+        for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+            if(link.track==null || link.track.get()==null ||
+                    link.wrapper==null || link.wrapper.get()==null ||
+                    link.descriptor==null || link.descriptor.get()==null ||
+                    link.factoryResult==null)continue;
+            Object outer=link.factoryResult.get();
+            if(outer==null)continue;
+            boolean found;
+            try {found=uniquePath.test(outer,nestedFactory);}
+            catch(Throwable ignored) {return null;}
+            if(!found)continue;
+            if(result!=null)return null;
+            result=outer;
+        }
+        return result;
     }
 
     private synchronized boolean sameExoSource(Object source) {
