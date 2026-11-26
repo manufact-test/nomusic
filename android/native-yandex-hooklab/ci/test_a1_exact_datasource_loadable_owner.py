@@ -3,9 +3,9 @@
 import unittest
 
 from a1_exact_datasource_loadable_owner import (
-    CLOSE, DATA_SOURCE, DATA_SPEC, LOADABLE, OPEN, PERIOD, READ,
-    collect_dispatch_targets, hierarchy_owners,
-    is_exact_datasource_target, is_loadable_load_method, implements,
+    CLOSE, DATA_SOURCE, DATA_SPEC, OPEN, PERIOD, READ,
+    collect_dispatch_targets, hierarchy_owners, loader_contract_for_method,
+    is_exact_datasource_target, implements,
 )
 
 
@@ -28,28 +28,41 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
              "if", "(LUC2;)J")
         ))
 
-    def test_only_exact_loadable_contract_is_promoted(self):
+    def test_obfuscated_loadable_contract_is_derived_from_exact_loader_inner_interface(self):
+        loader_interface = "Landroidx/media3/exoplayer/upstream/Loader$a;"
+        owner = "Lsigned-loadable;"
+        classes = {
+            owner: (None, "Ljava/lang/Object;", [loader_interface], 0x11),
+            loader_interface: (None, "Ljava/lang/Object;", [], 0x200),
+        }
+        methods = {
+            loader_interface: [
+                ((loader_interface, "for", "()V"), 0x401, 0)
+            ]
+        }
         self.assertEqual(
-            LOADABLE,
-            "Landroidx/media3/exoplayer/upstream/Loader$Loadable;"
+            loader_contract_for_method(
+                owner, (owner, "for", "()V"), classes, methods
+            ),
+            [loader_interface]
         )
-        self.assertTrue(is_loadable_load_method(
-            ("Lx;", "load", "()V"), True
-        ))
-        self.assertFalse(is_loadable_load_method(
-            ("Lx;", "load", "()V"), False
-        ))
-        self.assertFalse(is_loadable_load_method(
-            ("Lx;", "run", "()V"), True
-        ))
-        self.assertFalse(is_loadable_load_method(
-            ("Lx;", "load", "(J)V"), True
-        ))
+        self.assertEqual(
+            loader_contract_for_method(
+                owner, (owner, "run", "()V"), classes, methods
+            ),
+            []
+        )
+        self.assertEqual(
+            loader_contract_for_method(
+                owner, (owner, "for", "(J)V"), classes, methods
+            ),
+            []
+        )
 
     def test_datasource_dispatch_is_restricted_to_its_exact_type_hierarchy(self):
         classes = {
-            DATA_SOURCE: (None, "Lbase;", ["Ldatasource-contract;"]),
-            "Lbase;": (None, "Ljava/lang/Object;", []),
+            DATA_SOURCE: (None, "Lbase;", ["Ldatasource-contract;"], 0x11),
+            "Lbase;": (None, "Ljava/lang/Object;", [], 0x11),
             "Ldatasource-contract;": (None, "Ljava/lang/Object;", []),
             "Lunrelated;": (None, "Ljava/lang/Object;", []),
         }
@@ -83,12 +96,12 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
     def test_period_hierarchy_walk_is_bounded_and_exact(self):
         classes = {
             "Lchild;": (None, "Lparent;", []),
-            "Lparent;": (None, "Ljava/lang/Object;", [LOADABLE]),
-            "LperiodChild;": (None, PERIOD, []),
-            PERIOD: (None, "Ljava/lang/Object;", []),
+            "Lparent;": (None, "Ljava/lang/Object;", ["Lmarker;"], 0x11),
+            "LperiodChild;": (None, PERIOD, [], 0x11),
+            PERIOD: (None, "Ljava/lang/Object;", [], 0x11),
         }
-        self.assertTrue(implements("Lchild;", LOADABLE, classes))
-        self.assertFalse(implements("LperiodChild;", LOADABLE, classes))
+        self.assertTrue(implements("Lchild;", "Lmarker;", classes))
+        self.assertFalse(implements("LperiodChild;", "Lmarker;", classes))
         self.assertTrue(implements(PERIOD, PERIOD, classes))
 
 
