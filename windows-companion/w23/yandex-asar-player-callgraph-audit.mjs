@@ -62,7 +62,7 @@ function exportKeys(source) {
   return [...keys].slice(0, 40);
 }
 function moduleDependencies(source) {
-  const header = source.slice(0, 180).match(/^\s*(?:function\s*\(([^)]*)\)|\(([^)]*)\)\s*=>|([A-Za-z_$][\w$]*)\s*=>)/);
+  const header = source.slice(0, 240).match(/(?:^|[,{])\s*["']?[0-9]{1,6}["']?\s*:\s*(?:function\s*\(([^)]*)\)|\(([^)]*)\)\s*=>|([A-Za-z_$][\w$]*)\s*=>)/);
   const args = (header?.[1] || header?.[2] || header?.[3] || "")
     .split(",").map(x => x.trim()).filter(Boolean);
   const requireName = args[2] || "";
