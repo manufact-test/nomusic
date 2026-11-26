@@ -14,8 +14,25 @@ Owner explicitly rejected the narrow88 delivery and asked for ALL accumulated li
 
 Preserve final78 features and85/86/87 fixes. No Android/Windows/product architecture/backend/prod/infra/paid-feature changes. Only extension source/tests, its existing native synthetic browser test and this checkpoint.
 
-## Verification status at source commit
-431 local extension tests PASS; manifest/security gate PASS. New counterexamples run against unchanged88 separately. Existing native synthetic Chrome check expanded for actual decoder/gain-graph/paused-position preservation, signed revalidation, pending context resume, and late MP3 intro readiness BEFORE native mute. Native CI and final ZIP identity/owner delivery still pending; update this document before delivery. A local Chromium launcher is present but its binary is absent, so do not call local Node/VM tests real Chrome listening acceptance.
+## Verification and private owner delivery — 26 November 2026
+Source commit: `a1c19b812ef5ebdfd19500d3721b2b29750deca7`.
+Extension build run: `45832979883` (Floki runner, conclusion SUCCESS).
+- `npm run test:extension`: 431 passed, 0 failed.
+- `npm run build:extension`: produced `celikom-extension-0.4.89.zip`.
+- `npm --prefix extension run validate`: production manifest 0.4.89 validated.
+- `npm run security`: PASS, 67 client files, bounded permissions, no source maps/private key patterns.
+- ZIP checksum verification: PASS.
+- Private spool test suite: 4 passed, 0 failed.
+
+Private Floki owner-delivery run: `45833819502` (conclusion SUCCESS).
+- Independently re-read and verified the private spool receipt, package size, SHA-256, checksum sidecar, ZIP CRC, unique/safe archive paths, manifest version, API origin and exact host permissions.
+- Immutable copies verified at `/srv/celikom-releases/private/extension/` and `/srv/celikom-releases/owner-downloads/`.
+- Existing owner-download route added without disabling Basic Auth. Unauthenticated requests to both the new route and the prior 0.4.73 route returned HTTP 401 with Basic challenge.
+- Owner URL: `https://celikom.com/downloads/extension/celikom-extension-0.4.89.zip`.
+- Size: `2,499,254` bytes.
+- SHA-256: `88db3f3ab927b8123676733a242d84fabe683ca79eb4cb17cac2703f1f1c4b0a`.
+
+This is a PRIVATE OWNER CANDIDATE, not public/customer promotion or owner acceptance. CI is Node-based regression/build/security validation; it is NOT real Yandex listening acceptance. The local Chromium launcher exists but its engine binary is absent. Do not claim real Chrome/Brave/Yandex playback acceptance or that the underlying E5 native/UI divergence has been root-caused. Owner must install and listen to this one combined candidate.
 
 ## Release boundary
-No website/customer promotion or accepted baseline replacement. Prepare one owner candidate only after the combined checks; do not call this all-bugs-eliminated. Real Yandex/VPN listening and E5 root cause remain acceptance limits.
+No website/customer promotion or accepted baseline replacement. Do not call all bugs eliminated. Real Yandex/VPN listening and E5 root cause remain acceptance limits.
