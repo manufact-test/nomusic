@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Celikom\Application;
+
+use Celikom\Repositories\CatalogRepository;
+use Celikom\Storage\StorageAdapter;
+
+final class ResolveService
+{
+    public function __construct(
+        private readonly CatalogRepository $catalog,
+        private readonly StorageAdapter $storage,
+        private readonly AudioTokenService $tokens,
+        private readonly int $positiveTtlSeconds = 120,
+        private readonly int $negativeTtlSeconds = 15,
+    ) {
+    }
+
+    public function resolve(string $service, string $trackId, ?array $access = null, bool $supportsM4a = false): array
+    {
+        if ($service !== 'yandex' || !preg_match('/^[1-9]\d{0,23}$/D', $trackId)) {
+            throw new \InvalidArgumentException('invalid_track');
+        }
+        $row = $this->catalog->findActive($service, $trackId);
+        if ($row === null || (($row['mime_type'] ?? 'audio/mpeg') === 'audio/mp4' && !$supportsM4a) || $row['storage_driver'] !== 'local' || !$this->storage->exists($row['storage_key'])) {
+            return ['found' => false, 'cache_ttl_seconds' => ResolveCachePolicy::negative($this->negativeTtlSeconds)];
+        }
+        $id = (int) $row['replacement_id'];
+        $version = (int) $row['version'];
+        $expires = time() + $this->tokens->ttl;
+        if ($access !== null) {
+            // A verified lifetime promo has no entitlement deadline. The URL
+            // remains short-lived and bound to the session, rechecked on Range.
+            $expires = min($expires, (int)strtotime($access['refresh_expires_at'] . ' UTC'));
+            if (!array_key_exists('valid_until', $access)) {
+                $expires = 0;
+            } elseif ($access['valid_until'] !== null) {
+                $expires = min($expires, (int)strtotime($access['valid_until']));
+            }
+            if ($expires <= time()) return ['found' => false, 'cache_ttl_seconds' => 0];
+        }
+        $sessionId = $access['session_id'] ?? null;
+        return [
+            'found' => true,
+            'replacement_id' => $id,
+            'audio_url' => '/api/v1/audio/' . $id . '?token=' . $this->tokens->sign($id, $version, $expires, $sessionId) . '&expires=' . $expires . ($sessionId === null ? '' : '&sid=' . $sessionId),
+            'duration_ms' => (int) $row['duration_ms'],
+            'mime_type' => $row['mime_type'] ?? 'audio/mpeg',
+            'version' => $version,
+            'gain_db' => max(-12.0, min(12.0, (float) ($row['gain_db'] ?? 0))),
+            'expires_at' => $expires,
+            'cache_ttl_seconds' => min(ResolveCachePolicy::positive($this->positiveTtlSeconds, $this->tokens->ttl), max(0, $expires - time())),
+        ];
+    }
+}

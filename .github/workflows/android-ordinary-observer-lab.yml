@@ -1,0 +1,31 @@
+name: Android ordinary observer lab build
+on:
+  push:
+    branches: [feature/api-range]
+    paths: [.github/workflows/android-ordinary-observer-lab.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Build the existing ordinary read-only panel observer for laboratory comparison
+        working-directory: android/companion-probe
+        run: gradle --no-daemon :app:assemblePanelOnlyDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ordinary-observer-lab
+          path: android/companion-probe/app/build/outputs/apk/panelOnly/debug/app-panelOnly-debug.apk
+          retention-days: 3

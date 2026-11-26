@@ -1,0 +1,47 @@
+name: CELIKOM Stage 9 guarded user auth flag
+
+on:
+  push:
+    branches: [feature/api-range]
+    paths:
+      - .github/workflows/hostinger-stage9-auth.yml
+      - .github/deploy/hostinger-stage9-auth-request.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-hostinger-private-test
+  cancel-in-progress: false
+
+jobs:
+  toggle-private:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Validate restricted request and rollback handler
+        run: |
+          bash -n .github/scripts/hostinger-stage9-auth.sh
+          php -l .github/scripts/hostinger-stage9-auth-remote.php
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import fs from 'node:fs';
+          const req = JSON.parse(fs.readFileSync('.github/deploy/hostinger-stage9-auth-request.json','utf8'));
+          assert.deepEqual(Object.keys(req), ['operation','target']);
+          assert.ok(['prepare','enable','disable'].includes(req.operation));
+          assert.equal(req.target, 'hostinger-private-test');
+          assert.equal(process.env.GITHUB_REPOSITORY, 'manufact-test/nomusic');
+          assert.equal(process.env.GITHUB_REF, 'refs/heads/feature/api-range');
+          JS
+      - name: Toggle only customer authentication in private Hostinger environment
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+        run: bash .github/scripts/hostinger-stage9-auth.sh

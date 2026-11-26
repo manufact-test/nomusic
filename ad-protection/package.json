@@ -1,0 +1,14 @@
+{
+  "name": "@celikom/ad-protection-research",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Isolated MV3 research sandbox; not integrated with CELIKOM",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "validate": "npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
