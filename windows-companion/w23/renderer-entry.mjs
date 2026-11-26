@@ -591,7 +591,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         let providerClass = null;
         try { providerClass = webpackRequire(7695)?.SonataProvider; } catch {}
         if (typeof providerClass === "function" && providerClass.prototype &&
-            typeof providerClass.prototype.getFileInfo === "function") {
+            typeof providerClass.prototype.getFileInfo === "function" &&
+            typeof providerClass.prototype.getMediaSource === "function") {
           let owner = providerClass.prototype;
           while (owner && owner !== Object.prototype) {
             if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
