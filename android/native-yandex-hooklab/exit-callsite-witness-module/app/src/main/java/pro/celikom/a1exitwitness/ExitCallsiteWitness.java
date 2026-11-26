@@ -79,8 +79,8 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // Owner-phone BETA18 export is requested only after this branch push passes all gates.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA18_EXO_FACTORY_PRODUCT_BRIDGE_20261126";
+    // BETA19: selected original setter and nested source identity, owner test only.
+    private static final String BETA_BUILD = "A1_TRACKID_BETA19_SELECTED_SOURCE_NESTED_FACTORY_20261126";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -4453,6 +4453,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 ? STAGE_B_AUDIO.exactOriginalChildCoroutineCreator(item)
                                 : STAGE_B_AUDIO.exactOriginalMediaItemCreator(item);
                             STAGE_B_AUDIO.onOriginalChildCreatorMatch(creator!=null);
+                            boolean childDescriptorLinked=false;
                             if(creator!=null) {
                                 Object[] setter=NATIVE_RENDERER_EVIDENCE
                                     .exactSetterForFreshSourceCreator(
@@ -4463,12 +4464,25 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     // Player setter, not merely shared ID.
                                     if(setter[1]==creator[3]) {
                                         if(coroutineRoute)
-                                            STAGE_B_AUDIO.onOriginalChildCoroutineDescriptor(
+                                            childDescriptorLinked=STAGE_B_AUDIO.onOriginalChildCoroutineDescriptor(
                                                 item,creator[0],descriptor);
-                                        else STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
+                                        else childDescriptorLinked=STAGE_B_AUDIO.onOriginalMediaItemDescriptor(
                                                 item,creator[0],descriptor);
                                     } else
                                         STAGE_B_AUDIO.onOriginalChildSetterSourceDifferent();
+                                }
+                            }
+                            if(coroutineRoute && !childDescriptorLinked) {
+                                Object captured=STAGE_B_AUDIO.exactOriginalChildCoroutineSource();
+                                Object[] selected=NATIVE_RENDERER_EVIDENCE
+                                    .exactSelectedOriginalSetterForSource(captured);
+                                if(selected!=null && STAGE_B_AUDIO
+                                        .onOriginalChildSelectedSetterDescriptor(
+                                            chain.getArg(0),chain.getArg(3),item,
+                                            captured,selected[0],selected[1],
+                                            selected[2],descriptor)) {
+                                    emit("AUDIO_ORIGINAL_CHILD_SETTER_SOURCE",
+                                         "COROUTINE","EXACT_BOUND");
                                 }
                             }
                         } catch(Throwable ignored) { }
@@ -4521,7 +4535,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                         try {
                             if (result != null) {
                                 STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result);
-                                installExactExoFactoryProductWitness(result,loader);
+                                // Signed DEX: c.for returns an outer wrapper.
+                                // The pinned $b.for hook below matches nested
+                                // Java identity instead of a guessed return type.
                             }
                         }
                         catch (Throwable ignored) { }
@@ -4551,6 +4567,15 @@ public final class ExitCallsiteWitness extends XposedModule {
                             if (result != null) {
                                 STAGE_B_AUDIO.onExoSourceInstanceCreated(
                                     result,chain.getThisObject());
+                                Object outer=STAGE_B_AUDIO.exactOuterFactoryForNested(
+                                    chain.getThisObject(),
+                                    NativeExoFactoryProductWitness
+                                        ::uniquelyReferencesNestedFactory);
+                                if(outer!=null) {
+                                    STAGE_B_AUDIO.onExoSourceInstanceCreated(result,outer);
+                                    emit("AUDIO_EXO_FACTORY_NESTED_LINK",
+                                         "SOURCE_FACTORY","EXACT_BOUND");
+                                }
                                 // A native DataSource is often born only AFTER
                                 // original MediaPeriod.prepare. Arm it solely
                                 // when the alternate was already committed at
