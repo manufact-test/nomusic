@@ -13,8 +13,9 @@
 ## GitHub runner recovery and current CI
 
 - Репозиторий public; hosted runner allocation восстановлена. Protected signed job больше не падает с runner_id=0; теперь он корректно ждёт owner review.
-- Current-main Windows integration run [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): portable Linux extension/server package job SUCCESS; Windows integration job was still running at documentation time — inspect terminal result.
-- Generic CI run [45813153516](https://github.com/manufact-test/nomusic/actions/runs/45813153516) was still running at documentation time — inspect terminal result.
+- Current-main Windows integration run [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): **SUCCESS**, both portable Linux package and Windows integration jobs.
+- Generic CI run [45813153516](https://github.com/manufact-test/nomusic/actions/runs/45813153516): **SUCCESS**.
+- Floki API/admin read-only audit [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575): **SUCCESS**.
 - Temporary public visibility is recovery-only. Close the repository after the accepted Windows candidate, verified delivery, and the required project recovery steps; do not change repo visibility without owner command.
 
 ## Floki API/admin read-only audit — corrected origin

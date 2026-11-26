@@ -69,3 +69,11 @@ Read-only одноразовый audit request (live DB `findActive` для 1869
 - floki-maintenance-request.sh remains safe no-op. Do not claim production DB audit ran. Any DB/admin identity check requires a separate explicitly reviewed read-only maintenance payload.
 - Playback remains unaccepted: 0.24.57 needs signed owner release, root Floki promotion + full owner HTTPS SHA, installation/listening, and fresh diagnostics before calling it fixed.
 
+
+### W179 terminal CI state (26 Nov 11:45 UTC)
+
+- Current-main Windows integration [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): **SUCCESS**, including portable Linux package job and full Windows integration job.
+- Generic CI [45813153516](https://github.com/manufact-test/nomusic/actions/runs/45813153516): **SUCCESS**.
+- Exact Floki public API/admin form audit [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575): **SUCCESS**.
+- Protected 0.24.57 signed owner release [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672) remains **WAITING** for owner approval of environment windows-stable-production; no installer has been created yet in this attempt.
+
