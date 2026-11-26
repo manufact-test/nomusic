@@ -91,14 +91,22 @@ jobs:
             cat /etc/os-release
             find /etc/apt/sources.list.d -maxdepth 1 -type f -printf '%f\n' 2>/dev/null || true
             libs_dir="$browser_tmp/chrome-libs"
-            apt_tmp="$browser_tmp/private-apt"
+            apt_tmp="$HOME/.cache/celikom-extension-browser-apt-noble-v1"
             mkdir -p "$libs_dir/debs" "$libs_dir/root" "$apt_tmp/lists/partial" "$apt_tmp/cache/archives/partial"
             apt_opts=(
               -o "Dir::State::lists=$apt_tmp/lists"
               -o "Dir::Cache::archives=$apt_tmp/cache/archives"
               -o "Debug::NoLocking=true"
+              -o "Acquire::http::Timeout=15"
+              -o "Acquire::https::Timeout=15"
+              -o "Acquire::Retries=1"
             )
-            apt-get "${apt_opts[@]}" update
+            if [[ ! -f "$apt_tmp/last-refresh" ]] || [[ -n "$(find "$apt_tmp/last-refresh" -mmin +360 -print)" ]]; then
+              timeout -k 5s 150s apt-get "${apt_opts[@]}" update
+              touch "$apt_tmp/last-refresh"
+            else
+              echo "Using previously verified Ubuntu Noble package index."
+            fi
             apt_choice() {
               local choice
               for choice in "$@"; do
@@ -130,7 +138,7 @@ jobs:
             )
             (
               cd "$libs_dir/debs"
-              apt-get "${apt_opts[@]}" download "${packages[@]}"
+              timeout -k 5s 150s apt-get "${apt_opts[@]}" download "${packages[@]}"
               for deb in ./*.deb; do dpkg-deb -x "$deb" "$libs_dir/root"; done
             )
             lib_paths="$(find "$libs_dir/root" -type f -name '*.so*' -printf '%h\n' | sort -u | paste -sd: -)"
