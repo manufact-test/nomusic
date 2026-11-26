@@ -2992,6 +2992,47 @@ public final class NativeRendererStreamEvidenceTest {
             "NO_VERIFIED_ISSUER_TRACK_ID_MEANS_ORIGINAL_EXO");
     }
 
+
+    /** Regression: first factory creation is NOT first opened decoder source. */
+    private static void testNativeFirstOpenedFactorySourceNotFirstConstructed() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object descriptor=new Object(),factory=new Object();
+        Object unopenedPrefetch=new Object(),actuallyOpened=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper);}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        stage.enterNativeMainSourceRequest(wrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        // BETA19 armed the first constructed source and never revisited it.
+        stage.onExoSourceInstanceCreated(unopenedPrefetch,factory);
+        stage.onExoSourceInstanceCreated(actuallyOpened,factory);
+        check(stage.exactFreshCreatorOrBetaAtFirstOpen(new Object())==null,
+            "UNRELATED_DATASOURCE_CANNOT_USE_APPROVED_FACTORY");
+        Object[] actual=stage.exactFreshCreatorOrBetaAtFirstOpen(actuallyOpened);
+        check(actual!=null && actual[0]==wrapper && actual[1]==track
+                && actual[2]==album,
+            "FIRST_ACTUAL_OPEN_OWNS_APPROVED_EXACT_FACTORY_LINEAGE");
+        stage.onExoSourceInstanceOpenAttempt(actuallyOpened);
+        check(stage.exactFreshCreatorOrBetaAtFirstOpen(unopenedPrefetch)==null,
+            "OPENED_SIBLING_PREVENTS_CROSS_SOURCE_AUDIO_MIX");
+        check(stage.exactFreshCreatorOrBetaAtFirstOpen(actuallyOpened)==null,
+            "ALREADY_OPENED_SOURCE_CANNOT_REARM");
+        // New independent creator/factory remains strict: no promoted source
+        // from the previous Track, even if a different factory produced it.
+        StageBAudioEvidence missing=new StageBAudioEvidence();
+        missing.onExoSourceInstanceCreated(new Object(),factory);
+        check(missing.exactFreshCreatorOrBetaAtFirstOpen(new Object())==null,
+            "NO_CREATOR_NO_NATIVE_AUDIO_ADMISSION");
+    }
+
     public static void main(String[] args) throws java.io.IOException {
         testAttachmentAndRealReadAlias();
         testDetachesAndReattachmentAcrossNext();
@@ -3081,6 +3122,7 @@ public final class NativeRendererStreamEvidenceTest {
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testExactCreatorBeforeFlowOriginalDataSourceLink();
+        testNativeFirstOpenedFactorySourceNotFirstConstructed();
         testRealPublisherAnnotatedTrackIdCorrelatesCreator();
         testRealPublisherTrackIdAtNativeSourceSetter();
         testApprovedNativeGrantRoutesRealOriginalExoPreprepare();

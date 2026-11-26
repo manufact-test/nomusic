@@ -137,6 +137,27 @@ final class StageBAudioEvidence {
     private final ArrayList<WeakReference<Object>> nativeTrackFlowItems = new ArrayList<>();
     private final ArrayList<TrackAlbumLink> nativeTrackAlbumLinks = new ArrayList<>();
     private final ArrayList<NativeTrackSourceLink> nativeTrackSourceLinks = new ArrayList<>();
+    /**
+     * Factory products are not necessarily opened in creation order.
+     * Preserve every bounded original instance identity independently of
+     * the link's latest construction witness. Never select by newest item.
+     */
+    private static final class ExactFactorySourceBirth {
+        final WeakReference<Object> source;
+        final WeakReference<Object> factory;
+        final NativeTrackSourceLink link;
+        boolean conflicted;
+        ExactFactorySourceBirth(Object source,Object factory,
+                NativeTrackSourceLink link) {
+            this.source=new WeakReference<>(source);
+            this.factory=new WeakReference<>(factory);
+            this.link=link;
+        }
+    }
+    private final ArrayList<ExactFactorySourceBirth> exactFactorySourceBirths=
+        new ArrayList<>();
+    private boolean exactFactoryBirthsSaturated;
+
     // Original iLb source anchor; child Of6 may be a different Java object.
     // No global/latest wrapper, value-based equality or vendor fields.
     private static final class OriginalMediaSourceItemLink {
@@ -1720,6 +1741,25 @@ final class StageBAudioEvidence {
         onExoSourceInstanceCreated(source);
         NativeTrackSourceLink link=findByFactory(factoryObject);
         if (link!=null && source!=null) {
+            ExactFactorySourceBirth existing=null;
+            for(int i=exactFactorySourceBirths.size()-1;i>=0;i--) {
+                ExactFactorySourceBirth birth=exactFactorySourceBirths.get(i);
+                Object older=birth.source.get();
+                if(older==null)exactFactorySourceBirths.remove(i);
+                else if(older==source) {
+                    if(existing!=null || birth.link!=link
+                            || birth.factory.get()!=factoryObject) {
+                        birth.conflicted=true;
+                        exactFactoryBirthsSaturated=true; // never guess
+                    } else existing=birth;
+                }
+            }
+            if(existing==null && !exactFactoryBirthsSaturated) {
+                if(exactFactorySourceBirths.size()>=64)
+                    exactFactoryBirthsSaturated=true;
+                else exactFactorySourceBirths.add(
+                    new ExactFactorySourceBirth(source,factoryObject,link));
+            }
             link.sourceInstance=new WeakReference<>(source);
             link.sourceOpened=false;
             link.sourceEverTouched=wasSourceTouched(source);
@@ -1759,6 +1799,71 @@ final class StageBAudioEvidence {
             result=outer;
         }
         return result;
+    }
+
+
+    /**
+     * Called BEFORE the first actual native Exo open(), not at factory
+     * construction. The first created object can be an unopened prefetch;
+     * later factory products may be the instance that actually loads audio.
+     *
+     * Only the exact original wrapper/descriptor/factory identity and the
+     * original creator's Track/Album-or-allowlisted-beta token are accepted.
+     * A sibling already touched by ANY vendor open/read/close means the
+     * family cannot be switched without mixing bytes: fail closed.
+     */
+    synchronized Object[] exactFreshCreatorOrBetaAtFirstOpen(Object source) {
+        if(source==null || exactFactoryBirthsSaturated
+                || touchedHistorySaturated || wasSourceTouched(source))
+            return null;
+        ExactFactorySourceBirth found=null;
+        for(int i=exactFactorySourceBirths.size()-1;i>=0;i--) {
+            ExactFactorySourceBirth birth=exactFactorySourceBirths.get(i);
+            Object candidate=birth.source.get();
+            if(candidate==null) {
+                exactFactorySourceBirths.remove(i);
+                continue;
+            }
+            if(candidate==source) {
+                if(found!=null)return null;
+                found=birth;
+            }
+        }
+        if(found==null || found.conflicted || found.factory.get()==null)
+            return null;
+        NativeTrackSourceLink link=found.link;
+        Object factory=found.factory.get();
+        if(link==null || link.factoryResult==null
+                || link.factoryResult.get()!=factory || link.descriptor==null
+                || link.descriptor.get()==null || link.track==null
+                || link.wrapper==null || link.sourceOpened
+                || link.sourceEverTouched || link.sourceReadAfterOpen)
+            return null;
+        // A previous original read/open from any member of this factory's
+        // source family forbids a late alternate switch on a sibling.
+        for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
+            if(birth.link!=link)continue;
+            Object sibling=birth.source.get();
+            if(sibling!=null && sibling!=source && wasSourceTouched(sibling))
+                return null;
+        }
+        Object wrapper=link.wrapper.get(),track=link.track.get();
+        if(wrapper==null || track==null || findByWrapper(wrapper)!=link
+                || findByFactory(factory)!=link)return null;
+        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+        if(creator==null || creator.length!=2 || creator[0]!=track
+                || creator[1]==null)return null;
+        if(creator[1]!=wrapper && link.albumInstance!=null
+                && link.albumInstance.get()!=creator[1])return null;
+        // The birth above proves that THIS source came from THIS exact
+        // signed factory. Rebind the historical observation to the one
+        // actually about to open (without ever rewinding a touched source).
+        link.sourceInstance=new WeakReference<>(source);
+        link.sourceOpened=false;
+        link.sourceEverTouched=false;
+        link.sourceReadAfterOpen=false;
+        link.sourceAlbumReadAfterOpen=false;
+        return new Object[]{wrapper,track,creator[1]};
     }
 
     private synchronized boolean sameExoSource(Object source) {

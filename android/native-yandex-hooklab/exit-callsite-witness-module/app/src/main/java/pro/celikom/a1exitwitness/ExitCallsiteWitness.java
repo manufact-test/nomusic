@@ -4577,22 +4577,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     emit("AUDIO_EXO_FACTORY_NESTED_LINK",
                                          "SOURCE_FACTORY","EXACT_BOUND");
                                 }
-                                // A native DataSource is often born only AFTER
-                                // original MediaPeriod.prepare. Arm it solely
-                                // when the alternate was already committed at
-                                // that precise original prepare and the exact
-                                // publisher creator/source lineage still matches.
-                                Object[] creator=
-                                    STAGE_B_AUDIO.exactFreshCreatorOrBetaForDataSource(result);
-                                if(creator!=null) {
-                                    Object[] setter=
-                                        NATIVE_RENDERER_EVIDENCE.exactSetterForFreshSourceCreator(
-                                            creator[0],creator[1],creator[2]);
-                                    if(setter!=null)NATIVE_EARLY_ADMISSION
-                                        .armDeferredOriginalDataSource(
-                                            (Long)setter[0],creator[1],creator[2],
-                                            setter[1],result);
-                                }
+                                // Never arm the first *constructed* DataSource:
+                                // it can be an unopened prefetch. Only the exact
+                                // first actual open, below, may consume the
+                                // already approved pre-prepare decision.
                             }
                         } catch (Throwable ignored) { }
                         return result;
@@ -4642,6 +4630,24 @@ public final class ExitCallsiteWitness extends XposedModule {
                     open.setAccessible(true);
                     hook(open).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
+                            try {
+                                Object[] creator=STAGE_B_AUDIO
+                                    .exactFreshCreatorOrBetaAtFirstOpen(
+                                        chain.getThisObject());
+                                if(creator!=null) {
+                                    Object[] setter=NATIVE_RENDERER_EVIDENCE
+                                        .exactSetterForFreshSourceCreator(
+                                            creator[0],creator[1],creator[2]);
+                                    if(setter!=null && NATIVE_EARLY_ADMISSION
+                                            .armDeferredOriginalDataSource(
+                                                (Long)setter[0],creator[1],creator[2],
+                                                setter[1],chain.getThisObject()))
+                                        emit("AUDIO_EXO_FIRST_OPEN_ARM",
+                                             "ORIGINAL_FACTORY","EXACT_BOUND");
+                                }
+                            } catch (Throwable ignored) { }
+                            // The original open now starts; after this point
+                            // no alternate can be newly authorized.
                             try {
                                 STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(
                                     chain.getThisObject());
