@@ -19,6 +19,8 @@ on:
       - 'android/native-yandex-hooklab/ci/test_a1_persistent_owner_signer.py'
       - 'android/native-yandex-hooklab/ci/test_a1_postlogin_receipt_witness.py'
       - 'android/native-yandex-hooklab/ci/test_a1_stage_b_audio_evidence.py'
+      - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java'
+      - 'android/native-yandex-hooklab/tests/src/NativeExoFactoryProductWitnessTest.java'
       - 'android/native-yandex-hooklab/ci/test_a1_issuer_proxy_contract.py'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/PublisherTrackIdProxyContractTest.java'
       - 'android/native-yandex-hooklab/tests/src/retrofit2/http/**'
@@ -68,6 +70,16 @@ jobs:
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_issuer_proxy_contract.py -v
       - name: Verify owner diagnostic export and private delivery contract
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
+      - name: Verify exact original Exo factory product identity bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          javac --release 17 -d "$d" \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java \
+            android/native-yandex-hooklab/tests/src/NativeExoFactoryProductWitnessTest.java
+          java -cp "$d" pro.celikom.a1exitwitness.NativeExoFactoryProductWitnessTest
 
   actual-2025-own-lspatch2-disposable-native-arm13:
     needs: jvm-issuer-proxy-contract
