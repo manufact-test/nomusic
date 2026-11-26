@@ -20,6 +20,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         window.location.hostname.toLowerCase() === "desktop")) return;
 
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
+  let lastNativeState = null;
   let stateTransitionGeneration = 0;
   // The first native state may arrive after Yandex has already cached its
   // current original source. Repair only that current entity at a safe delay.
@@ -382,6 +383,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
 
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
+    lastNativeState = next;
+    const wasAttached = attached;
     const previousActive = adapter.enabled;
     const currentTrack = playerSourceRefresh.currentTrack();
     const currentTrackId = currentTrack?.id || "";
@@ -452,7 +455,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       // host pulse revisits ONLY that track after an initial settling delay,
       // first confirming a real authorized grant.
       initialCurrentSourceCheck = nextActive &&
-        (!stateSeen || !currentTrackId)
+        (!stateSeen || !currentTrackId || !wasAttached)
           ? { generation: transitionGeneration, startedAt: Date.now() }
           : null;
     }
@@ -590,6 +593,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         report("RESOURCE_HOOK_ATTACHED_PLAYER");
         report("RESOURCE_HOOK_ATTACHED");
         console.info("[CELIKOM] Native file-info source connector attached");
+        if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
         return true;
       }
     } catch {}
@@ -620,6 +624,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           report("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK");
           report("RESOURCE_HOOK_ATTACHED");
           console.info("[CELIKOM] Native file-info source connector attached");
+          if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
           return true;
         } catch {}
       }
