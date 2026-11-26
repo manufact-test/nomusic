@@ -17,7 +17,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify-and-deliver:
-    if: github.repository == 'manufact-test/nomusic' && ((github.event_name == 'push' && contains(github.event.head_commit.message, '[a1-owner-delivery-request]')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
+    # Disabled: legacy hosted-runner SSH intake is unreliable and can hang on duplicate APK streams.
+    # The supported route is the isolated data-only Floki spool plus root-owned verifier.
+    if: false
     runs-on: ubuntu-latest
     environment: floki-deploy
     timeout-minutes: 22
