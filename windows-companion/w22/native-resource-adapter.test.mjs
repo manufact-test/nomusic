@@ -5,6 +5,7 @@ import {createNativeResourceAdapter} from './native-resource-adapter.mjs';
 const now = 1800000000000;
 const url = 'https://api.celikom.example/api/v1/audio/22?token='+'a'.repeat(64)+'&expires='+Math.floor((now+180000)/1000);
 const nativeUrl = url + '&celikom_native_query_guard=0';
+const signedUrlFor = id => url.replace('/audio/22','/audio/'+id);
 const grant = (id='123', overrides={}) => ({
   trackId:id, approved:true, entitled:true, audioUrl:url,
   expiresAt:now+180000, mimeType:'audio/mpeg', ...overrides
@@ -19,7 +20,8 @@ function resource() {
   const proto={
     getFileInfo:async function(params) {
       stats.single++;
-      return structuredClone({...orig,downloadInfo:{...orig.downloadInfo,trackId:String(params.trackId)}});
+      return structuredClone({...orig,downloadInfo:{...orig.downloadInfo,
+        trackId:String(params?.trackId ?? params?.id)}});
     },
     getFileInfoBatch:async function() {
       stats.batch++;
@@ -37,7 +39,7 @@ test('W181 single file-info hook reports an unrecognized argument shape without 
   const events=[];
   const a=create(async()=>null,{onEvent:code=>events.push(code)});
   const {proto}=resource();a.attach(proto);a.enable();
-  const value=await proto.getFileInfo({id:'123'});
+  const value=await proto.getFileInfo({other:'123'});
   assert.equal(value.downloadInfo.trackId,'undefined');
   assert.equal(value.downloadInfo.url,orig.downloadInfo.url);
   assert.ok(events.includes('NATIVE_FILEINFO_ID_UNRECOGNIZED'));
@@ -48,14 +50,14 @@ test('W181 batch file-info hook reports an unrecognized argument shape without a
   const events=[];
   const a=create(async()=>null,{onEvent:code=>events.push(code)});
   const {proto}=resource();a.attach(proto);a.enable();
-  const value=await proto.getFileInfoBatch({ids:['123']});
+  const value=await proto.getFileInfoBatch({otherIds:['123']});
   assert.equal(value.downloadInfos[0].trackId,'123');
   assert.ok(events.includes('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED'));
   assert.ok(!events.includes('RESOLVE_START'));
   a.dispose();
 });
 test('W182 player getFileInfo({id}) is mapped',async()=>{
-  const a=create(async id=>({signedUrl:signed(id),mimeType:'audio/mpeg'}));
+  const a=create(async id=>({signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}));
   const {proto}=resource();a.attach(proto);a.enable();
   const value=await proto.getFileInfo({id:'123'});
   assert.equal(value.downloadInfo.trackId,'123');
@@ -63,7 +65,7 @@ test('W182 player getFileInfo({id}) is mapped',async()=>{
   a.dispose();
 });
 test('W182 two-argument Yandex getFileInfo reads trackId from the second object',async()=>{
-  const a=create(async id=>({signedUrl:signed(id),mimeType:'audio/mpeg'}));
+  const a=create(async id=>({signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}));
   const proto={
     async getFileInfo(context,params) {
       return {downloadInfo:{trackId:params.trackId,url:'https://official.yandex.example/source'}};
@@ -77,8 +79,11 @@ test('W182 two-argument Yandex getFileInfo reads trackId from the second object'
   a.dispose();
 });
 test('W182 batch getFileInfoBatch({ids}) is mapped',async()=>{
-  const a=create(async id=>id==='123'?{signedUrl:signed(id),mimeType:'audio/mpeg'}:null);
+  const a=create(async id=>id==='123'?{signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}:null);
   const proto={
+    async getFileInfo() {
+      return {downloadInfo:{trackId:'123',url:'https://official.yandex.example/source'}};
+    },
     async getFileInfoBatch(params) {
       return {downloadInfos:[{trackId:'123',url:'https://official.yandex.example/source'}]};
     }

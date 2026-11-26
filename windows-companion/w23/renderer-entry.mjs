@@ -565,6 +565,24 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       chunks.pop();
     } catch { return false; }
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
+
+    // W182 / Yandex 5.128: getFileInfo moved from the old endpoint wrapper
+    // onto the live player class (sometimes inherited from its base class).
+    // Attach to the method's real owner so every actual player instance passes
+    // through CELIKOM. The endpoint-module scan below remains a compatibility
+    // fallback for older reviewed Yandex builds.
+    try {
+      playerSourceRefresh.attach(webpackRequire);
+      const owner = playerSourceRefresh.resourcePrototype();
+      if (owner && typeof owner.getFileInfo === "function") {
+        adapter.attach(owner);
+        attached = true;
+        report("RESOURCE_HOOK_ATTACHED");
+        console.info("[CELIKOM] Native file-info source connector attached");
+        return true;
+      }
+    } catch {}
+
     for (const id in webpackRequire.m) {
       let source;
       try { source = webpackRequire.m[id].toString(); } catch { continue; }

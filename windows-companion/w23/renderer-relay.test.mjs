@@ -15,25 +15,30 @@ function createRenderer({
   hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=false
 }={}) {
   const logs=[],handlers={};
-  class Resource {
+  class ResourceBase {
     async getFileInfo(params) {
+      const trackId=params?.trackId ?? params?.id;
       return {
         responseTime:13,
-        downloadInfo:{trackId:String(params.trackId),key:"yandex-drm",
+        downloadInfo:{trackId:String(trackId),key:"yandex-drm",
           url:"https://official.yandex.example/stream",codec:"aac"}
       };
     }
-    async getFileInfoBatch() {
-      return {downloadInfos:[
-        {trackId:"123",key:"drm",url:"https://official.yandex.example/stream"},
-        {trackId:"456",key:"drm",url:"https://official.yandex.example/next"}
-      ]};
+    async getFileInfoBatch(params={}) {
+      const ids=params.trackIds || params.ids || ["123","456"];
+      return {downloadInfos:ids.map((id,index)=>({
+        trackId:String(id?.trackId ?? id?.id ?? id),key:"drm",
+        url:index===0?"https://official.yandex.example/stream":
+          "https://official.yandex.example/next"
+      }))};
     }
+  }
+  class Resource extends ResourceBase {
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
   }
   const originalPause=Resource.prototype.pause,originalSeek=Resource.prototype.seek;
-  class NativeYandexPlayer {
+  class NativeYandexPlayer extends ResourceBase {
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
@@ -46,7 +51,7 @@ function createRenderer({
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
       const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await new Resource().getFileInfo({trackId:id});
+      const response=await this.getFileInfo({id});
       this.mediaSources.push(response.downloadInfo.url);
       return response;
     }
@@ -102,6 +107,33 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
+test("W182 Yandex 5.128 hooks the live player's inherited getFileInfo owner",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123"});
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin
+  });
+  void player.state;
+  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
+    "the old endpoint wrapper must not receive the 5.128 player hook");
+  const pending=player.getFileInfo({id:"123"});
+  await tick();
+  const requests=r.window.__celikomBridgeNativeDrain();
+  assert.equal(requests.length,1,"the live Yandex player method must request the mapped track");
+  assert.equal(requests[0].trackId,"123");
+  r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
+  const result=await pending;
+  assert.equal(result.downloadInfo.url,
+    makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  const events=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(events.includes("NATIVE_FILEINFO_REQUEST"));
+  assert.ok(events.includes("SOURCE_MAPPED"));
+  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED"));
+  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
+    "hook stays on the actual shared player/base method owner");
+  r.handlers.beforeunload();
+});
+
 test("native Next with no approved grant returns Yandex original stream",async()=>{
   const r=createRenderer();
   r.window.__celikomBridgeNativeSetState({
