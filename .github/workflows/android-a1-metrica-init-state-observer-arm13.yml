@@ -61,7 +61,8 @@ jobs:
   jvm-issuer-proxy-contract:
     permissions:
       contents: read
-    runs-on: celikom-ci-smoke-only
+    # Pure source/JVM gates only: no private APK, host access, secrets or production path.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
