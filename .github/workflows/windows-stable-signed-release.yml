@@ -45,7 +45,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    environment: windows-stable-production
+    # Unattended owner-candidate signing/build. This environment must have the P-256
+    # signing secret but NO required reviewers. Customer publication remains separately gated below.
+    environment: windows-stable-owner-build
     runs-on: windows-2022
     timeout-minutes: 50
     outputs:
