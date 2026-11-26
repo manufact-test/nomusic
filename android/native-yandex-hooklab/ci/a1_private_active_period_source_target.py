@@ -25,7 +25,7 @@ SOURCE_FACTORY=source_proof.TARGET
 REQUIRED={
     HOLDER_CTOR,HOLDER_SELECT,
     holder_proof.PERIOD_WRAPPER_SELECT,holder_proof.ORIGINAL_PERIOD_SELECT,
-    WRAP_CTOR,SOURCE_FACTORY
+    holder_proof.STREAM_ADAPTER_CTOR,WRAP_CTOR,SOURCE_FACTORY
 }
 
 def derive_fields(splits):
@@ -52,6 +52,13 @@ def derive_fields(splits):
     if not (checked.get("Lup1_stored_and_read_from_same_exact_Lxh6_field")
             and checked.get("exact_Lup1_object_allocated_and_initialized_in_holder")):
         raise ValueError("NAV29_HOLDER_WRAPPER_IDENTITY_UNPROVEN")
+    adapter_checked=holder_proof.verify_exact_native_child_to_holder_stream_adapter(
+        methods)
+    if not (
+            adapter_checked.get("exact_Lup1_adapter_constructor_takes_exact_LR29_child_stream")
+            and adapter_checked.get("new_adapter_stores_exact_child_stream_typed_field")
+            and adapter_checked.get("selected_adapter_written_into_original_holder_stream_array")):
+        raise ValueError("NAV31_CHILD_STREAM_ADAPTER_IDENTITY_UNPROVEN")
     def at(method,pc,opcode,expected_owner,expected_type):
         dex,_flags,off=methods[method]
         insn=next(((op,words) for p,op,words in audit.instructions(dex,off)
@@ -77,9 +84,24 @@ def derive_fields(splits):
             wrapper_fields.append(name)
     if len(wrapper_fields)!=1:
         raise ValueError("NAV29_WRAPPER_EXACT_ONE_PERIOD_FIELD")
+    # The wrapper retains the exact adapters which it publishes into the
+    # native holder's SampleStream[]; each adapter retains its child stream.
+    wrapper_adapters_field=at(
+        holder_proof.PERIOD_WRAPPER_SELECT,130,0x54,"Lup1;","[Lup1$a;")
+    if wrapper_adapters_field!=at(
+            holder_proof.PERIOD_WRAPPER_SELECT,147,0x54,
+            "Lup1;","[Lup1$a;"):
+        raise ValueError("NAV31_WRAPPER_ADAPTER_ARRAY_READS_DIFFER")
+    adapter_child_field=at(
+        holder_proof.PERIOD_WRAPPER_SELECT,136,0x54,"Lup1$a;","LR29;")
+    if adapter_child_field!=at(
+            holder_proof.STREAM_ADAPTER_CTOR,5,0x5b,
+            "Lup1$a;","LR29;"):
+        raise ValueError("NAV31_ADAPTER_CHILD_STREAM_FIELD_DIFFER")
     # The Lo96 object holds exactly the original LSl6 source from LuIb.
     source_field=at(SOURCE_FACTORY,18,0x5b,"Lo96;","LSl6;")
-    return holder_field,wrapper_fields[0],source_field
+    return (holder_field,wrapper_fields[0],source_field,
+            wrapper_adapters_field,adapter_child_field)
 
 def main():
     p=argparse.ArgumentParser()
@@ -111,7 +133,8 @@ def main():
             raise ValueError("NAV29_SIGNED_ORIGINAL_BASE")
         fields=derive_fields(splits)
     names=("HOLDER_WRAPPER_FIELD_NAME","WRAPPER_PERIOD_FIELD_NAME",
-           "PERIOD_SOURCE_FIELD_NAME")
+           "PERIOD_SOURCE_FIELD_NAME","WRAPPER_ADAPTERS_FIELD_NAME",
+           "ADAPTER_CHILD_STREAM_FIELD_NAME")
     src="package pro.celikom.a1exitwitness;\n"
     src+="final class PrivateNativeActivePeriodTarget {\n"
     for key,value in zip(names,fields):
@@ -119,7 +142,7 @@ def main():
     src+="  private PrivateNativeActivePeriodTarget() {}\n}\n"
     args.private_java.parent.mkdir(parents=True,exist_ok=True)
     args.private_java.write_text(src,encoding="utf-8")
-    print("NAV29_PUBLISHER_SIGNED_TRACK_TO_ACTIVE_PERIOD_PRIVATE_FIELDS_PASS")
+    print("NAV31_PUBLISHER_SIGNED_PERIOD_TO_CHILD_STREAM_ADAPTER_FIELDS_PASS")
 
 if __name__=="__main__":
     main()
