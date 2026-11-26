@@ -108,9 +108,12 @@
       const id = snapshot.track?.id;
       const player = snapshot.player;
       const metadataGap = this.sameBoundResourceMetadataGap(this.operation, snapshot);
-      if (!metadataGap && (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
-        || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3)) {
-        this.masterClock = { id, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
+      // Keep tracking real progress during a metadata gap. Using the bound ID
+      // avoids treating missing/reappearing metadata as native clock movement.
+      const clockId = metadataGap ? this.operation.trackId : id;
+      if (!this.masterClock || this.masterClock.id !== clockId || this.masterClock.mediaId !== player?.mediaId
+        || Math.abs((player?.currentTime || 0) - this.masterClock.time) > 0.01 || player?.paused || player?.seeking || player?.readyState < 3) {
+        this.masterClock = { id: clockId, mediaId: player?.mediaId, time: player?.currentTime || 0, advancedAt: Date.now() };
       }
       if (id && ((previousId && id !== previousId) || (this.manualBypass && id !== this.manualBypass.trackId) || (this.blockedTrackId && id !== this.blockedTrackId))) { this.networkRetries = 0; this.manualBypass = null; this.blockedTrackId = null; this.retryBlock = null; this.lastError = null; this.publishPolicy(); }
       if (eventType === "ENDED" && player?.ended === true) {
@@ -163,6 +166,12 @@
     }
     reconcile(forceSync = false) {
       if (this.destroyed || this.restorePending) return;
+      // Resource continuity never overrides Stop, access suspension, or a lost
+      // bridge. Apply these controls before tolerating missing track metadata.
+      if (!this.enabled || this.suspended || !this.bridge.isHealthy()) {
+        if (this.operation) this.abort("state-changed");
+        return;
+      }
       if (this.retryBlock && Date.now() >= this.retryBlock.at && this.snapshot?.observedAt > this.retryBlock.observedAt
         && Date.now() - this.snapshot.observedAt < 3000 && this.bridge.isHealthy() && this.snapshot.player?.readyState >= 3
         && (this.retryBlock.reason !== "master-clock-stalled" || Math.abs(this.snapshot.player.currentTime - this.retryBlock.time) > 0.01)) {
@@ -301,7 +310,7 @@
           if(this.snapshot.player.seeking||Math.abs(driftAt(audio.currentTime,target,audio.duration,false))>100)return;
           operation.joinAligned=true;
         }
-        if (!operation.completeJoin && (operation.initialMasterTime > 0.25 || this.snapshot.player.currentTime > 5)
+        if (!operation.completeJoin && (operation.initialMasterTime > 0.25 || this.snapshot.player.currentTime > 5 || operation.userSought)
             && !operation.joinAligned && typeof operation.player.prepareMidSongPosition === "function") {
           operation.stage="aligning-mid-song";
           const aligned=await operation.player.prepareMidSongPosition(this.snapshot,async()=>{
