@@ -21,6 +21,11 @@ public static class DiagnosticLog
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Id = new(@"^[1-9][0-9]{0,17}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    // Yandex signed Windows build metadata includes the official "r" suffix,
+    // e.g. 5.128.0.r22145392. The old numeric-only filter hid supported builds.
+    private static readonly Regex YandexVersion = new(
+        @"^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(?:\.[0-9]{1,4}|\.r[0-9]{5,12})?$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SafeLine = new(
         @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z0-9_]{3,48}(\|(?:track|resource_id)=[1-9][0-9]{0,17})?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -296,7 +301,8 @@ public static class DiagnosticLog
             platform = "windows",
             appVersion = AppUpdateManager.RunningVersion.ToString(3),
             nativeModuleVersion = Version(nativeModuleVersion),
-            yandexVersion = Version(yandexVersion),
+            yandexVersion = yandexVersion is not null && YandexVersion.IsMatch(yandexVersion)
+                ? yandexVersion : "unknown",
             integration = Code.IsMatch(integration) ? integration : "UNKNOWN",
             nativeMatchesApplication,
             bridgeStarted,
@@ -331,7 +337,7 @@ public static class DiagnosticLog
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
         text.AppendLine("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
-            Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
+            YandexVersion.IsMatch(yandexVersion) ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
         text.AppendLine("BridgeStarted=" + bridgeStarted.ToString().ToLowerInvariant());
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());

@@ -2929,6 +2929,10 @@ try
     Test(snapshot.Contains("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only"),
         "W130 export explicitly says CDP field visibility is not current-source proof");
     Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
+    var yandex51280 = DiagnosticLog.ExportText("5.128.0.r22145392", "ACTIVE",
+        true, true, true, diagnosticDirectory: fixtureLogsDirectory);
+    Test(yandex51280.Contains("YandexVersion=5.128.0.r22145392"),
+        "W181 official Yandex r-build suffix is retained in owner diagnostics");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
     Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
@@ -2968,6 +2972,10 @@ try
         "repeated owner exports do not duplicate native incident history");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
         "0.24.20", true, "123", fixtureLogsDirectory);
+    var auto51280 = DiagnosticLog.ExportSupportSnapshot("5.128.0.r22145392",
+        "ACTIVE", true, true, "0.24.20", true, "123", fixtureLogsDirectory);
+    Test(JsonSerializer.Serialize(auto51280).Contains("5.128.0.r22145392"),
+        "W181 auto-support snapshot retains official Yandex r-build suffix");
     var autoJson = JsonSerializer.Serialize(auto);
     using (var parsedAuto = JsonDocument.Parse(autoJson))
     {
