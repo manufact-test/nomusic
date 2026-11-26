@@ -422,7 +422,7 @@ def scan_signed(apks):
             for row in rows
         ),
         "loadable_owner_nested_under_any_signed_media_period": any(
-            row["method_is_loadable_load"] and any(
+            row["method_matches_exact_loader_contract"] and any(
                 row["method"][0].startswith(period[:-1] + "$")
                 for period in media_period_owners
             )
@@ -430,7 +430,7 @@ def scan_signed(apks):
         ),
         **constructor_evidence,
         "loadable_owner_constructed_inside_exact_Lo96_method": any(
-            row["method_is_loadable_load"] and any(
+            row["method_matches_exact_loader_contract"] and any(
                 item["constructed_owner"] == row["method"][0]
                 and item["caller_is_exact_Lo96_method"]
                 for item in constructor_evidence["candidate_constructor_callsites"]
@@ -438,7 +438,7 @@ def scan_signed(apks):
             for row in rows
         ),
         "loadable_owner_constructed_inside_any_signed_media_period": any(
-            row["method_is_loadable_load"] and any(
+            row["method_matches_exact_loader_contract"] and any(
                 item["constructed_owner"] == row["method"][0]
                 and item["caller_is_signed_MediaPeriod_implementer"]
                 for item in constructor_evidence["candidate_constructor_callsites"]
