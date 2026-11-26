@@ -214,7 +214,7 @@ test("stop during native relay keeps Yandex source and clears queued requests",a
 test("W58 real renderer Stop blocks all future grants while already-returned Yandex media source is immutable",async()=>{
   const r=createRenderer(),player=new r.Resource();
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  const prior=player.resourceProvider.getFileInfo({trackId:"123"});
+  const prior=player.getFileInfo({trackId:"123"});
   await tick();
   const queue=r.window.__celikomBridgeNativeDrain();
   assert.equal(queue.length,1);
@@ -223,9 +223,9 @@ test("W58 real renderer Stop blocks all future grants while already-returned Yan
   assert.equal(resident.downloadInfo.url,makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
   r.window.__celikomBridgeNativeSetState({enabled:false,signedIn:true,apiOrigin:origin});
   assert.equal(r.window.__celikomBridgeNativeStatus(),"ORIGINAL");
-  const same=await player.resourceProvider.getFileInfo({trackId:"123"});
-  const next=await player.resourceProvider.getFileInfo({trackId:"456"});
-  const batch=await player.resourceProvider.getFileInfoBatch({trackIds:["123","456"]});
+  const same=await player.getFileInfo({trackId:"123"});
+  const next=await player.getFileInfo({trackId:"456"});
+  const batch=await player.getFileInfoBatch({trackIds:["123","456"]});
   assert.equal(same.downloadInfo.url,"https://official.yandex.example/stream");
   assert.equal(next.downloadInfo.url,"https://official.yandex.example/stream");
   assert.equal(batch.downloadInfos[0].url,"https://official.yandex.example/stream");
