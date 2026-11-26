@@ -195,6 +195,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean exactExoFactoryWitnessReady;
     private boolean exactExoDescriptorWitnessReady;
     private boolean exactExoSourceInstanceHookReady;
+    // Hook methods are selected from the exact descriptor-returned factory instance.
+    private static final java.util.Set<Method> exactExoFactoryProductMethods =
+        Collections.synchronizedSet(new java.util.HashSet<Method>());
     private boolean originalMediaItemSourceAnchorHookReady;
     private boolean originalMediaItemChildDescriptorHookReady;
     private boolean originalChildCoroutineConstructorHookReady;
@@ -4315,6 +4318,66 @@ public final class ExitCallsiteWitness extends XposedModule {
         }
     }
 
+    /**
+     * The descriptor factory's return value is the exact factory instance
+     * associated with the selected original descriptor. Do not assume it is
+     * the receiver of the separately observed vendor nested factory method.
+     * Resolve its unique zero-argument method returning the exact original
+     * RetryingBalancingDataSource type, then hook that concrete product call.
+     * Stage B still binds by Java identity: only this exact receiver can join
+     * the descriptor's factory result to the newly created DataSource.
+     */
+    private void installExactExoFactoryProductWitness(Object factoryObject,
+            ClassLoader loader) {
+        if (factoryObject == null || loader == null) return;
+        try {
+            Class<?> source = Class.forName(
+                "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource",
+                false, loader);
+            NativeExoFactoryProductWitness.Resolution resolution =
+                NativeExoFactoryProductWitness.resolve(factoryObject, source);
+            if (resolution.method == null) {
+                emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD",
+                    resolution.candidateCount == 0 ? "NO_EXACT_METHOD" : "AMBIGUOUS");
+                return;
+            }
+            Method product = resolution.method;
+            product.setAccessible(true);
+            synchronized (exactExoFactoryProductMethods) {
+                if (!exactExoFactoryProductMethods.contains(product)) {
+                    hook(product).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                        .intercept(chain -> {
+                            Object result = chain.proceed(); // original factory exactly once
+                            try {
+                                if (result != null && source.isInstance(result)) {
+                                    Object exactFactory = chain.getThisObject();
+                                    STAGE_B_AUDIO.onExoSourceInstanceCreated(
+                                        result, exactFactory);
+                                    Object[] creator =
+                                        STAGE_B_AUDIO.exactFreshCreatorOrBetaForDataSource(result);
+                                    if (creator != null) {
+                                        Object[] setter =
+                                            NATIVE_RENDERER_EVIDENCE
+                                                .exactSetterForFreshSourceCreator(
+                                                    creator[0], creator[1], creator[2]);
+                                        if (setter != null)
+                                            NATIVE_EARLY_ADMISSION.armDeferredOriginalDataSource(
+                                                (Long) setter[0], creator[1], creator[2],
+                                                setter[1], result);
+                                    }
+                                }
+                            } catch (Throwable ignored) { }
+                            return result;
+                        });
+                    exactExoFactoryProductMethods.add(product);
+                }
+            }
+            emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD", "REGISTERED");
+        } catch (Throwable ignored) {
+            emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD", "NO_HOOK");
+        }
+    }
+
     private synchronized void installExactNativeExoSourceWitness(ClassLoader loader) {
         if (loader == null || !PACKAGE.equals(Application.getProcessName())) return;
         installNativeTrackSourceContinuityWitness(loader);
@@ -4441,8 +4504,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                     .intercept(chain -> {
                         Object result = chain.proceed(); // vendor factory once, unchanged
                         try {
-                            if (result != null)
+                            if (result != null) {
                                 STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result);
+                                installExactExoFactoryProductWitness(result,loader);
+                            }
                         }
                         catch (Throwable ignored) { }
                         return result;
