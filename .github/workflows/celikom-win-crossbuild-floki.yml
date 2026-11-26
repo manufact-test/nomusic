@@ -39,15 +39,15 @@ jobs:
           dotnet --version
           dotnet --list-sdks
           dotnet --version | cut -d. -f1 | grep -Fx 10
-      - name: W178 current-track native source revalidation regression tests
+      - name: W186 live media-source adapter and current-player regression tests
         shell: bash
         working-directory: windows-companion/w23
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund --no-package-lock
           npm run build
-          node --test initial-current-source.test.mjs native-host.test.mjs renderer-relay.test.mjs
-          echo CELIKOM_W178_NATIVE_RENDERER_REGRESSION_PASS
+          node --test ../w22/native-resource-adapter.test.mjs ../w60/current-source-refresh.test.mjs initial-current-source.test.mjs native-host.test.mjs renderer-relay.test.mjs
+          echo CELIKOM_W186_LIVE_MEDIA_SOURCE_REGRESSION_PASS
       - name: Cross-compile Windows WinForms companion and updater on Linux
         shell: bash
         run: |
