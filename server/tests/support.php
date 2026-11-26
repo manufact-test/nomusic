@@ -70,6 +70,72 @@ try{
   $calls=0;$bad=$config;$bad['mail_test_sink']=static function()use(&$calls):void{$calls++;throw new RuntimeException('isolated_failure');};$s=new SupportService($pdo,$bad);$u=$user();$key=$uuid();$id=$s->create($u,'Почта недоступна',$key);expect($id>0,'ticket committed');$s->create($u,'Почта недоступна',$key);expect($calls===1,'no auto resend');
   expect($pdo->query('SELECT delivery FROM support_messages WHERE ticket_id='.$id)->fetchColumn()==='unknown','delivery uncertainty explicit');
  });
+ run('Windows diagnostic snapshots accompany general and song cases privately, sanitized and RBAC guarded',function()use($service,$user,$admin,$uuid,$pdo):void{
+  $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();
+  $diagnostics=['platform'=>'windows','appVersion'=>'0.24.18','nativeModuleVersion'=>'0.24.18',
+    'yandexVersion'=>'5.126.1.0','integration'=>'ACTIVE','bridgeStarted'=>true,
+    'enabled'=>true,'nativeMatchesApplication'=>true,'lastTrackId'=>'12345',
+    'accessToken'=>'SECRET','password'=>'SECRET','email'=>'leak@example.invalid',
+    'events'=>[
+      ['code'=>'PLAYER_NET_HTTP_FORBIDDEN','ageSeconds'=>27,'resourceId'=>'739209',
+       'url'=>'https://example.invalid?token=SECRET','authorization'=>'SECRET'],
+      ['code'=>'PLAYER_URL_QUERY_CHANGED','ageSeconds'=>8,'resourceId'=>'739209'],
+      ['code'=>'GARBAGE','ageSeconds'=>2,'error'=>'SECRET'],
+      ['code'=>'PLAYER_NET_REQUEST','ageSeconds'=>1000,'token'=>'SECRET'],
+    ]];
+  $id=$service->create($u,'Периодически прерывается звук',$key,null,$diagnostics);
+  expect($service->create($u,'Периодически прерывается звук',$key,null,$diagnostics)===$id,
+    'same request key, same private diagnostic replays without duplicates');
+  expect($service->thread($id,$u)['report']===null,
+    'private general diagnostic absent from customer support thread');
+  $internal=$service->thread($id);
+  expect($internal['kind']==='general'&&count($internal['report']['diagnostics']['events'])===2,
+    'two recent allowlisted events, ordinary reply path maintained');
+  expect(!str_contains(json_encode($internal),'SECRET')&&
+    !str_contains(json_encode($internal),'leak@example.invalid'),
+    'server strips token, URL, arbitrary email and unsupported properties');
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(!str_contains($html,'Техническая диагностика')&&
+    str_contains($html,'Скачать диагностику JSON')&&!str_contains($html,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'administrator can view general report without contaminating message text');
+  $email=$pdo->prepare('SELECT body FROM support_messages WHERE ticket_id=? ORDER BY id LIMIT 1');
+  $email->execute([$id]);
+  expect($email->fetchColumn()==='Периодически прерывается звук',
+    'only clean customer text persists as mail body');
+  try{$service->create($u,'Периодически прерывается звук',$key,null,
+      array_replace($diagnostics,['enabled'=>false]));throw new RuntimeException('changed_payload_retry');}
+  catch(InvalidArgumentException){}
+  $song=['category'=>'audio_issue','track'=>['id'=>'12345','title'=>'','artist'=>'','album'=>''],
+    'version'=>'0.24.18','diagnostics'=>['enabled'=>true,'bridgeReady'=>true,'windows'=>$diagnostics]];
+  $songId=$service->create($u,'Проблема с песней',$uuid(),$song);
+  $songReport=$service->thread($songId)['report'];
+  expect(($songReport['diagnostics']['windows']['events'][0]['code']??null)==='PLAYER_NET_HTTP_FORBIDDEN',
+    'song report preserves Windows event trace in existing typed song diagnostics');
+  expect(!str_contains(json_encode($songReport),'SECRET'),
+    'song diagnostics independently sanitized server-side');
+  $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
+  $auth=static function(int $adminId)use($pdo):array{
+    $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
+    $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')
+      ->execute([hash('sha256',$token),$adminId,hash('sha256',$csrf)]);
+    return ['cookie'=>AdminAuth::COOKIE.'='.$token];
+  };
+  $ownerAuth=$auth($owner);$viewerAuth=$auth($viewer);
+  $url='/admin/support/diagnostics';$query=['ticket'=>(string)$id];
+  $download=$panel->handle('GET',$url,$query,$ownerAuth,'');
+  expect($download->status===200&&str_contains($download->body,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'private general diagnostic downloadable by owner');
+  expect(!str_contains($download->body,'SECRET')&&
+    str_contains($download->headers['Content-Disposition']??'','attachment'),
+    'JSON remains secret-free and uses attachment policy');
+  expect($panel->handle('GET',$url,$query,$viewerAuth,'')->status===403,
+    'viewer prohibited from downloading user diagnostics');
+  expect($panel->handle('GET',$url,$query,[],'')->status===303,
+    'anonymous user requires login for diagnostic export');
+  $songFile=$panel->handle('GET',$url,['ticket'=>(string)$songId],$ownerAuth,'');
+  expect($songFile->status===200&&str_contains($songFile->body,'PLAYER_NET_HTTP_FORBIDDEN'),
+    'song diagnostic remains downloadable');
+ });
  run('Song support is separate, sanitized, deduplicated, resolvable without email and cannot close general correspondence',function()use($service,$user,$admin,$uuid,$pdo,&$sent):void{
   $u=$user();$owner=$admin('owner');$viewer=$admin('viewer');$before=count($sent);
   $report=['category'=>'audio_issue','track'=>['id'=>'50163040','artist'=>'SLIMUS','title'=>'<script>song</script>','album'=>'Album','access_token'=>'SECRET'],'version'=>'0.4.41','diagnostics'=>['phase'=>'READY','enabled'=>true,'bridgeHealthy'=>true,'replacementError'=>'api_unavailable','network'=>[['endpoint'=>'config','httpStatus'=>504,'result'=>'api_response_error','elapsedMs'=>10000,'authorization'=>'SECRET']],'token'=>'SECRET','recentLog'=>['SECRET'],'source'=>'https://private.example/SECRET']];
@@ -87,7 +153,7 @@ try{
   expect(strpos($all,'ticket='.$general.'"')<strpos($all,'ticket='.$id.'"'),'Pending All list sorts by latest ID');
   $ordinary=$view->render(str_repeat('a',64),0,1,1,$u,'general');
   expect(str_contains($ordinary,'ticket='.$general.'"')&&!str_contains($ordinary,'ticket='.$id.'"'),'General tab excludes song ticket');
-  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');
+  $html=$view->render(str_repeat('a',64),$id);expect(str_contains($html,'&lt;script&gt;song')&&!str_contains($html,'<script>song'),'Metadata escaped');expect(str_contains($html,'resolve-song')&&!str_contains($html,'support/reply'),'Song has resolution, no mandatory reply');expect(str_contains($html,'Скачать диагностику JSON'),'Download link available in song ticket');expect(!str_contains($html,'Техническая диагностика'),'Song inline diagnostic removed, file remains');
   $list=$view->render(str_repeat('a',64),0);
   expect(str_contains($list,'<th>Обращения</th>')&&!str_contains($list,'<th>Песни'),'Single total column');
   expect(str_contains($list,'class="support-unhandled"'),'Open account highlighted');
@@ -133,6 +199,56 @@ try{
   expect($panel->handle('GET',$url,$query,[],'')->status===303,'Anonymous download requires login');
   expect($panel->handle('GET',$url,$query,$viewerHeaders,'')->status===403,'Viewer cannot download diagnostic');
   expect($panel->handle('GET',$url,['ticket'=>(string)$general],$ownerHeaders,'')->status===404,'General tickets cannot be downloaded as song diagnostics');
+ });
+ run('Android common support envelope is stored privately and displayed in the shared administration',function()use($service,$user,$uuid,$pdo):void{
+  $u=$user();$diagnostics=['schema_version'=>1,'platform'=>'android','version'=>'0.3.52',
+   'diagnostics'=>['phase'=>'ERROR','paused'=>false,'trace'=>[['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>503,'authorization'=>'SECRET']]],'token'=>'SECRET'];
+  $id=$service->create($u,'Проверка общего приёма Android',$uuid(),null,$diagnostics);
+  expect($service->thread($id,$u)['report']===null,'Customer cannot read common mobile diagnostic attachment');
+  $internal=$service->thread($id);expect($internal['report']['platform']==='android','Mobile source identified in admin attachment');
+  expect(!str_contains(json_encode($internal),'SECRET'),'Mobile input independently sanitized');
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(!str_contains($html,'Техническая диагностика')&&str_contains($html,'Скачать диагностику JSON'),'Shared admin displays mobile attachment and file link');
+ });
+ run('Ordinary support automatically stores a bounded attachment with admin-only download and stable retries',function()use($service,$config,$user,$admin,$uuid,$pdo,&$sent):void{
+  $u=$user();$other=$user();$owner=$admin('owner');$viewer=$admin('viewer');$key=$uuid();$before=count($sent);
+  $report=['schema_version'=>1,'platform'=>'chromium','version'=>'0.4.76','account'=>['email'=>'PRIVATE'],
+   'diagnostics'=>['phase'=>'ERROR','currentTime'=>13.5,'activationCount'=>3,'token'=>'SECRET','source'=>'https://private/SECRET',
+    'trace'=>[['event'=>'backend_http','endpoint'=>'resolve','httpCode'=>504,'elapsedMs'=>3000,'authorization'=>'SECRET']]]];
+  $id=$service->create($u,'Не подключается после переключения',$key,null,$report);
+  expect($service->create($u,'Не подключается после переключения',$key,null,$report)===$id,'Exact retry preserves attachment');
+  expect(count($sent)===$before+1,'Ordinary mail behavior preserved without duplicate notification');
+  $thread=$service->thread($id);expect($service->thread($id,$u)['report']===null,'Ordinary attachment stays private from the customer API');expect($thread['kind']==='general'&&$thread['report']['diagnostics']['currentTime']===13.5,'Ordinary request keeps snapshot even without a track');
+  expect(!str_contains(json_encode($thread),'SECRET')&&!str_contains(json_encode($thread),'PRIVATE'),'Server independently strips unknown private fields');
+  try{$service->thread($id,$other);throw new RuntimeException('cross_user_attachment');}catch(DomainException){}
+  $html=(new SupportAdminView($pdo))->render(str_repeat('a',64),$id);
+  expect(str_contains($html,'Скачать диагностику JSON')&&!str_contains($html,'Техническая диагностика')&&str_contains($html,'/admin/support/reply'),'General attachment keeps ordinary correspondence');
+  $headers=static function(int $id)use($pdo):array{
+   $token=bin2hex(random_bytes(32));$csrf=AdminAuth::csrfForToken($token);
+   $pdo->prepare('INSERT INTO admin_sessions(token_hash,admin_id,csrf_hash,expires_at) VALUES (?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR)')->execute([hash('sha256',$token),$id,hash('sha256',$csrf)]);
+   return ['cookie'=>AdminAuth::COOKIE.'='.$token];
+  };
+  $panel=new AdminPanel($pdo,new LocalStorageAdapter('/tmp/celikom-support-tests'),false,false,[]);
+  $query=['ticket'=>(string)$id];$ownerHeaders=$headers($owner);
+  $file=$panel->handle('GET','/admin/support/diagnostics',$query,$ownerHeaders,'');
+  expect($file->status===200&&str_contains($file->headers['Content-Disposition'],'attachment'),'General diagnostics downloaded as file');
+  expect(json_decode($file->body,true)['schema']==='celikom-support-diagnostic-v1','Explicit ordinary support schema');
+  expect(!str_contains($file->body,'SECRET')&&!str_contains($file->body,'PRIVATE'),'Download sanitized');
+  expect($panel->handle('GET','/admin/support/diagnostics',$query,[],'')->status===303,'Anonymous export denied');
+  expect($panel->handle('GET','/admin/support/diagnostics',$query,$headers($viewer),'')->status===403,'Viewer export denied');
+  $plain=$service->create($u,'Старое обращение без вложения',$uuid());
+  expect($panel->handle('GET','/admin/support/diagnostics',['ticket'=>(string)$plain],$ownerHeaders,'')->status===404,'Old requests remain readable without inventing diagnostics');
+  // Full HTTP request path: ordinary confirmed user, no admin rights and no trial required.
+  $pdo->prepare('INSERT INTO user_email_security(user_id,verified_at) VALUES (?,UTC_TIMESTAMP(6))')->execute([$u]);
+  $pdo->prepare('INSERT INTO user_devices(user_id,installation_id) VALUES (?,?)')->execute([$u,$uuid()]);$device=(int)$pdo->lastInsertId();
+  $bearer=bin2hex(random_bytes(32));
+  $pdo->prepare('INSERT INTO user_sessions(user_id,device_id,access_hash,refresh_hash,access_expires_at,refresh_expires_at) VALUES (?,?,?,?,UTC_TIMESTAMP()+INTERVAL 1 HOUR,UTC_TIMESTAMP()+INTERVAL 1 DAY)')->execute([$u,$device,hash('sha256',$bearer),hash('sha256',random_bytes(32))]);
+  $app=new \Celikom\Application($config);$auth=['Authorization'=>'Bearer '.$bearer,'Content-Type'=>'application/json'];
+  $payload=['kind'=>'general','message'=>'Проверка скрытой диагностики','request_key'=>$uuid(),'support_diagnostics'=>$report];
+  $response=$app->handle('POST','/api/v1/support',[],$auth,json_encode($payload));expect($response->status===200,'General attachment accepted via authenticated HTTP route');
+  $newId=json_decode($response->body,true)['ticket_id'];expect($service->thread($newId)['report']['diagnostics']['activationCount']===3,'HTTP route persists snapshot');
+  $legacy=$app->handle('POST','/api/v1/support',[],$auth,json_encode(['kind'=>'general','message'=>'Другой прежний клиент','request_key'=>$uuid(),'report'=>['legacy'=>'unchanged'],'diagnostics'=>['platform'=>'android','legacy'=>'unchanged']]));expect($legacy->status===200,'Legacy general report field stays compatible');
+  $pdo->prepare('DELETE FROM user_sessions WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_devices WHERE user_id=?')->execute([$u]);$pdo->prepare('DELETE FROM user_email_security WHERE user_id=?')->execute([$u]);
  });
 }finally{
  foreach($users as $u){$pdo->exec('DELETE m FROM support_messages m JOIN support_tickets t ON t.id=m.ticket_id WHERE t.user_id='.$u);$pdo->exec('DELETE FROM audit_log WHERE entity_type=\'support_ticket\' AND entity_id IN (SELECT id FROM support_tickets WHERE user_id='.$u.')');$pdo->exec('DELETE FROM support_tickets WHERE user_id='.$u);$pdo->exec('DELETE FROM users WHERE id='.$u);}

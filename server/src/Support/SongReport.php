@@ -19,7 +19,10 @@ final class SongReport
   $version=self::text($input['version']??'',32);
   if(!preg_match('/^\d{1,4}\.\d{1,4}\.\d{1,4}$/D',$version))throw new \InvalidArgumentException('invalid_request');
   $out['version']=$version;
-  $d=$input['diagnostics']??[];if(!is_array($d))throw new \InvalidArgumentException('invalid_request');
+  $out['diagnostics']=self::diagnostics($input['diagnostics']??[]);return $out;
+ }
+ public static function diagnostics(mixed $d):array {
+  if(!is_array($d))throw new \InvalidArgumentException('invalid_request');
   $safe=[];
   foreach(['phase','replacementError','connectionError','restoreReason'] as $k){
    $v=$d[$k]??null;
@@ -59,6 +62,7 @@ final class SongReport
    if(is_string($endpoint)&&in_array($endpoint,['config','auth/me','entitlement','resolve','tracks/upload-status','tracks/version-status','rewards'],true))$entry['endpoint']=$endpoint;
    $safe['trace'][]=$entry;
   }
-  $out['diagnostics']=$safe;return $out;
+  if(isset($d['windows']))$safe['windows']=WindowsSupportDiagnostics::normalize($d['windows']);
+  return $safe;
  }
 }
