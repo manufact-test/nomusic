@@ -76,7 +76,8 @@ def parse_hierarchy(dex):
             ]
         if owner in rows:
             raise ValueError("LOADABLE_DUPLICATE_CLASS")
-        rows[owner] = (dex, superclass, interfaces)
+        access_flags = dex.u32(base + 4)
+        rows[owner] = (dex, superclass, interfaces, access_flags)
     return rows
 
 
@@ -91,7 +92,7 @@ def implements(owner, target, classes, seen=None):
     row = classes.get(owner)
     if row is None:
         return False
-    _dex, superclass, interfaces = row
+    _dex, superclass, interfaces, _access_flags = row
     if target in interfaces:
         return True
     return any(implements(parent, target, classes, seen) for parent in interfaces) or (
@@ -129,6 +130,66 @@ def collect_dispatch_targets(dexes, owner_scope, descriptor):
     return targets
 
 
+def loader_contract_for_method(owner, method, class_rows, methods_by_owner):
+    ancestors = hierarchy_owners(owner, class_rows)
+    matches = []
+    for interface in ancestors:
+        if not interface.startswith("Landroidx/media3/exoplayer/upstream/Loader$"):
+            continue
+        row = class_rows.get(interface)
+        if row is None or not (row[3] & 0x200):
+            continue
+        if any(
+            candidate[1] == method[1] and candidate[2] == method[2]
+            for candidate, _flags, _off in methods_by_owner.get(interface, ())
+        ):
+            matches.append(interface)
+    if len(matches) > 4:
+        raise ValueError("LOADABLE_LOADER_INTERFACE_MATCH_LIMIT")
+    return sorted(matches)
+
+
+def scan_candidate_constructor_callers(dexes, candidate_owners, media_period_owners):
+    rows = []
+    inspected_methods = 0
+    inspected_instructions = 0
+    for dex in dexes:
+        for method, _flags, code_off in audit.method_definitions_with_flags(dex):
+            inspected_methods += 1
+            if inspected_methods > MAX_METHOD_DEFINITIONS:
+                raise ValueError("LOADABLE_CTOR_SCAN_METHOD_LIMIT")
+            if not code_off:
+                continue
+            for pc, opcode, words in audit.instructions(dex, code_off):
+                inspected_instructions += 1
+                if inspected_instructions > MAX_TOTAL_INSTRUCTIONS:
+                    raise ValueError("LOADABLE_CTOR_SCAN_INSTRUCTION_LIMIT")
+                if opcode not in audit.INVOKES or not 0x6E <= opcode <= 0x78:
+                    continue
+                callee = dex.method(words[1])
+                if callee[1] != "<init>" or callee[0] not in candidate_owners:
+                    continue
+                registers = audit.invoke_registers(opcode, words)
+                rows.append({
+                    "constructed_owner": callee[0],
+                    "constructor_signature": callee[2],
+                    "caller_method": list(method),
+                    "pc": pc,
+                    "caller_is_exact_Lo96_method": method[0] == PERIOD,
+                    "caller_is_signed_MediaPeriod_implementer": method[0] in media_period_owners,
+                    "receiver_register": registers[0] if registers else None,
+                    "argument_register_count": max(0, len(registers) - 1),
+                })
+                if len(rows) > 64:
+                    raise ValueError("LOADABLE_CTOR_CALLER_LIMIT")
+    return {
+        "candidate_constructor_callsite_count": len(rows),
+        "candidate_constructor_callsites": rows,
+        "constructor_callsite_scan_methods": inspected_methods,
+        "constructor_callsite_scan_instructions": inspected_instructions,
+    }
+
+
 def inspect_owner_shape(owner, class_rows, methods_by_owner):
     row = class_rows.get(owner)
     if row is None:
@@ -142,7 +203,7 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
             "constructors_with_exact_Lo96_parameter": [],
             "loadable_load_method_defined": False,
         }
-    dex, _superclass, _interfaces = row
+    dex, _superclass, _interfaces, _access_flags = row
     try:
         fields = audit.declared_fields_for_owner(dex, owner)
     except Exception as exc:
