@@ -221,7 +221,23 @@ def scan_signed(apks):
         raise ValueError("LOADABLE_EXACT_DATASOURCE_METHOD_SET_MISMATCH")
     if not definitions[OPEN][2]:
         raise ValueError("LOADABLE_EXACT_OPEN_METHOD_HAS_NO_BODY")
+    if DATA_SOURCE not in class_rows:
+        raise ValueError("LOADABLE_EXACT_SOURCE_CLASS_HIERARCHY_MISSING")
 
+    source_contract_scope = hierarchy_owners(DATA_SOURCE, class_rows)
+    open_dispatch_targets = collect_dispatch_targets(
+        dexes, source_contract_scope, OPEN[2]
+    ) | {OPEN}
+    read_dispatch_targets = collect_dispatch_targets(
+        dexes, source_contract_scope, READ[2]
+    ) | {READ}
+    close_dispatch_targets = collect_dispatch_targets(
+        dexes, source_contract_scope, CLOSE[2]
+    ) | {CLOSE}
+    media_period_owners = {
+        owner for owner in class_rows
+        if implements(owner, MEDIA_PERIOD, class_rows)
+    }
     open_callers = {}
     exact_read_callers = set()
     exact_close_callers = set()
@@ -246,16 +262,18 @@ def scan_signed(apks):
                 if opcode not in audit.INVOKES or not 0x6E <= opcode <= 0x78:
                     continue
                 callee = dex.method(words[1])
-                if callee == READ:
+                if callee in read_dispatch_targets:
                     read_count += 1
-                elif callee == CLOSE:
+                elif callee in close_dispatch_targets:
                     close_count += 1
-                if callee != OPEN:
+                if callee not in open_dispatch_targets:
                     continue
                 registers = audit.invoke_registers(opcode, words)
                 open_sites.append({
                     "pc": pc,
                     "invoke_opcode": opcode,
+                    "callee": list(callee),
+                    "concrete_hook_target": callee == OPEN,
                     "receiver_register": registers[0] if registers else None,
                     "argument_register_count": max(0, len(registers) - 1),
                 })
