@@ -1,1 +1,1 @@
-2026-11-26T20:50Z: W188 private Floki stage retry with the two required root private-intake helpers restored. Previous attempt stopped at offline contract tests before download or spool; sequence 8 remains unused. Recovery branch only.
+2026-11-26T20:53Z: W188 private Floki owner stage retry after fixing the final release-test module syntax. Previous attempts did not download or spool; sequence 8 remains unused. Recovery branch only.
