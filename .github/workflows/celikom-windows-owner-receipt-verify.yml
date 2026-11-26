@@ -1,4 +1,4 @@
-name: CELIKOM Windows 0.24.57 Floki owner HTTPS receipt verification
+name: CELIKOM Windows 0.24.58 Floki owner HTTPS receipt verification
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: celikom-windows-owner-receipt-verify-02457
+  group: celikom-windows-owner-receipt-verify-02458
   cancel-in-progress: false
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Wait for root-verified owner HTTPS SHA receipt
         env:
-          EXPECTED_SHA256: bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47
+          EXPECTED_SHA256: 3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364
         shell: bash
         run: |
           set -Eeuo pipefail
