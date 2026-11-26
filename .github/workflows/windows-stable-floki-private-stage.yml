@@ -56,9 +56,9 @@ jobs:
       contents: read
     timeout-minutes: 18
     env:
-      RELEASE_VERSION: ${{ inputs.version || '0.24.56' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '3' }}
-      RELEASE_COMMIT: ${{ inputs.source_commit || '3c743332d134618fd4bba39ee826e833f39aa54c' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.57' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '4' }}
+      RELEASE_COMMIT: ${{ inputs.source_commit || '28587670e9efda35c73eb3a49d9702d2d72b3b8c' }}
     steps:
       - uses: actions/checkout@v4
         with:
