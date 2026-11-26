@@ -1,3 +1,52 @@
+
+
+# CURRENT HANDOFF — 26 November 2026 (supersedes earlier pending states)
+
+## Where we are
+
+**BETA17 has been delivered to the owner successfully. No new APK build is needed until the owner sends the phone diagnostic.** The next chat starts with analysis of that TXT, not with another rebuild.
+
+- Source workflow run: `45814198959`, attempt `1`; branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- BETA17: `CELIKOM-A1-RAMIL-AU-BETA17-HONOR50-20261126.apk`; 71,589,868 bytes; SHA-256 `62c737c395ac185608531e81d55775e1bbbe152d3d390bead276ac233e833019`.
+- Owner release draft ID: `459356293`. It contains the APK assets and the owner capability URL in its draft body. **Do not copy the capability URL into Git files, public Actions logs, summaries, screenshots, or public messages.** The owner already received the URL in the preceding chat response.
+- Delivery workflow run: `45819035079`, job `139906358309`, completed `success`. The root receipt matched run/attempt/name/size/SHA, `https_verified=true`; external HTTPS size/SHA verification and unpublished-draft URL readback succeeded.
+- The ARM13 publisher-first 75-second gate and JVM issuer/proxy gate passed. This is packaging/startup evidence only: `acoustic_replacement_proven=false`. **Actual audible replacement is not proven.**
+- Next phone check: install BETA17 over BETA16 on Honor 50; test Ramil `144530503`, album `38902809`, 00:43–00:54; send the resulting TXT diagnostic. Do not assume the test has happened until the user supplies evidence.
+
+## How delivery works now — the supported route
+
+The GitHub repository is currently public, and the workflow explicitly checks for `PUBLIC`. Treat every committed file and ordinary Actions log/summary as public. Never commit secrets, credentials, signing keys, owner capability URLs, private user data, or diagnostic files containing such data.
+
+1. A trusted Android source workflow creates an unpublished owner draft with the already-signed APK and provenance. The source branch is `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; the delivery workflow checks the exact source run and successful required gates.
+2. The trusted-main workflow `.github/workflows/android-a1-owner-floki-spool.yml` runs on the isolated self-hosted label `celikom-ci-smoke-only`. It resolves the exact source run and release, independently checks APK package/signature/provenance/digest, and stages the bytes as **untrusted data only**. It does not execute Android-branch code or upload the APK by SSH.
+3. Runner staging code: `.github/scripts/floki-a1-signed-spool.py`. Runner-visible spool path: `/home/runner/celikom-a1-signed-spool`. The same host spool is `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool`.
+4. A separate root-owned Floki service consumes the data. Installed verifier: `/usr/local/lib/celikom-a1-signed-owner/consumer.py`; trusted source copy: `.github/scripts/floki-a1-root-signed-spool-consumer.py`. It independently verifies run metadata/provenance, exact owner certificate and package ID, file size/SHA, then hands the APK to the existing restricted receiver `/usr/local/sbin/celikom-a1-apk-receive`. It verifies the public HTTPS response by status, content type, size and SHA before writing the root receipt.
+5. Root receipt directory: `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool/receipts/`; filename: `a1-<RUN_ID>-<ATTEMPT>.json`. Runner-visible equivalent: `/home/runner/celikom-a1-signed-spool/receipts/`. The receipt contains the owner capability URL; treat it as secret.
+6. Existing root units: `celikom-a1-signed-owner.service` and `celikom-a1-signed-owner.timer`. The root consumer uses the existing restricted receiver and capability-only Nginx route; don't replace or weaken them.
+7. Only after a matching root receipt exists does the workflow write the owner URL into the **unpublished draft** and read it back. The URL is then provided privately to the owner. GitHub is not the APK download endpoint; Floki HTTPS is.
+
+## Exact repository paths and their roles
+
+- `.github/workflows/android-a1-owner-floki-spool.yml` — **only supported owner APK delivery workflow**.
+- `.github/workflows/android-a1-owner-floki-download.yml` — legacy direct SSH route, disabled with `if: false`; never re-enable or use for delivery.
+- `.github/deploy/a1-owner-download-request.json` — manual request selecting exact source `run_id`, `attempt`, and exact unpublished `release_id`. It currently records BETA17: run `45814198959`, attempt `1`, release `459356293`. For a future build, change it only after that build and its draft are verified; changing this file on main triggers the spool workflow.
+- `.github/scripts/floki-a1-signed-spool.py` — data-only stage from the isolated runner.
+- `.github/scripts/floki-a1-root-signed-spool-consumer.py` — trusted root-side verification and promotion logic; the installed copy is separately root-owned.
+- `.github/scripts/floki-a1-signed-spool-bootstrap.sh` — one-time root bootstrap only. **Do not rerun it on an already provisioned host.**
+- `.github/scripts/floki-a1-receiver-diagnostic-install.sh` — historical surgical root repair, pinned to a specific old consumer state/receipt; **not a generic update script and not for routine delivery**.
+- `.github/scripts/tests/floki-a1-signed-spool.test.py` — offline contract/security tests run before staging.
+- Existing receiver storage: `/srv/celikom-a1-downloads/files` and `/srv/celikom-a1-downloads/receipts`. Do not edit storage or Nginx by guess.
+
+## Operating rules for the next chat
+
+- First inspect the user's new TXT diagnostic and compare it with BETA17's expected behavior. Extract the actual failure point and timestamps; distinguish source resolution, catalogue match, Media3/controller state, audio open/read, audio focus/routing, and audible output. Do not infer success from a UI state or a startup gate.
+- Do not rebuild BETA17, repeat its upload, or change the stable Android/Windows releases just to "try something". First determine what the diagnostic proves and what it does not.
+- Make the smallest evidence-backed source fix on the existing isolated A1 experimental line. Preserve the owner signing identity and all existing package/update compatibility.
+- If a new APK is justified, build once after the fix; require source workflow success, both native/JVM gates, exact provenance, package ID and original signer verification before staging.
+- For a new delivery, update `.github/deploy/a1-owner-download-request.json` with that exact successful source run, attempt and draft release ID, then let `.github/workflows/android-a1-owner-floki-spool.yml` do the data-only stage and root receipt flow. Never send the APK with direct SSH.
+- Delivery is complete only after: successful spool workflow; matching root receipt; `https_verified=true`; matching size/SHA; successful unpublished-draft URL write/readback. Audio acceptance is a separate phone diagnostic and listening step.
+- Do not start by editing the root consumer, systemd units, receiver permissions, Nginx, API, or runner configuration. If delivery itself fails, inspect the exact workflow step and the existing `celikom-a1-signed-owner.service` journal/timer first; preserve fail-closed behavior.
+
 # CELIKOM A1 — FlokiNET delivery repair (2026-11-25)
 
 ## Contract, not negotiable
@@ -109,7 +158,7 @@ Owner executed trusted UID-drop repair at source commit `1782d4dd696e9d73990be40
 
 ```text
 A1_ROOT_BETA16_RECEIPT
-{"attempt":1,"https_verified":true,"name":"CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk","run":45652314715,"sha256":"5faf46740dce159aee6a04bee3020aba046f1ae7c61bf9e53e649d4fc4bb3035","size":71585772,"url":"https://celikom.com/downloads/a1/b8dc1997548a9f98a5989927e8ea15735fb23cea210bc6cf/CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk"}
+{"attempt":1,"https_verified":true,"name":"CELIKOM-A1-RAMIL-AU-BETA16-HONOR50-20261125.apk","run":45652314715,"sha256":"5faf46740dce159aee6a04bee3020aba046f1ae7c61bf9e53e649d4fc4bb3035","size":71585772,"url":"[OWNER_CAPABILITY_URL_OMITTED]"}
 A1_ROOT_BETA16_PUBLICATION_AND_TIMER_READY
 ```
 
@@ -124,7 +173,7 @@ A1_ROOT_BETA16_PUBLICATION_AND_TIMER_READY
 - Existing unpublished draft: release ID `459356293`, tag `celikom-a1-owner-45814198959-1`. APK `CELIKOM-A1-RAMIL-AU-BETA17-HONOR50-20261126.apk`, size `71589868`, SHA-256 `62c737c395ac185608531e81d55775e1bbbe152d3d390bead276ac233e833019`. Original package and owner signing certificate independently verified in CI.
 - Legacy hosted-runner direct SSH delivery workflow `.github/workflows/android-a1-owner-floki-download.yml` is now disabled (`if: false`). Its retry hung at the remote intake stream and ended with exit 124; do not use this route or repeat the upload.
 - Supported path is the existing isolated data-only runner spool plus root-owned verifier/timer. The spool workflow was adapted for the public repository while keeping APK bytes in the isolated spool, resolving the exact draft by immutable release ID, and retrieving the owner URL only from the root-written receipt. Capability URLs must never appear in public Actions logs or summaries.
-- Current spool workflow run: `45819035079`, job `139906358309`. Source/provenance resolution, CI contract tests, independent APK signature/package check and immutable staging all succeeded. It is currently waiting for root receipt `/home/runner/celikom-a1-signed-spool/receipts/a1-45814198959-1.json`, then it will write the verified capability URL into the unpublished draft and read it back. Do not call delivery complete until that receipt matches run/attempt/name/size/SHA and `https_verified=true`, and the draft readback succeeds.
+- At the time of this entry, run `45819035079` was waiting for the root receipt. **This intermediate status is superseded by the completed-delivery section below**; the run later completed successfully and the receipt/draft readback were verified.
 - If the root receipt does not appear before the workflow's 12-minute wait expires, diagnose only the existing `celikom-a1-signed-owner.service` / timer and its journal. Do not alter Nginx, API, receiver permissions, SSH access, Windows, stable Android, or the root consumer's security checks by guess.
 - After owner link is retrieved, owner installs BETA17 over BETA16 on Honor 50 and tests Ramil `144530503`, album `38902809`, 00:43–00:54, then returns TXT. Audio replacement remains unproven until the phone's diagnostic confirms datasource/audio open/read and audible substitution.
 
