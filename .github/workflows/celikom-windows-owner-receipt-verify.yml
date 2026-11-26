@@ -21,7 +21,7 @@ jobs:
     steps:
       - name: Wait for root-verified owner HTTPS SHA receipt
         env:
-          EXPECTED_SHA256: 3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364
+          EXPECTED_SHA256: 3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86
         shell: bash
         run: |
           set -Eeuo pipefail
