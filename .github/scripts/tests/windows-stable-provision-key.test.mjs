@@ -39,7 +39,8 @@ test("W155 release derives the public pin from the protected private key", () =>
   assert.ok(sequence && Number(sequence) >= 2, "signed release sequence stays monotonic");
   assert.ok(releaseWorkflow.includes("default: '" + sequence + "'"));
   assert.match(releaseWorkflow, /FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED/);
-  assert.match(releaseWorkflow, /Preserve signed feed metadata in a separate unpublished draft/);
+  assert.match(releaseWorkflow, /Pack exact signed six-file Floki transfer/);
+  assert.match(releaseWorkflow, /actions\/upload-artifact@v4/);
   assert.match(releaseWorkflow, /Leave blank to use an automatic 7-day UTC expiry/);
   assert.match(releaseWorkflow, /UtcNow\.AddDays\(7\)/);
 });
