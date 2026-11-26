@@ -80,6 +80,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     // BETA19: selected original setter and nested source identity, owner test only.
+    // Export only if publisher-first native ARM13 and JVM gates both pass.
     private static final String BETA_BUILD = "A1_TRACKID_BETA19_SELECTED_SOURCE_NESTED_FACTORY_20261126";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
