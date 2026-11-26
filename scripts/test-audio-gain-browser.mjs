@@ -1,5 +1,6 @@
 import {access,readFile,writeFile,mkdtemp,rm,mkdir} from 'node:fs/promises';
 import {spawn,spawnSync} from 'node:child_process';
+import {get as httpGet} from 'node:http';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -357,9 +358,23 @@ try{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
+  console.log('Chrome DevTools port: '+port);
+  const getJson=url=>new Promise((resolve,reject)=>{
+   const request=httpGet(url,response=>{
+    let body='';
+    response.setEncoding('utf8');
+    response.on('data',chunk=>{body+=chunk;});
+    response.on('end',()=>{
+     if(response.statusCode!==200){reject(Error('HTTP '+response.statusCode+': '+body.slice(0,500)));return;}
+     try{resolve(JSON.parse(body));}catch(error){reject(error);}
+    });
+   });
+   request.setTimeout(1500,()=>request.destroy(Error('DevTools HTTP timeout')));
+   request.on('error',reject);
+  });
   let pages,lastFetchError;
   for(let i=0;i<100&&!pages;i++){
-   try{const response=await fetch('http://127.0.0.1:'+port+'/json/list');if(response.ok)pages=await response.json();else lastFetchError=Error('HTTP '+response.status);}
+   try{pages=await getJson('http://127.0.0.1:'+port+'/json/list');}
    catch(error){lastFetchError=error;}
    if(!pages)await pause(50);
   }
