@@ -181,7 +181,7 @@ jobs:
           (p/'url').write_text(url)
           PY
           url=$(cat "$d/url")
-          status=$(curl --silent --show-error --fail --max-time 180 --proto '=https' --output "$d/downloaded.apk" --dump-header "$d/http-headers" --write-out '%{http_code}' "$url")
+          status=$(curl --silent --fail --max-time 180 --proto '=https' --output "$d/downloaded.apk" --dump-header "$d/http-headers" --write-out '%{http_code}' "$url")
           test "$status" = 200
           grep -Eiq '^content-type: application/vnd.android.package-archive' "$d/http-headers"
           test "$(stat -c %s "$d/downloaded.apk")" = "$(jq -r .size "$d/metadata.json")"
@@ -189,10 +189,44 @@ jobs:
           test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://celikom.com/downloads/a1/)" = 404
           test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://celikom.com/updates/android/stable.json)" = 401
           test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://api.celikom.com/api/v1/health)" = 200
+          # This repository is public. Never print the capability URL to Actions logs or summary.
+          # Keep it only in the unpublished owner-only draft release body, visible to repo writers.
+          run_id=$(jq -r .run "$d/metadata.json")
+          attempt=$(jq -r .attempt "$d/metadata.json")
+          tag="celikom-a1-owner-$run_id-$attempt"
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,body > "$d/release-before.json"
+          python3 - "$d" <<'PY'
+          import json,re,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          release=json.loads((p/'release-before.json').read_text())
+          assert release['isDraft'] is True
+          body=release.get('body') or ''
+          marker='A1_OWNER_DOWNLOAD_URL='
+          assert marker not in body
+          url=(p/'url').read_text()
+          assert re.fullmatch(r'https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_-]{1,100}\.apk',url)
+          notes=body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
+          (p/'release-notes.txt').write_text(notes)
+          PY
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$d/release-notes.txt" >/dev/null 2>&1
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,body > "$d/release-after.json"
+          python3 - "$d" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          release=json.loads((p/'release-after.json').read_text())
+          url=(p/'url').read_text()
+          body=release.get('body') or ''
+          assert release['isDraft'] is True
+          assert body.count('A1_OWNER_DOWNLOAD_URL=')==1
+          assert 'A1_OWNER_DOWNLOAD_URL='+url in body
+          print('A1_OWNER_LINK_STORED_IN_UNPUBLISHED_DRAFT')
+          PY
           echo A1_EXTERNAL_ANONYMOUS_HTTPS_200_COMPLETE_SIZE_SHA256_VERIFIED
-          printf 'A1_DOWNLOAD_URL=%s\n' "$url"
           printf 'A1_APK_SIZE=%s\nA1_APK_SHA256=%s\n' "$(jq -r .size "$d/metadata.json")" "$(jq -r .sha256 "$d/metadata.json")"
-          printf '### A1 owner-only capability link (do not share)\n\n%s\n\nVerified: HTTPS 200, complete size, SHA-256, original A1 signer. Not acoustic acceptance.\n' "$url" >> "$GITHUB_STEP_SUMMARY"
+          printf 'A1_OWNER_LINK_STORED_IN_UNPUBLISHED_DRAFT=true\n' >> "$GITHUB_STEP_SUMMARY"
+          printf '### Owner-only download link stored in unpublished draft release; URL omitted from public Actions logs. Acoustic acceptance still requires Honor 50 playback.\n' >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary APK and metadata
         if: always()
         shell: bash
