@@ -5,6 +5,8 @@ on:
     paths:
       - 'android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py'
       - 'android/native-yandex-hooklab/ci/test_native_period_activation_handoff_exact.py'
+      - 'android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_exact_datasource_loadable_owner.py'
       - '.github/workflows/android-a1-native-period-activation-readonly.yml'
   workflow_dispatch:
 permissions:
@@ -32,10 +34,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B -m py_compile android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py
           PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
             python3 -B -m unittest discover \
               -s android/native-yandex-hooklab/ci \
               -p 'test_native_period_activation_handoff_exact.py' -v
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B -m unittest discover \
+              -s android/native-yandex-hooklab/ci \
+              -p 'test_a1_exact_datasource_loadable_owner.py' -v
       - name: Download exact private signed 2025 Yandex research input
         shell: bash
         env:
@@ -58,6 +65,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py \
+            --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Trace the exact hooked DataSource open to its signed Loadable owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
             --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Delete the original research input and guard untouched products
         if: always()
