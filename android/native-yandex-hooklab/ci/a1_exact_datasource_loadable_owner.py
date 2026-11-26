@@ -113,12 +113,19 @@ def hierarchy_owners(owner, classes, seen=None):
     return result
 
 
-def collect_dispatch_targets(dexes, owner_scope, descriptor):
-    targets = set()
+def collect_dispatch_targets(dexes, classes, owner_scope, descriptor, exact_target):
+    # Only signed interface/abstract-base contracts plus the exact concrete
+    # hook target. A same-signature private helper is not a dispatch contract.
+    dispatch_owners = {
+        owner for owner in owner_scope
+        if classes.get(owner) is not None
+        and (classes[owner][3] & (0x200 | 0x400))
+    }
+    targets = {exact_target}
     for dex in dexes:
         for index in range(dex.method_count):
             method = dex.method(index)
-            if method[0] in owner_scope and method[2] == descriptor:
+            if method[0] in dispatch_owners and method[2] == descriptor:
                 targets.add(method)
                 if len(targets) > 16:
                     raise ValueError("LOADABLE_DISPATCH_TARGET_LIMIT")
@@ -288,14 +295,14 @@ def scan_signed(apks):
 
     source_contract_scope = hierarchy_owners(DATA_SOURCE, class_rows)
     open_dispatch_targets = collect_dispatch_targets(
-        dexes, source_contract_scope, OPEN[2]
-    ) | {OPEN}
+        dexes, class_rows, source_contract_scope, OPEN[2], OPEN
+    )
     read_dispatch_targets = collect_dispatch_targets(
-        dexes, source_contract_scope, READ[2]
-    ) | {READ}
+        dexes, class_rows, source_contract_scope, READ[2], READ
+    )
     close_dispatch_targets = collect_dispatch_targets(
-        dexes, source_contract_scope, CLOSE[2]
-    ) | {CLOSE}
+        dexes, class_rows, source_contract_scope, CLOSE[2], CLOSE
+    )
     media_period_owners = {
         owner for owner in class_rows
         if implements(owner, MEDIA_PERIOD, class_rows)
