@@ -489,7 +489,7 @@ test('first native play after page load is muted synchronously until the resolve
  const wait=()=>new Promise(r=>setTimeout(r,5));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
   vm.runInContext("globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.pause();globalThis.utility=new HTMLMediaElement();utility.src='data:audio/wav;base64,fixture';utility.duration=.015;utility.play()",main);
   assert.equal(vm.runInContext('original.physicalMuted',main),false,'utility playback cannot admit a different paused original');
   vm.runInContext('original.play()',main);
@@ -508,7 +508,7 @@ test('first-play admission fails open on its deadline and does not remute on rep
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,5));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(()=>{})',isolated);
+  vm.runInContext('globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>new Promise(()=>{})',isolated);
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);
   assert.equal(vm.runInContext('original.physicalMuted',main),true);
   await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext('original.physicalMuted',main),false);
@@ -561,7 +561,7 @@ test('bounded intro waits for a resolver verdict without advancing native playba
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;globalThis.first=original.play();globalThis.second=original.play()',main);
   assert.equal(vm.runInContext('original.paused',main),true);
   assert.equal(vm.runInContext('original.currentTime',main),.1);
@@ -575,7 +575,7 @@ for(const action of ['pause','load','source','stop','timeout'])test('bounded int
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play().catch(e=>globalThis.playError=e.name)',main);
   await wait();assert.equal(vm.runInContext('original.paused',main),true);
   if(action==='pause'||action==='load')vm.runInContext('original.'+action+'()',main);
@@ -597,7 +597,7 @@ for(const delay of [20,450])test('intro positive verdict after '+delay+'ms retai
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
+  vm.runInContext('globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);
   await new Promise(r=>setTimeout(r,delay));
   vm.runInContext("finishAsset({found:true,demoLoop:true,url:'https://fixture.test/audio'})",isolated);await wait();await wait();
@@ -612,7 +612,7 @@ for(const action of ['timeout','pause'])test('reserved preparation survives intr
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
   vm.runInContext(`{
-   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;
+   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;engine.warmedAsset=null;
    engine.resolveAsset=async()=>({found:true,demoLoop:true,url:'https://fixture.test/audio'});
    engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare.bind(p);p.prepare=async asset=>{await new Promise(r=>globalThis.finishLoad=r);await prepare(asset);};return p;};
   }`,isolated);
@@ -629,11 +629,11 @@ for(const action of ['timeout','pause'])test('reserved preparation survives intr
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
 
-test('packaged adapter and controller warm the selected descriptor during native load without seizing audio',async()=>{
+test('packaged controller prewarms the selected descriptor before native audio exists without seizing audio',async()=>{
  const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
-  vm.runInContext('globalThis.warmCalls=0;__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>{warmCalls++;return new Promise(r=>globalThis.finishWarm=r)}',isolated);
+  vm.runInContext('globalThis.warmCalls=0;globalThis.engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine;engine.warmedAsset=null;engine.resolveAsset=()=>{warmCalls++;return new Promise(r=>globalThis.finishWarm=r)};engine.configure(true,"",true)',isolated);
   vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=0;original.readyState=0;original.duration=NaN;original.load()',main);
   await wait();await wait();
   assert.equal(vm.runInContext('warmCalls',isolated),1);
@@ -680,7 +680,7 @@ for(const delay of [450,650,850])test('confirmed decoder after '+delay+'ms never
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
   vm.runInContext(`{
-   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;
+   const engine=__CELIKOM_CONTENT_CONTROLLER_V2__.engine,create=engine.createPlayer;engine.warmedAsset=null;
    engine.resolveAsset=async()=>({found:true,demoLoop:true,url:'https://fixture.test/audio'});
    engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare.bind(p);p.prepare=async asset=>{await new Promise(r=>globalThis.finishConfirmedLoad=r);await prepare(asset);};return p;};
   }`,isolated);
