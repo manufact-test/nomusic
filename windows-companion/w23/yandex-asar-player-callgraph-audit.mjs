@@ -62,16 +62,16 @@ function exportKeys(source) {
   return [...keys].slice(0, 40);
 }
 function moduleDependencies(source) {
-  const header = source.slice(0, 180).match(/^\\s*(?:function\\s*\\(([^)]*)\\)|\\(([^)]*)\\)\\s*=>|([A-Za-z_$][\\w$]*)\\s*=>)/);
+  const header = source.slice(0, 180).match(/^\s*(?:function\s*\(([^)]*)\)|\(([^)]*)\)\s*=>|([A-Za-z_$][\w$]*)\s*=>)/);
   const args = (header?.[1] || header?.[2] || header?.[3] || "")
     .split(",").map(x => x.trim()).filter(Boolean);
   const requireName = args[2] || "";
   if (!requireName || !/^[A-Za-z_$][\\w$]*$/.test(requireName)) return [];
-  const pattern = new RegExp("\\\\b" + requireName + "\\\\s*\\\\(\\\\s*([0-9]{1,6})\\\\s*\\\\)", "g");
+  const pattern = new RegExp("\\b" + requireName + "\\s*\\(\\s*([0-9]{1,6})\\s*\\)", "g");
   return [...new Set([...source.matchAll(pattern)].map(x => x[1]))].slice(0, 100);
 }
 function callReceivers(source, name) {
-  const pattern = new RegExp("([A-Za-z_$][\\\\w$]*(?:\\\\.[A-Za-z_$][\\\\w$]*)*)\\\\." + name + "\\\\s*\\\\(", "g");
+  const pattern = new RegExp("([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\." + name + "\\s*\\(", "g");
   return [...new Set([...source.matchAll(pattern)].map(x => x[1]))].slice(0, 30);
 }
 function summarizeModule(path, id, source) {
