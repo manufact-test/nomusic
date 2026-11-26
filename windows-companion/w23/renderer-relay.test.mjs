@@ -119,7 +119,7 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
     enabled:true,signedIn:true,apiOrigin:origin
   });
   const player=new r.Resource();
-  const pending=player.resourceProvider.getFileInfo({trackId:"123"});
+  const pending=player.getFileInfo({trackId:"123"});
   await tick();
   const requests=r.window.__celikomBridgeNativeDrain();
   assert.equal(requests.length,1);
