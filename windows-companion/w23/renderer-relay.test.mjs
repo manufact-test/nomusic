@@ -38,9 +38,8 @@ function createRenderer({
     seek() {return "YANDEX_SEEKED"}
   }
   const originalPause=Resource.prototype.pause,originalSeek=Resource.prototype.seek;
-  class NativeYandexPlayer extends ResourceBase {
+  class NativeYandexPlayerBase {
     constructor({trackId="123",status="playing",position=57.1}={}) {
-      super();
       this.reloadReasons=[];
       this.mediaSources=[];
       this.snapshot={
@@ -57,8 +56,21 @@ function createRenderer({
       return response;
     }
   }
+  // Yandex 5.128 exports the state-observer/reload base, while the actual live
+  // player may define getFileInfo on a derived class. W183 must find this owner
+  // from the observed instance, not only from the exported base prototype.
+  class NativeYandexPlayer extends NativeYandexPlayerBase {
+    async getFileInfo(params) {
+      const trackId=params?.trackId ?? params?.id;
+      return {
+        responseTime:13,
+        downloadInfo:{trackId:String(trackId),key:"yandex-drm",
+          url:"https://official.yandex.example/stream",codec:"aac"}
+      };
+    }
+  }
   const requireFn=id=>id==="native-resource"?{Resource}:
-    id===7123 && withPlayer?{VE:NativeYandexPlayer}:null;
+    id===7123 && withPlayer?{VE:NativeYandexPlayerBase}:null;
   requireFn.m={"native-resource":function resourceFactory(){return '"get-file-info"';}};
   if(withPlayer)requireFn.m[7123]=function actualYandexPlaybackFactory(){};
   const chunks=[];
@@ -69,14 +81,16 @@ function createRenderer({
     webpackChunk_N_E:chunks,
     addEventListener:(type,fn)=>{handlers[type]=fn;}
   };
+  const intervals=[];
   const context={
     window,console:{info:(...args)=>logs.push(args.join(" "))},
     URL,AbortController,fetch:undefined,
-    setInterval:()=>1,clearInterval:()=>{},
+    setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval:()=>{},
     setTimeout,clearTimeout
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
-  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek};
+  const runIntervals=()=>{for(const fn of intervals) fn();};
+  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals};
 }
 async function tick() {
   await new Promise(resolve=>setImmediate(resolve));
