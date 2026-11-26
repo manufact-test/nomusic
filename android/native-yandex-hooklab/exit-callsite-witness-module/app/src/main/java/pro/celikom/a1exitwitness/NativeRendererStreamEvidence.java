@@ -548,6 +548,25 @@ final class NativeRendererStreamEvidence {
         return new Object[]{Long.valueOf(saved.generation),nativeSource};
     }
 
+
+    /**
+     * The current successful original Player setter is the only source
+     * credential for this bridge. Next/replay or an overlapping setter
+     * invalidates it. No ID or guessed playlist item is inferred.
+     */
+    synchronized Object[] exactSelectedOriginalSetterForSource(Object source) {
+        OriginalSetterLineage saved=exactOriginalSetterLineage;
+        if(poisoned || earlySourceInFlight!=null || saved==null ||
+                source==null || saved.source.get()!=source ||
+                saved.generation!=earlySourceGeneration)return null;
+        Object wrapper=saved.wrapper.get(),track=saved.track.get(),album=saved.album.get();
+        if(wrapper==null || track==null || album==null)return null;
+        Object[] again=exactEarlySetterSourceAtGeneration(source,saved.generation);
+        if(again==null || again[0]!=track || again[1]!=album ||
+                again[2]!=source)return null;
+        return new Object[]{wrapper,track,album,source};
+    }
+
     synchronized void setExactOriginalTrackAlbumEvidence(ExactOriginalTrackAlbumEvidence evidence) {
         exactOriginalTrackAlbumEvidence=evidence;
     }
