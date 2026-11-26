@@ -18,7 +18,7 @@ permissions:
 jobs:
   build:
     runs-on: celikom-ci-smoke-only
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,9 +42,37 @@ jobs:
           npm run build:extension
           npm --prefix extension run validate
 
+      - name: Prepare headless Chromium and FFmpeg on the Floki runner
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! command -v google-chrome-stable >/dev/null 2>&1; then
+            if [[ "$(id -u)" == "0" ]]; then
+              SUDO=()
+            elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
+              SUDO=(sudo)
+            else
+              echo "CHROMIUM_MISSING_AND_RUNNER_CANNOT_INSTALL_SYSTEM_PACKAGES"
+              id
+              exit 1
+            fi
+            command -v apt-get >/dev/null 2>&1 || { echo APT_GET_REQUIRED; exit 1; }
+            "${SUDO[@]}" apt-get update
+            "${SUDO[@]}" apt-get install -y ffmpeg ca-certificates curl
+            tmp="$(mktemp -d)"
+            trap 'rm -rf -- "$tmp"' EXIT
+            curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o "$tmp/google-chrome-stable.deb"
+            "${SUDO[@]}" apt-get install -y "$tmp/google-chrome-stable.deb"
+          fi
+          command -v google-chrome-stable
+          command -v ffmpeg
+          google-chrome-stable --version
+          ffmpeg -version | head -n 1
+
       - name: Run real Chromium media and decoder regression
         env:
           REQUIRE_BROWSER_AUDIO: '1'
+          CELIKOM_BROWSER_BINARY: /usr/bin/google-chrome-stable
         run: node scripts/test-audio-gain-browser.mjs
 
       - name: Security audit
