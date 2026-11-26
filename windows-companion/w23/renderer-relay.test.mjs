@@ -122,30 +122,34 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
-test("W182 Yandex 5.128 hooks the live player's inherited getFileInfo owner",async()=>{
+test("W183 Yandex 5.128 hooks getFileInfo on the actual derived player instance",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
+  void player.state; // inherited base getter observes the derived live player
+  r.runIntervals();   // the production finder retries after that state read
+  assert.ok(r.logs.some(s=>s.includes("Native file-info source connector attached")));
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin
   });
-  void player.state;
   assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
     "the old endpoint wrapper must not receive the 5.128 player hook");
-  const pending=player.getFileInfo({id:"123"});
+  const pending=player.reloadEntity("QUALITY_CHANGE");
   await tick();
   const requests=r.window.__celikomBridgeNativeDrain();
-  assert.equal(requests.length,1,"the live Yandex player method must request the mapped track");
+  assert.equal(requests.length,1,"reloadEntity must pass through the real player's getFileInfo");
   assert.equal(requests[0].trackId,"123");
   r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
   const result=await pending;
   assert.equal(result.downloadInfo.url,
     makeGrant("123").audioUrl+"&celikom_native_query_guard=0");
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
   const events=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
   assert.ok(events.includes("NATIVE_FILEINFO_REQUEST"));
   assert.ok(events.includes("SOURCE_MAPPED"));
-  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED"));
+  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_PLAYER"));
+  assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
   assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false,
-    "hook stays on the actual shared player/base method owner");
+    "the old endpoint wrapper stays untouched");
   r.handlers.beforeunload();
 });
 
