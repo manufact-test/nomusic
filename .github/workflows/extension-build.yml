@@ -78,7 +78,9 @@ jobs:
             exit 1
           fi
           browser_bin="$browser_tmp/chrome/chrome-linux64/chrome"
-          [[ -x "$browser_bin" ]] || { echo "CHROME_FOR_TESTING_BINARY_MISSING"; find "$browser_tmp/chrome" -maxdepth 3 -type f | head -n 30; exit 1; }
+          [[ -f "$browser_bin" ]] || { echo "CHROME_FOR_TESTING_BINARY_MISSING"; find "$browser_tmp/chrome" -maxdepth 3 -type f | head -n 30; exit 1; }
+          chmod 755 "$browser_bin"
+          if [[ -f "$browser_tmp/chrome/chrome-linux64/chrome_crashpad_handler" ]]; then chmod 755 "$browser_tmp/chrome/chrome-linux64/chrome_crashpad_handler"; fi
           "$browser_bin" --version
           echo "CELIKOM_BROWSER_BINARY=$browser_bin" >> "$GITHUB_ENV"
           node --input-type=module <<'NODE'
