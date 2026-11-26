@@ -63,8 +63,8 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
         classes = {
             DATA_SOURCE: (None, "Lbase;", ["Ldatasource-contract;"], 0x11),
             "Lbase;": (None, "Ljava/lang/Object;", [], 0x11),
-            "Ldatasource-contract;": (None, "Ljava/lang/Object;", []),
-            "Lunrelated;": (None, "Ljava/lang/Object;", []),
+            "Ldatasource-contract;": (None, "Ljava/lang/Object;", [], 0x200),
+            "Lunrelated;": (None, "Ljava/lang/Object;", [], 0x11),
         }
         scope = hierarchy_owners(DATA_SOURCE, classes)
         self.assertEqual(
@@ -95,7 +95,7 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
 
     def test_period_hierarchy_walk_is_bounded_and_exact(self):
         classes = {
-            "Lchild;": (None, "Lparent;", []),
+            "Lchild;": (None, "Lparent;", [], 0x11),
             "Lparent;": (None, "Ljava/lang/Object;", ["Lmarker;"], 0x11),
             "LperiodChild;": (None, PERIOD, [], 0x11),
             PERIOD: (None, "Ljava/lang/Object;", [], 0x11),
