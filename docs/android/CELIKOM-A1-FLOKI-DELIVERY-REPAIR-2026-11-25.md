@@ -1,3 +1,24 @@
+# CURRENT HANDOFF — 26 November 2026 (BETA21 FlokiNET delivery confirmed)
+
+## Exact accepted owner APK and delivery evidence
+
+- Android A1 BETA21 source commit `4b3e966aeab71d90b307110a72f222fefde46fdd` on `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Native signed build/export run `45863084301`, attempt 1, all JVM + Android13 jobs **success**. Separate clone differential `45863084416` **success**.
+- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA21-HONOR50-20261126.apk`, 71593964 bytes, SHA-256 `80f4b0056107486ae43bb656e9331d6b7b96d21493f9e0aba7ceb171ece2db91`. Source unpublished owner draft release ID `459698802` (must stay unpublished).
+- Main data-only request `.github/deploy/a1-owner-download-request.json`: run ID `45863084301`, attempt `1`, release ID `459698802`. Floki isolated runner/stage + independent root consumer and HTTPS verified receipt through `.github/workflows/android-a1-owner-floki-spool.yml`, delivery run `45865042744` **SUCCESS**. Root receipt + unpublished draft owner URL readback matched. Owner received celikom.com link in the chat only; **never publish capability URL, private TXT, tokens or root receipts in public GitHub**.
+- Stable Android, Windows, backend, Nginx, receiver, independent root consumer and signer were unchanged. Legacy `android-a1-owner-floki-download.yml` remains disabled.
+
+## Why BETA21 and what remains
+
+- Honor 50 BETA20 confirmed server grant, exact first-open arm, alternate audio `OPEN/READ`, but **user did not hear alternate**. Audio renderer `STATE_NOT2=MANY`, `STATE2=NONE`, `READ_RETURN_MINUS3=MANY`, no active non-EOS audio evidence. Encoded byte read is not audible proof. Private diagnostic `CELIKOM-A1-Diagnostics-1795710702903.txt` stays in chat only.
+- BETA20 still had a second premature arming call in dynamically discovered factory product construction. Fix `7fe6dcdd8fa98252eaff19dab9a3156b4b1ab645` leaves deferred alternate arming exclusively at genuine original Exo first `open()`. Proven JVM, native and clone gates; not yet acoustic.
+- New passively observed Android framework output: `MediaCodec.configure` audio MIME MPEG/AAC/other, `MediaCodec.start`, `AudioTrack.play` counters. No audio mutation or second player. Evidence may distinguish decode/output activity, cannot prove active selected Exo path by itself.
+- Isolated private signed-2025 XAPK process topology run `45862436035` finds no explicitly media-named secondary playback service (3 media-named all main, 2 separate non-media services), so no evidenced reason to migrate hook to other process. Not a complete runtime process proof.
+- **NEXT:** owner installs BETA21 over BETA20 (retain data), plays Ramil' «Ау» publisher `144530503`, album `38902809`, listens 00:43–00:54 and exports TXT. Check `A1_TRACKID_BETA21_ACTUAL_OPEN_ONLY_CODEC_OUTPUT_WITNESS_20261126`, signed first-open, alt reads, codec/output and renderer. `acoustic_replacement_proven=false` until owner confirms actual sound. No new delivery without evidence-backed root-cause fix.
+
+## Historical records below
+
+---
+
 # CURRENT HANDOFF — 26 November 2026 (BETA20 delivered, awaiting acoustic acceptance)
 
 ## Verified owner delivery
