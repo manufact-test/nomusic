@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/windows-w181-yandex-51280-asar-audit.yml'
       - 'windows-companion/w23/yandex-asar-hook-audit.mjs'
+      - 'windows-companion/w23/yandex-asar-player-callgraph-audit.mjs'
       - 'windows-companion/w81/Watch-YandexWindowsRelease.ps1'
   workflow_dispatch:
 
@@ -62,6 +63,9 @@ jobs:
           $audit = 'w181-yandex-asar-audit.json'
           node windows-companion/w23/yandex-asar-hook-audit.mjs $asar $audit
           if ($LASTEXITCODE -ne 0) { throw 'W181_YANDEX_ASAR_HOOK_AUDIT_FAILED' }
+          $callgraph = 'w183-yandex-player-callgraph.json'
+          node windows-companion/w23/yandex-asar-player-callgraph-audit.mjs $asar $callgraph
+          if ($LASTEXITCODE -ne 0) { throw 'W183_YANDEX_PLAYER_CALLGRAPH_AUDIT_FAILED' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -69,5 +73,6 @@ jobs:
           path: |
             w181-yandex-vendor-report.json
             w181-yandex-asar-audit.json
+            w183-yandex-player-callgraph.json
           if-no-files-found: error
           retention-days: 7
