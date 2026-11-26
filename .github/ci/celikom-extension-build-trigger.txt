@@ -1,1 +1,1 @@
-extension-0.4.90-audio-continuity-user-space-chromium-20261126
+extension-0.4.90-audio-continuity-user-space-chromium-downloads-20261126

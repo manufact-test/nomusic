@@ -66,7 +66,7 @@ jobs:
           import {createWriteStream} from "node:fs";
           import {Readable} from "node:stream";
           import {pipeline} from "node:stream/promises";
-          const meta=await fetch("https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json").then(r=>{if(!r.ok)throw Error("Chrome version lookup failed: "+r.status);return r.json();});
+          const meta=await fetch("https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json").then(r=>{if(!r.ok)throw Error("Chrome version lookup failed: "+r.status);return r.json();});
           const url=meta.channels?.Stable?.downloads?.chrome?.find(x=>x.platform==="linux64")?.url;
           if(!url)throw Error("Stable Chrome for Testing linux64 URL missing");
           const response=await fetch(url);
