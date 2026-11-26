@@ -37,7 +37,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-stable-release-${{ inputs.version || '0.24.58' }}
+  # Push-triggered owner builds must not inherit the workflow_dispatch default version;
+  # otherwise an obsolete approval-waiting run can hold the same concurrency slot forever.
+  group: celikom-windows-stable-release-${{ inputs.version || github.sha }}
   cancel-in-progress: false
 
 jobs:
