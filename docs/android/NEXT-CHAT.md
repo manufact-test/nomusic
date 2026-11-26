@@ -1,3 +1,35 @@
+# CURRENT HANDOFF — 26.11.2026, BETA18 source-factory bridge
+
+## Latest owner test: BETA17 still does not replace audio
+
+Owner diagnostic: `CELIKOM-A1-Diagnostics-1795698832394.txt` (BETA17).
+
+- Owner resolve/grant path is positive: `OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `GRANT_ADMITTED=ONE`, `DECISION_ALTERNATE=ONE`.
+- Actual byte source is not armed: `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN=NONE`, `AUDIO_READ=NONE`.
+- The decisive source-lineage counters: `TRACK_DESCRIPTOR_FACTORY_LINK=ONE`, but `TRACK_FACTORY_SOURCE_LINK=NONE`; no track source open/read links.
+- This identifies the break between the exact descriptor-returned factory and the concrete Exo DataSource instance. Do not change server catalogue, signed grant, Range transport, original Yandex package, stable Android or Windows.
+
+## BETA18 patch committed to the existing experiment branch
+
+Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+
+- Added `NativeExoFactoryProductWitness`: resolves the unique zero-argument product method on the exact factory object returned by the signed original descriptor factory. It accepts only the concrete `RetryingBalancingDataSource` return or the exact Media3/legacy Exo DataSource contract, rejects missing/ambiguous/static methods, and never logs private vendor symbols.
+- Hooks the exact method on that descriptor-returned factory instance. Its receiver identity is then used by the existing Stage B descriptor→factory→DataSource lineage. The old pinned nested-factory hook remains and shares the method registry to prevent double-hooking.
+- Added privacy-safe event `AUDIO_EXO_FACTORY_PRODUCT_HOOK`: `REGISTERED`, `NO_EXACT_METHOD`, `AMBIGUOUS`, or `NO_HOOK`.
+- Added JVM regression tests for unique/inherited/overridden methods, interface return types, default methods, ambiguity, static and wrong-return rejection. Local run: `NATIVE_EXO_FACTORY_PRODUCT_WITNESS_PASS assertions=14`.
+- Updated owner marker/output/instructions to BETA18. BETA18 is to install over the owner's BETA17 test build; no app data wipe.
+
+## Build and delivery boundary
+
+- The final source push carries `[export-beta-audio]`. The existing ARM13 publisher-first workflow must pass its JVM and native gates before it can export the signed owner BETA18 package. A failed gate must not export.
+- Expected package: `CELIKOM-A1-RAMIL-AU-BETA18-HONOR50-20261126.apk`.
+- Successful source workflow completion triggers the trusted-main Floki spool workflow. Wait for its root receipt with matching run/attempt/name/size/SHA and `https_verified=true`; only then is the owner link ready.
+- Current build/export/delivery outcome is **not yet verified in this handoff**. Do not claim BETA18 built, delivered, or audible until the actual run and receipt confirm it.
+- After delivery: install BETA18 over BETA17, test Ramil `144530503`, album `38902809`, 00:43–00:54, export TXT. The decisive expected progress is `TRACK_FACTORY_SOURCE_LINK` followed by `DATASOURCE_ARMED`, `AUDIO_OPEN`, and `AUDIO_READ`. Still require the owner to confirm the audible replacement.
+- BETA16 stable and all other channels remain untouched. Never publish the owner draft or copy its capability URL into Git/docs/logs.
+
+---
+
 > **BETA11 OWNER TEST — STILL NO SWAP (21.11.2026), diagnostic `CELIKOM-A1-Diagnostics-1795254709741.txt`:** Installed `A1_TRACKID_BETA11_OWNER_GRANT_WINDOW_20261121`; owner auto-enabled. `PREFETCH_STARTED=ONE`, `OWNER_RESOLVE_NOT_APPROVED=ONE`, `OWNER_RESOLVE_APPROVED=NONE`, `OWNER_NETWORK_OR_RESPONSE_ERROR=NONE`, `OWNER_RESPONSE_INVALID=NONE`, `SIGNED_MPEG_READY=NONE`, `GRANT_ADMITTED=NONE`, `DECISION_ALTERNATE=NONE`, `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN/READ=NONE`. The **authenticated HTTP resolve returned valid JSON but did not meet found+approved+entitled+audio/mpeg**. Exact cause (found=false due to no active replacement/file; entitlement=false; other format) not differentiated by BETA11 counters; do NOT assert a specific cause. Separately `ISSUER_VALUE_TARGET_ALLOWLISTED=NONE`, `ISSUER_VALUE_OTHER_NUMERIC=FEW`, `ISSUER_VALUE_SCOPE_ABSENT=FEW`, `ORIGINAL_SETTER=NONE`, `EXACT_PREPARE=ONE`, `WRAPPER_MAIN_SOURCE=NONE`, `TRACK_DESCRIPTOR_FACTORY_LINK=NONE`. **Prefetch can be triggered by first-party tCa(String) constructor even without issuer Retrofit allowlist counter** (`StageBAudioEvidence.java:960-969`); this explains otherwise apparently conflicting metrics. `LOG_TRIMMED` and multiple user-requested process restarts: snapshot is per most recent process, not proof same track was present throughout. **Next action is NOT another timeout tweak/APK:** verify server ACTIVE approved MP3 asset mapped by `service=yandex`, `track_id=144530503` through authenticated catalogue/DB (`PdoCatalogRepository.findActive`, status approved, is_active=1, disabled_at NULL, storage file exists, audio/mpeg; verify album-played exact original publisher ID separately, do not blindly allowlist 38436680). Only after backend data matches, fix exact source/creator chain, because direct wrapper → descriptor → factory source remains unproven. No authenticated backend access from this chat; no server changes or APK made. Owner tested from ALBUM, never ask MyWave. Functional code HEAD remains `5d2d21279fa09728aed9c11bbcc641e21d7c9d37`.
 
 > **BETA11 SIGNED/CI-GREEN OWNER APK in Library 21.11.2026:** owner BETA10 TXT `1795253330036` showed target ID and original setter confirmed, but no signed MPEG grant or alternate audio. Fixed both mismatched Exo waiting **and** separate native admission deadline (old 450ms/850ms, now bounded 3000ms); privacy-safe resolve/Range/rejection diagnostics added. Functional HEAD `5d2d21279fa09728aed9c11bbcc641e21d7c9d37`. JVM `44890319497`, clone `44890319270`, paired `44890319418` all SUCCESS. APK `/CELIKOM-A1-RAMIL-AU-BETA11-HONOR50-20261121.apk` uploaded to Library (libfile_c950fbe1dff08191b5cc1b0b73154254), SHA256 d4a479170cca73c8866ee24c66964f56a9292d3b6b1968911d2c006e204f3815. **No acoustic proof**; next owner checks same track FROM ALBUM. See [full handoff](./CELIKOM-A1-BETA11-OWNER-GRANT-WINDOW-HANDOFF-2026-11-21.md).
