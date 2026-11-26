@@ -11,7 +11,7 @@ jobs:
   verify-private-graph:
     permissions:
       contents: write # draft-release read in GitHub Actions uses write access
-    runs-on: celikom-ci-smoke-only
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
