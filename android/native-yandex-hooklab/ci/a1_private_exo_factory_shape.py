@@ -89,10 +89,10 @@ def inspect(path):
                 exact.append((dex,ret,mid in defined))
             elif owner==INNER_FACTORY and name=="for" and not params:
                 inner_returns.append((return_kind(ret),mid in defined))
-    unique={(ret,has_body) for _,ret,has_body in exact}
-    if len(unique)!=1 or not any(has_body for _,_,has_body in exact):
+    definitions={ret for _,ret,has_body in exact if has_body}
+    if len(definitions)!=1:
         raise ValueError("SIGNED_EXO_OUTER_FACTORY_DRIFT")
-    return_type=next(iter(unique))[0]
+    return_type=next(iter(definitions))
     methods=set()
     fields=set()
     for dex in records:
