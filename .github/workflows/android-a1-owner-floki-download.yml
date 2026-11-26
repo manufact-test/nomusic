@@ -191,20 +191,22 @@ jobs:
           test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://api.celikom.com/api/v1/health)" = 200
           # This repository is public. Never print the capability URL to Actions logs or summary.
           # Keep it only in the unpublished owner-only draft release body, visible to repo writers.
-          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$d/releases.json"
           python3 - "$d" <<'PY'
           import json,re,sys
           from pathlib import Path
           p=Path(sys.argv[1])
           meta=json.loads((p/'metadata.json').read_text())
           tag=f"celikom-a1-owner-{meta['run']}-{meta['attempt']}"
-          releases=json.loads((p/'releases.json').read_text())
-          matches=[item for item in releases if item.get('tag_name')==tag]
-          assert len(matches)==1 and matches[0].get('draft') is True
-          release=matches[0]
+          # Reuse the exact draft already resolved and cryptographically checked
+          # in the source step. Listing releases omits drafts for this token.
+          release=json.loads((p/'release.json').read_text())
+          assert release['isDraft'] is True and release['tagName']==tag
+          assert release['targetCommitish']=='main'
           body=release.get('body') or ''
           marker='A1_OWNER_DOWNLOAD_URL='
-          found=re.findall(r'^A1_OWNER_DOWNLOAD_URL=(https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_-]{1,100}\.apk)$',body,re.M)
+          url=(p/'url').read_text()
+          assert re.fullmatch(r'https://celikom\.com/downloads/a1/[0-9a-f]{48}/'+re.escape(meta['name']),url)
+          found=re.findall(r'^A1_OWNER_DOWNLOAD_URL=(https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_.-]+\.apk)$',body,re.M)
           if found:
               assert found==[url]
               notes=body
@@ -212,6 +214,7 @@ jobs:
               notes=body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
           (p/'release_id').write_text(str(release['id']))
           (p/'release-patch.json').write_text(json.dumps({'body':notes},separators=(',',':')))
+          PY
           PY
           release_id=$(cat "$d/release_id")
           if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" --input "$d/release-patch.json" >/dev/null 2>&1; then
