@@ -2884,6 +2884,8 @@ try
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
          DiagnosticLog.IsIncidentCode("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_FILEINFO_ID_UNRECOGNIZED") &&
+         DiagnosticLog.IsIncidentCode("NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ORIGINAL_SOURCE_NO_RELOAD") &&
          DiagnosticLog.IsIncidentCode("NATIVE_UNKNOWN_SOURCE_NO_RELOAD") &&
          DiagnosticLog.IsIncidentCode("NATIVE_REPLACEMENT_SOURCE_RELOAD") &&
