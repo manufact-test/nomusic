@@ -10,6 +10,7 @@ const grant = (id='123', overrides={}) => ({
   trackId:id, approved:true, entitled:true, audioUrl:url,
   expiresAt:now+180000, mimeType:'audio/mpeg', ...overrides
 });
+const mappedGrant = id => ({...grant(id),audioUrl:signedUrlFor(id)});
 const orig = {
   downloadInfo:{trackId:'123',key:'drm',codec:'aac',
     urls:['https://official.example/native'],url:'https://official.example/native'},
@@ -57,7 +58,7 @@ test('W181 batch file-info hook reports an unrecognized argument shape without a
   a.dispose();
 });
 test('W182 player getFileInfo({id}) is mapped',async()=>{
-  const a=create(async id=>({signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}));
+  const a=create(async id=>mappedGrant(id));
   const {proto}=resource();a.attach(proto);a.enable();
   const value=await proto.getFileInfo({id:'123'});
   assert.equal(value.downloadInfo.trackId,'123');
@@ -65,7 +66,7 @@ test('W182 player getFileInfo({id}) is mapped',async()=>{
   a.dispose();
 });
 test('W182 two-argument Yandex getFileInfo reads trackId from the second object',async()=>{
-  const a=create(async id=>({signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}));
+  const a=create(async id=>mappedGrant(id));
   const proto={
     async getFileInfo(context,params) {
       return {downloadInfo:{trackId:params.trackId,url:'https://official.yandex.example/source'}};
@@ -79,7 +80,7 @@ test('W182 two-argument Yandex getFileInfo reads trackId from the second object'
   a.dispose();
 });
 test('W182 batch getFileInfoBatch({ids}) is mapped',async()=>{
-  const a=create(async id=>id==='123'?{signedUrl:signedUrlFor(id),mimeType:'audio/mpeg'}:null);
+  const a=create(async id=>id==='123'?mappedGrant(id):null);
   const proto={
     async getFileInfo() {
       return {downloadInfo:{trackId:'123',url:'https://official.yandex.example/source'}};
