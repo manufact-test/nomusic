@@ -1,37 +1,47 @@
-# АКТУАЛЬНО — возврат к принятой Windows 0.24.54 (26.11.2026)
+# АКТУАЛЬНО — W187: 0.24.54 запускается, но login сломан; вернуть Floki API, сохранив W174 audio baseline (26.11.2026)
 
-**Владелец запросил именно возврат последней лично принятой рабочей версии, а не новый hook experiment.** Восстановлен точный W173 owner-stage installer из GitHub Actions artifact 14703029534 (run 44894407351). Файл распакован и его SHA-256 независимо пересчитан: `da5877bb01dca6048ce85cb07881f663c3a16cb81ec1f3b16074837bf9b60f33` — совпадает с W173 acceptance record. ZIP SHA-256 `d719af9688d74230440887707b9a6cd1c8e2b08af6026cd406c909fd4d3fb4b3`.
+**Текущий owner result:** точный W173 0.24.54 EXE запущен владельцем, но вход не проходит. Скриншот показывает общую ошибку «Не удалось выполнить действие. Проверь интернет и повтори». Поэтому rollback НЕ завершён: login не работает, аудио после rollback не тестировалось.
 
-- Точная версия: **0.24.54 / W173**, последняя лично принятая владельцем.
-- Исходный EXE: `CELIKOM-W173-START-UX-02454-UNSIGNED.exe`.
-- Исходный артефакт: [run 44894407351](https://github.com/manufact-test/nomusic/actions/runs/44894407351), artifact `14703029534`.
-- Восстановленный локальный файл доступен в текущей переписке; не заменять его сборкой с artifact 14705515606 — у неё другой SHA.
-- Установщик **не имеет Authenticode-подписи**; это прежний internal owner-stage package, уже лично установленный и принятый владельцем до миграции.
-- Read-only Hostinger availability run [45759107905](https://github.com/manufact-test/nomusic/actions/runs/45759107905), 26.11.2026 11:38 UTC: старый Hostinger API health=200, config=200, anonymous resolve=401 (ожидаемо). Это подтверждает доступность старого API, но **не** проверяет авторизацию конкретного владельца.
+## Критическая поправка к W186
 
-## Важное для реального отката
+Предыдущий чат ошибочно посоветовал при откате удалить сохранённые данные входа. Это удалило/могло удалить `%LOCALAPPDATA%\\CELIKOM\\Windows\\session.dpapi` и заставило старый W173 0.24.54 выбрать свой старый Hostinger default origin. Он не знает о Floki migration.
 
-Просто установить 0.24.54 поверх 0.24.60 недостаточно: DPAPI `%LOCALAPPDATA%\CELIKOM\Windows\session.dpapi` уже содержит origin `https://api.celikom.com`. Старый 0.24.54 сохраняет существующую сессию и продолжит использовать сохранённый Floki origin.
+**Не повторять uninstall и не удалять DPAPI.** Общая ошибка UI не доказывает неверный пароль. W186 Hostinger health/config checks не проверяли owner login. Скриншот не показывает реальный endpoint/status, поэтому Hostinger — ведущая гипотеза, не окончательно подтверждённая причина. См. подробный разбор [W187](./W187-02454-HOSTINGER-LOGIN-FAILURE-FLOKI-API-RECOVERY-20261126.md). Сам [W186 помечен как superseded](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md).
 
-Чтобы вернуть прежнюю рабочую связку **0.24.54 + Hostinger API**:
-1. Закрыть Yandex Music и CELIKOM.
-2. Удалить CELIKOM штатным деинсталлятором Windows.
-3. В окне удаления поставить галочку **«Также удалить сохранённые данные входа»**. Проверенный W173 uninstaller сначала требует успешного `--restore-native`, затем удаляет только `session.dpapi`; другие файлы CELIKOM, Yandex и серверная подписка/пробный период не удаляются.
-4. Установить именно W173 0.24.54 EXE из восстановленного artifact 14703029534.
-5. Войти заново. Без старой DPAPI-сессии приложение использует прежний Hostinger origin.
-6. Проверить «Ау» (track 144530503) и фактический звук подмены.
+## Точка восстановления
 
-Не говорить, что возврат завершён, пока владелец не подтвердил реальное воспроизведение. Если вход на Hostinger не проходит, не переустанавливать повторно и не менять hook: это отдельный auth/API blocker, требующий диагностики.
+- Точный исторический пакет W173 / **0.24.54**, artifact `14703029534`, run `44894407351`.
+- EXE SHA-256: `da5877bb01dca6048ce85cb07881f663c3a16cb81ec1f3b16074837bf9b60f33`.
+- W174 canonical code base: commit `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
+- Recovery branch уже создан: `recovery/windows-w174-02454-known-good-20261126`.
+- Ветку создали от точного W174 commit. Использовать её для следующего owner candidate, а не текущий Windows runtime из main.
+- Main содержит готовую узкую реализацию Floki migration: `ProductionOrigin=https://api.celikom.com`, точное преобразование только старого Hostinger origin, сохранение существующих токенов/InstallationId, Floki default и тесты. Перенести только этот API-origin слой.
 
-## Границы изменений
+## Что делать следующему чату
 
-- `main` runtime не откатывался и не переписывался этим восстановлением.
-- Перед документационным обновлением создана резервная ветка `backup/windows-main-pre-02454-restore-20261126` на прежнем HEAD `bd942f423c922b8d51cbf2931c285e035c4d65c7`.
-- Не трогать Android, расширение, server production, Floki API, customer stable approval или автообновления.
-- 0.24.54 — owner rollback для проверки/восстановления, не новый публичный релиз.
-- Следующий шаг — дождаться результата фактической установки/входа/прослушивания. Только по нему решать, что именно чинить дальше.
+1. Сначала прочитать W187, W186, W174 и этот NEXT-CHAT.
+2. Проверить recovery branch и его точный базовый commit.
+3. Сделать минимальный backport Floki API-origin migration из current main: production default, exact legacy-origin migration, DPAPI persistence, Floki fallback для config/password reset, migration tests.
+4. Добавить безопасные login diagnostics: target class и outcome/status category. Никаких email, паролей, токенов, Authorization, полных URL или HTTP body.
+5. Не менять W174 audio hook. Контрольные blobs `renderer-entry.mjs`, `native-resource-adapter.mjs`, `current-source-refresh.mjs` должны остаться byte-identical к W174 SHA, указанным в W187.
+6. Прогнать W15 contracts, W20 installer, W21–W24, renderer/native tests и Floki Windows cross-build.
+7. Подготовить один owner-only candidate по текущему проверенному pipeline; версию/sequence сверить с release metadata. Не публиковать customer stable и не включать массовое автообновление.
+8. Владелец устанавливает candidate поверх 0.24.54 **без uninstall и без удаления DPAPI**. Сначала подтвердить вход на Floki, затем отдельно проверить реальную подмену «Ау» track `144530503`, оригинальный трек, Next и Play/Pause.
 
-Подробная запись: [W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md).
+**Login и audio — два разных acceptance gate.** Успешная авторизация ещё не доказывает звук; зелёная сборка/CI не доказывает ни одно из них.
+
+## Границы
+
+Не трогать Android, браузерное расширение, server production/DB, Hostinger/Floki deployment, аккаунты, trial/subscription, каталог/grants, customer stable и автообновление. Не просить владельца снова переустанавливать приложение, удалять данные входа или отправлять пароль. Не делать новые speculative audio-hook эксперименты.
+
+## Документация и история
+
+- [W187 — причина login failure и точный work order](./W187-02454-HOSTINGER-LOGIN-FAILURE-FLOKI-API-RECOVERY-20261126.md)
+- [W186 — артефакт 0.24.54; старый rollback procedure superseded](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md)
+- [W174 — owner-accepted W173 0.24.54 canonical baseline](./W174-MAINLINE-CONSOLIDATION-20261121.md)
+
+Исторический W173 EXE был восстановлен и SHA-256 проверен; runtime-код в этом documentation update не менялся. Следующий deliverable — не ещё один «старый EXE», а W174 playback baseline с минимальным Floki auth-origin compatibility fix.
+
 
 ---
 # CELIKOM Windows W185 — восстановлен принятый W174 source hook; 0.24.60 доставлена владельцу (26.11.2026)
