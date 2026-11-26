@@ -99,6 +99,36 @@ def implements(owner, target, classes, seen=None):
     )
 
 
+def hierarchy_owners(owner, classes, seen=None):
+    if seen is None:
+        seen = set()
+    if owner in seen:
+        return set()
+    seen.add(owner)
+    result = {owner}
+    row = classes.get(owner)
+    if row is None:
+        return result
+    _dex, superclass, interfaces = row
+    if superclass is not None:
+        result.update(hierarchy_owners(superclass, classes, seen))
+    for interface in interfaces:
+        result.update(hierarchy_owners(interface, classes, seen))
+    return result
+
+
+def collect_dispatch_targets(dexes, owner_scope, descriptor):
+    targets = set()
+    for dex in dexes:
+        for index in range(dex.method_count):
+            method = dex.method(index)
+            if method[0] in owner_scope and method[2] == descriptor:
+                targets.add(method)
+                if len(targets) > 16:
+                    raise ValueError("LOADABLE_DISPATCH_TARGET_LIMIT")
+    return targets
+
+
 def inspect_owner_shape(owner, class_rows, methods_by_owner):
     row = class_rows.get(owner)
     if row is None:
@@ -121,6 +151,8 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
         raise ValueError("LOADABLE_OWNER_FIELD_LIMIT")
     period_fields = sum(1 for _o, _n, typ in fields if typ == PERIOD)
     source_fields = sum(1 for _o, _n, typ in fields if typ == SOURCE)
+    wrapper_fields = sum(1 for _o, _n, typ in fields if typ == "Lup1;")
+    media_period_fields = sum(1 for _o, _n, typ in fields if typ == MEDIA_PERIOD)
     constructors = [
         method for method, _flags, _off in methods_by_owner.get(owner, ())
         if method[1] == "<init>"
@@ -140,6 +172,8 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
         "implements_media3_loader_loadable": implements(owner, LOADABLE, class_rows),
         "owner_period_field_count": period_fields,
         "owner_source_field_count": source_fields,
+        "owner_wrapper_field_count": wrapper_fields,
+        "owner_media_period_field_count": media_period_fields,
         "owner_constructor_count": len(constructors),
         "constructors_with_exact_Lo96_parameter": constructors_with_period,
         "loadable_load_method_defined": load_method,
