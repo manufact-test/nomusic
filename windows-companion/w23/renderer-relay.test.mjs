@@ -12,7 +12,7 @@ const makeGrant = (id="123") => ({
   expiresAt:expiry*1000
 });
 function createRenderer({
-  hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=true
+  hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=true,observePlayer=true
 }={}) {
   const logs=[],handlers={};
   class ResourceBase {
@@ -106,7 +106,7 @@ function createRenderer({
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
   const runIntervals=()=>{for(const fn of intervals) fn();};
-  const activePlayer=withPlayer?new NativeYandexPlayer():null;
+  const activePlayer=withPlayer&&observePlayer?new NativeYandexPlayer():null;
   if(activePlayer) void activePlayer.state;
   return {window,Resource,ResourceBase,LegacyResource,SonataProvider,
     NativeYandexPlayer,activePlayer,logs,handlers,originalPause,originalSeek,runIntervals};
@@ -652,7 +652,7 @@ test("W76: expired signed media 403 callback checks current ID and honestly repo
   r.handlers.beforeunload();
 });
 test("W76: expired callback cannot wake a stopped or unobserved player",async()=>{
-  const r=createRenderer({withPlayer:true});
+  const r=createRenderer({withPlayer:true,observePlayer:false});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),false,
     "before Yandex state observer attaches it cannot identify current player");
