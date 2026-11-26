@@ -32,6 +32,10 @@ Private Floki owner-delivery run: `45833819502` (conclusion SUCCESS).
 - Size: `2,499,254` bytes.
 - SHA-256: `88db3f3ab927b8123676733a242d84fabe683ca79eb4cb17cac2703f1f1c4b0a`.
 
+### Follow-up native Chromium gate
+The first attempt to add the synthetic real-media regression to CI (`45834959604`) stopped at its prerequisite check: the Floki runner had no Chromium binary. This happened AFTER all 431 extension tests passed, package build and manifest validation succeeded; it is an environment prerequisite failure, not a playback-test assertion.
+The workflow now provisions official Google Chrome Stable plus FFmpeg on the existing self-hosted Floki runner and requires `scripts/test-audio-gain-browser.mjs` to run (`REQUIRE_BROWSER_AUDIO=1`). Retry `45835579644` is queued behind other self-hosted project jobs. Do not mark the native Chromium test passed until that run completes successfully. The already-delivered ZIP is unchanged by these CI-only workflow edits.
+
 This is a PRIVATE OWNER CANDIDATE, not public/customer promotion or owner acceptance. CI is Node-based regression/build/security validation; it is NOT real Yandex listening acceptance. The local Chromium launcher exists but its engine binary is absent. Do not claim real Chrome/Brave/Yandex playback acceptance or that the underlying E5 native/UI divergence has been root-caused. Owner must install and listen to this one combined candidate.
 
 ## Release boundary
