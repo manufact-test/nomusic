@@ -43,6 +43,14 @@ MAX_OWNER_FIELDS = 128
 MAX_OWNER_CONSTRUCTORS = 24
 
 
+def is_exact_datasource_target(method):
+    return method in (OPEN, READ, CLOSE)
+
+
+def is_loadable_load_method(method, owner_is_loadable):
+    return bool(owner_is_loadable and method[1] == "load" and method[2] == "()V")
+
+
 def parse_hierarchy(dex):
     rows = {}
     if dex.class_count > 100000:
@@ -148,7 +156,7 @@ def scan_signed(apks):
     for apk in apks:
         with zipfile.ZipFile(apk) as archive:
             for entry in archive.infolist():
-                if not re.fullmatch(r"classes[0-9]*\\.dex", entry.filename):
+                if not re.fullmatch(r"classes[0-9]*\.dex", entry.filename):
                     continue
                 if entry.file_size > audit.DEX_MAX:
                     raise ValueError("LOADABLE_SIGNED_DEX_SIZE_LIMIT")
@@ -170,7 +178,7 @@ def scan_signed(apks):
             methods_by_owner.setdefault(method[0], []).append(
                 (method, flags, code_off)
             )
-            if method in (OPEN, READ, CLOSE):
+            if is_exact_datasource_target(method):
                 if method in definitions:
                     raise ValueError("LOADABLE_EXACT_TARGET_DUPLICATE")
                 definitions[method] = (dex, flags, code_off)
@@ -242,9 +250,8 @@ def scan_signed(apks):
             **owner_shape,
             "exact_open_and_read_same_method": row["same_method_exact_read_calls"] > 0,
             "exact_open_and_close_same_method": row["same_method_exact_close_calls"] > 0,
-            "method_is_loadable_load": (
-                owner_shape["implements_media3_loader_loadable"]
-                and method[1] == "load" and method[2] == "()V"
+            "method_is_loadable_load": is_loadable_load_method(
+                method, owner_shape["implements_media3_loader_loadable"]
             ),
         })
 
