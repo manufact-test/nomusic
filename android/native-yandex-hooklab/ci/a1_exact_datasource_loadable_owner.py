@@ -321,6 +321,16 @@ def scan_signed(apks):
         "exact_open_target_defined": OPEN in definitions,
         "exact_read_target_defined": READ in definitions,
         "exact_close_target_defined": CLOSE in definitions,
+        "data_source_contract_hierarchy_owner_count": len(source_contract_scope),
+        "data_source_contract_hierarchy_owners": sorted(source_contract_scope),
+        "open_dispatch_target_count": len(open_dispatch_targets),
+        "open_dispatch_targets": [list(x) for x in sorted(open_dispatch_targets)],
+        "read_dispatch_target_count": len(read_dispatch_targets),
+        "read_dispatch_targets": [list(x) for x in sorted(read_dispatch_targets)],
+        "close_dispatch_target_count": len(close_dispatch_targets),
+        "close_dispatch_targets": [list(x) for x in sorted(close_dispatch_targets)],
+        "signed_media_period_implementer_count": len(media_period_owners),
+        "signed_media_period_implementers": sorted(media_period_owners),
         "exact_open_direct_caller_count": len(rows),
         "exact_open_direct_callers": rows,
         "exact_read_direct_caller_count": len(exact_read_callers),
@@ -332,6 +342,13 @@ def scan_signed(apks):
                 row["nested_under_exact_Lo96"]
                 or row["owner_period_field_count"] > 0
                 or row["constructors_with_exact_Lo96_parameter"]
+            )
+            for row in rows
+        ),
+        "loadable_owner_nested_under_any_signed_media_period": any(
+            row["method_is_loadable_load"] and any(
+                row["method"][0].startswith(period[:-1] + "$")
+                for period in media_period_owners
             )
             for row in rows
         ),
