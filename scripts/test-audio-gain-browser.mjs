@@ -348,57 +348,104 @@ try{
  }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
  const version=spawnSync(binary,['--version'],{encoding:'utf8'});if(version.status!==0)throw Error('Chromium could not start: '+(version.stderr||version.stdout||'unknown error'));console.log('Browser gate: '+String(version.stdout||version.stderr).trim());
- const headlessArgs=process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1'?[]:['--headless=new'];
- const browser=spawn(binary,[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
+ const usePipe=process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1';
+ const headlessArgs=usePipe?[]:['--headless=new'];
+ const debugArgs=usePipe?['--remote-debugging-pipe']:['--remote-debugging-port=0'];
+ const stdio=usePipe?['pipe','pipe','pipe','pipe','pipe']:['ignore','ignore','pipe'];
+ const browser=spawn(binary,[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-vulkan','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600',...debugArgs,'--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio,detached:process.platform!=='win32'});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
- let socket;
+ let socket,pipeWrite;
  try{
-  const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
-  for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
-  if(!port)throw Error('Chrome debug port unavailable: '+launchError);
-  console.log('Chrome DevTools port: '+port+'; waiting up to 15 seconds for the listener');
-  const getJson=url=>new Promise((resolve,reject)=>{
-   const request=httpGet(url,response=>{
-    let body='';
-    response.setEncoding('utf8');
-    response.on('data',chunk=>{body+=chunk;});
-    response.on('end',()=>{
-     if(response.statusCode!==200){reject(Error('HTTP '+response.statusCode+': '+body.slice(0,500)));return;}
-     try{resolve(JSON.parse(body));}catch(error){reject(error);}
-    });
+  const pause=ms=>new Promise(r=>setTimeout(r,ms));
+  let call,lastStep='browser startup';
+  if(usePipe){
+   pipeWrite=browser.stdio[3];
+   const pipeRead=browser.stdio[4];
+   let input=Buffer.alloc(0),id=0;
+   const pending=new Map();
+   const rejectPending=error=>{for(const entry of pending.values())entry.reject(error);pending.clear();};
+   pipeRead.on('data',chunk=>{
+    input=Buffer.concat([input,chunk]);
+    let boundary;
+    while((boundary=input.indexOf(0))!==-1){
+     const raw=input.subarray(0,boundary).toString();
+     input=input.subarray(boundary+1);
+     if(!raw)continue;
+     let message;
+     try{message=JSON.parse(raw);}catch(error){rejectPending(Error('Invalid Chromium pipe message: '+error.message));continue;}
+     if(pending.has(message.id)){
+      const entry=pending.get(message.id);pending.delete(message.id);
+      if(message.error)entry.reject(Error(message.error.message));else entry.resolve(message.result||{});
+     }
+    }
    });
-   request.setTimeout(1500,()=>request.destroy(Error('DevTools HTTP timeout')));
-   request.on('error',reject);
-  });
-  let pages,lastFetchError;
-  for(let i=0;i<300&&!pages;i++){
-   if(browser.exitCode!==null)break;
-   try{pages=await getJson('http://127.0.0.1:'+port+'/json/list');}
-   catch(error){lastFetchError=error;}
-   if(!pages)await pause(50);
+   pipeRead.on('error',rejectPending);
+   pipeRead.on('close',()=>rejectPending(Error('Chromium debugging pipe closed: '+launchError)));
+   const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{
+    const seq=++id,timer=setTimeout(()=>{pending.delete(seq);reject(Error('Browser pipe RPC timeout: '+method+' at '+lastStep+'; stderr: '+launchError));},10000);
+    pending.set(seq,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
+    const message={id:seq,method,params};if(sessionId)message.sessionId=sessionId;
+    pipeWrite.write(JSON.stringify(message)+'\\0',error=>{if(error){clearTimeout(timer);pending.delete(seq);reject(error);}});
+   });
+   let target;
+   for(let i=0;i<100&&!target;i++){
+    if(browser.exitCode!==null)break;
+    try{const result=await send('Target.getTargets');target=result.targetInfos?.find(item=>item.type==='page');}
+    catch(error){if(browser.exitCode!==null)throw error;}
+    if(!target)await pause(50);
+   }
+   if(!target)throw Error('Chromium pipe did not expose a page target; exit='+browser.exitCode+'; stderr: '+launchError);
+   const attached=await send('Target.attachToTarget',{targetId:target.targetId,flatten:true});
+   if(!attached.sessionId)throw Error('Chromium could not attach to its page target');
+   const sessionId=attached.sessionId;
+   call=(method,params={})=>send(method,params,sessionId);
+   console.log('Chromium DevTools pipe connected');
+  }else{
+   let port;
+   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\\n')[0].trim();}catch{}if(!port)await pause(50);}
+   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
+   console.log('Chrome DevTools port: '+port+'; waiting up to 15 seconds for the listener');
+   const getJson=url=>new Promise((resolve,reject)=>{
+    const request=httpGet(url,response=>{
+     let body='';
+     response.setEncoding('utf8');
+     response.on('data',chunk=>{body+=chunk;});
+     response.on('end',()=>{
+      if(response.statusCode!==200){reject(Error('HTTP '+response.statusCode+': '+body.slice(0,500)));return;}
+      try{resolve(JSON.parse(body));}catch(error){reject(error);}
+     });
+    });
+    request.setTimeout(1500,()=>request.destroy(Error('DevTools HTTP timeout')));
+    request.on('error',reject);
+   });
+   let pages,lastFetchError;
+   for(let i=0;i<300&&!pages;i++){
+    if(browser.exitCode!==null)break;
+    try{pages=await getJson('http://127.0.0.1:'+port+'/json/list');}
+    catch(error){lastFetchError=error;}
+    if(!pages)await pause(50);
+   }
+   if(!pages)throw Error('Chrome DevTools endpoint did not become ready: '+(lastFetchError?.message||'no response')+'; exit='+browser.exitCode+'; stderr: '+launchError);
+   const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable; stderr: '+launchError);
+   socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
+   let id=0;const pending=new Map();
+   socket.onclose=()=>{for(const {reject} of pending.values())reject(Error('Browser closed during media test: '+launchError));pending.clear();};
+   socket.onmessage=event=>{const message=JSON.parse(event.data);if(pending.has(message.id)){const entry=pending.get(message.id);pending.delete(message.id);if(message.error)entry.reject(Error(message.error.message));else entry.resolve(message.result||{});}};
+   call=(method,params={})=>new Promise((resolve,reject)=>{
+    const seq=++id,timer=setTimeout(()=>{pending.delete(seq);reject(Error('Browser RPC timeout: '+method+' at '+lastStep));},5000);
+    pending.set(seq,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
+    socket.send(JSON.stringify({id:seq,method,params}));
+   });
   }
-  if(!pages)throw Error('Chrome DevTools endpoint did not become ready: '+(lastFetchError?.message||'no response')+'; exit='+browser.exitCode+'; stderr: '+launchError);
-  console.log('Chrome DevTools endpoint ready');
-  const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable; stderr: '+launchError);
-  socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
-  let id=0;const pending=new Map();
-  socket.onclose=()=>{for(const {reject} of pending.values())reject(Error('Browser closed during media test: '+launchError));pending.clear();};
-  socket.onmessage=event=>{const m=JSON.parse(event.data);if(pending.has(m.id)){const {resolve,reject}=pending.get(m.id);pending.delete(m.id);if(m.error)reject(Error(m.error.message));else resolve(m.result);}};
-  let lastStep='browser startup';
-  const call=(method,params={})=>new Promise((resolve,reject)=>{
-   const seq=++id,timer=setTimeout(()=>{pending.delete(seq);reject(Error('Browser RPC timeout: '+method+' at '+lastStep));},5000);
-   pending.set(seq,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
-   socket.send(JSON.stringify({id:seq,method,params}));
-  });
-  let state;
+ let state;
   for(let i=0;i<400;i++){
    const r=await call('Runtime.evaluate',{expression:'JSON.stringify({result:document.body?.dataset.gainResult,step:document.body?.dataset.gainStep})',returnByValue:true});
    state=JSON.parse(r.result.value||'{}');if(state.step&&state.step!==lastStep){lastStep=state.step;console.log('Media fixture: '+lastStep);}if(state.result)break;await pause(100);
   }
   if(state?.result!=='pass')throw Error('Audio gain browser: '+(state?.result||'no result at '+state?.step));
   const shot=await call('Page.captureScreenshot',{format:'png'});await writeFile(join(process.cwd(),'dist/layout-proof/audio-gain.png'),Buffer.from(shot.data,'base64'));
- }finally{socket?.close();if(process.platform==='win32')spawnSync('taskkill',['/PID',String(browser.pid),'/T','/F'],{stdio:'ignore'});else {try{process.kill(-browser.pid,'SIGTERM');}catch{browser.kill('SIGTERM');}}await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);browser.stderr.destroy();}
+ }finally{socket?.close();pipeWrite?.end();if(process.platform==='win32')spawnSync('taskkill',['/PID',String(browser.pid),'/T','/F'],{stdio:'ignore'});else {try{process.kill(-browser.pid,'SIGTERM');}catch{browser.kill('SIGTERM');}}await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,1500))]);browser.stderr.destroy();}
  console.log('Native audio gain: actual decoded media, amplitude boost/attenuation/ceiling, volume/mute/cleanup, native stale-track transition/old-original mute handoff and admin slider/reset PASS');
 }finally{await rm(directory,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
