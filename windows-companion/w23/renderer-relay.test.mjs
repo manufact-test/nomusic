@@ -33,7 +33,29 @@ function createRenderer({
       }))};
     }
   }
-  class Resource extends ResourceBase {
+  class LegacyResource extends ResourceBase {}
+  class SonataProvider {
+    async getFileInfo(params) {
+      const trackId=params?.trackId ?? params?.id;
+      return {
+        responseTime:13,
+        downloadInfo:{trackId:String(trackId),key:"yandex-drm",
+          url:"https://official.yandex.example/stream",codec:"aac"}
+      };
+    }
+    async getFileInfoBatch(params={}) {
+      const ids=params.trackIds || params.ids || ["123","456"];
+      return {downloadInfos:ids.map((id,index)=>({
+        trackId:String(id?.trackId ?? id?.id ?? id),key:"drm",
+        url:index===0?"https://official.yandex.example/stream":
+          "https://official.yandex.example/next"
+      }))};
+    }
+  }
+  // Existing tests call Resource as a compact file-info fixture. On the
+  // 5.128 path it inherits the real SonataProvider prototype; the old
+  // endpoint wrapper remains a separate, unpatched LegacyResource.
+  class Resource extends (withPlayer ? SonataProvider : LegacyResource) {
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
   }
@@ -42,6 +64,7 @@ function createRenderer({
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
+      this.resourceProvider=new SonataProvider();
       this.snapshot={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
         playerState:{status:{value:status},progress:{value:{position}}}
@@ -51,28 +74,20 @@ function createRenderer({
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
       const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await this.getFileInfo({id});
+      const response=await this.resourceProvider.getFileInfo({id});
       this.mediaSources.push(response.downloadInfo.url);
       return response;
     }
   }
-  // Yandex 5.128 exports the state-observer/reload base, while the actual live
-  // player may define getFileInfo on a derived class. W183 must find this owner
-  // from the observed instance, not only from the exported base prototype.
-  class NativeYandexPlayer extends NativeYandexPlayerBase {
-    async getFileInfo(params) {
-      const trackId=params?.trackId ?? params?.id;
-      return {
-        responseTime:13,
-        downloadInfo:{trackId:String(trackId),key:"yandex-drm",
-          url:"https://official.yandex.example/stream",codec:"aac"}
-      };
-    }
-  }
-  const requireFn=id=>id==="native-resource"?{Resource}:
-    id===7695 && withPlayer?{SonataProvider:NativeYandexPlayerBase}:null;
+  class NativeYandexPlayer extends NativeYandexPlayerBase {}
+  const requireFn=id=>id==="native-resource"?{Resource:LegacyResource}:
+    id===7123 && withPlayer?{VE:NativeYandexPlayerBase}:
+    id===7695 && withPlayer?{SonataProvider}:null;
   requireFn.m={"native-resource":function resourceFactory(){return '"get-file-info"';}};
-  if(withPlayer)requireFn.m[7695]=function actualYandexSonataProviderFactory(){};
+  if(withPlayer) {
+    requireFn.m[7123]=function actualYandexPlaybackFactory(){};
+    requireFn.m[7695]=function actualYandexSonataProviderFactory(){};
+  }
   const chunks=[];
   chunks.push=packet=>{packet[2](requireFn);return 1;};
   chunks.pop=()=>null;
@@ -90,7 +105,7 @@ function createRenderer({
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
   const runIntervals=()=>{for(const fn of intervals) fn();};
-  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals};
+  return {window,Resource,LegacyResource,SonataProvider,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals};
 }
 async function tick() {
   await new Promise(resolve=>setImmediate(resolve));
