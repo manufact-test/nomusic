@@ -9,3 +9,5 @@ Owner must install and personally verify mapped «Ау» track 144530503, anothe
 2026-11-26: release concurrency corrected: push-triggered owner run is keyed by commit SHA, so the obsolete approval-waiting 0.24.57 run cannot hold the 0.24.58 owner-build slot.
 
 2026-11-26: bypass GitHub Releases API (403 integration) by packaging the six-file P-256 signed transfer as a short-lived Actions artifact; reusable Floki stage downloads it from the same workflow run and deposits only data into the isolated runner spool.
+
+2026-11-26: update W156 contract for artifact-to-Floki handoff; retry 0.24.58 owner candidate.
