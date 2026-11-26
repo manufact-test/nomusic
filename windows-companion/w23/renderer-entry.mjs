@@ -579,13 +579,38 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
     lastWebpackRequire = webpackRequire;
 
-    // W183: wait until the pinned state getter has observed the actual live
-    // player instance. Its concrete class may derive from the exported player
-    // base; inspecting only the base prototype can silently hook the wrong
-    // endpoint wrapper while reloadEntity still appears to succeed.
+    // Keep the existing 7123.VE state/reload observer, but W183's signed
+    // Yandex 5.128.0 ASAR audit identified the actual getFileInfo owner as
+    // module 7695 export SonataProvider. Hook that provider directly: 7123.VE
+    // has reloadEntity/getMediaSource but no getFileInfo, so patching it or the
+    // old endpoint wrapper produces a false-positive attached state.
     let playerObserverAttached = false;
     try {
       playerObserverAttached = playerSourceRefresh.attach(webpackRequire);
+      if (typeof webpackRequire.m[7695] === "function") {
+        let providerClass = null;
+        try { providerClass = webpackRequire(7695)?.SonataProvider; } catch {}
+        if (typeof providerClass === "function" && providerClass.prototype &&
+            typeof providerClass.prototype.getFileInfo === "function") {
+          let owner = providerClass.prototype;
+          while (owner && owner !== Object.prototype) {
+            if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
+                typeof owner.getFileInfo === "function") break;
+            owner = Object.getPrototypeOf(owner);
+          }
+          if (owner && owner !== Object.prototype) {
+            adapter.attach(owner);
+            attached = true;
+            report("RESOURCE_HOOK_ATTACHED_PROVIDER");
+            report("RESOURCE_HOOK_ATTACHED");
+            console.info("[CELIKOM] Native file-info source connector attached");
+            if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
+            return true;
+          }
+        }
+      }
+      // Compatibility for a reviewed build where getFileInfo is actually
+      // inherited by the observed current player rather than SonataProvider.
       const owner = playerSourceRefresh.resourcePrototype();
       if (owner && typeof owner.getFileInfo === "function") {
         adapter.attach(owner);
@@ -598,12 +623,12 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       }
     } catch {}
     // Do not prematurely attach the legacy endpoint wrapper before the live
-    // player's first state read. On Yandex 5.128 that creates a false-positive
-    // RESOURCE_HOOK_ATTACHED while the real player bypasses the wrapper.
+    // player's first state read. On Yandex 5.128 this would hide a missed
+    // SonataProvider binding behind an apparently successful endpoint hook.
     if (playerObserverAttached && !playerSourceRefresh.playerObserved) return false;
 
     // Compatibility fallback is retained only after a real current player has
-    // been observed and confirmed not to own/inherit getFileInfo.
+    // been observed and confirmed not to expose the provider method.
     for (const id in webpackRequire.m) {
       let source;
       try { source = webpackRequire.m[id].toString(); } catch { continue; }
