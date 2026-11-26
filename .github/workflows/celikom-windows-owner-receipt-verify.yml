@@ -1,0 +1,62 @@
+name: CELIKOM Windows 0.24.61 Floki owner HTTPS receipt verification
+
+on:
+  push:
+    branches: [recovery/windows-w174-02454-known-good-20261126]
+    paths:
+      - '.github/ci/celikom-windows-owner-receipt-verify-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-windows-owner-receipt-verify-02461
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Wait for root-verified owner HTTPS SHA receipt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          trigger='.github/ci/celikom-windows-owner-receipt-verify-trigger.txt'
+          version="$(sed -n 's/^version=//p' "$trigger" | tail -n 1)"
+          expected="$(sed -n 's/^sha256=//p' "$trigger" | tail -n 1)"
+          [[ "$version" == '0.24.61' ]] || { echo 'WINDOWS_OWNER_RECEIPT_VERSION_INVALID'; exit 1; }
+          [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo 'WINDOWS_OWNER_RECEIPT_SHA_INVALID'; exit 1; }
+          receipt="$(mktemp)"
+          error_file="$(mktemp)"
+          trap 'rm -f "$receipt" "$error_file"' EXIT
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --connect-timeout 8 --max-time 20 \
+              --output "$receipt" \
+              https://celikom.com/.well-known/celikom-release-receipt.json 2>"$error_file"; then
+              if node - "$receipt" "$expected" "$version" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expected, version] = process.argv.slice(2);
+          try {
+            const receipt = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const actual = receipt?.channels?.windows_owner_sha256;
+            if (receipt?.schema === 1 && actual === expected) {
+              console.log('WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED', version, actual);
+              process.exit(0);
+            }
+          } catch {}
+          console.log('WINDOWS_OWNER_ROOT_SHA256_NOT_YET_CONFIRMED');
+          process.exit(1);
+          NODE
+              then
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          cat "$error_file" >&2 || true
+          echo WINDOWS_OWNER_ROOT_HTTPS_SHA256_NOT_CONFIRMED
+          exit 1

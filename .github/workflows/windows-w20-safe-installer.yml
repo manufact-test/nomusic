@@ -6,6 +6,7 @@ on:
     # documentation pushes must not create intermediate Windows installers.
     branches:
       - main
+      - recovery/windows-w174-02454-known-good-20261126
       # W167 isolated internal owner-review build; main remains unchanged.
       - experiment/windows-w167-owner-ui-regressions-20261116
       # W170 upload-cleanup owner-review package from the accepted Windows line.
@@ -47,12 +48,19 @@ jobs:
       - name: Verify actual bundled diagnostics and native source contracts
         shell: pwsh
         run: |
-          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs
+          node --test windows-companion/w15/w15-contract.test.mjs windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/asar-images.test.mjs windows-companion/w23/initial-current-source.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/audio-probe.test.mjs windows-companion/w60/current-source-refresh.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W28_NATIVE_DIAGNOSTICS_CONTRACT_FAILED' }
       - name: Compile source with warnings as errors
         run: dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
       - name: Run native local bridge and host preflight tests
         run: dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+      - name: Test W21 recovery core and rollback contracts
+        shell: pwsh
+        run: |
+          dotnet build windows-companion/w21/Celikom.Recovery/Celikom.Recovery.csproj -c Release -warnaserror
+          if ($LASTEXITCODE -ne 0) { throw 'W21_RECOVERY_CORE_BUILD_FAILED' }
+          dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W21_RECOVERY_CONTRACT_FAILED' }
       - name: Test native image construction and crash recovery
         run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
       - name: Verify stage-only distribution policy

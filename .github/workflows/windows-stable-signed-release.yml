@@ -5,26 +5,31 @@ on:
     branches:
       - main
     paths:
-      - ".github/release/owner-bootstrap-0.24.38.trigger"
+      - ".github/release/owner-bootstrap-0.24.61.trigger"
   workflow_dispatch:
     inputs:
       version:
         description: Version already committed to main
         required: true
-        default: '0.24.38'
+        default: '0.24.61'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
-        default: '1'
+        default: '8'
         type: string
       expires_at:
         description: Leave blank to use an automatic 7-day UTC expiry
         required: false
         default: ''
         type: string
+      stage_to_floki:
+        description: Send signed candidate to dedicated private data-only intake (no live publish)
+        required: false
+        default: false
+        type: boolean
       publish_to_production:
-        description: Publish only after celikom.com DNS, TLS and feed are live
+        description: Disabled during migration; private preparation only
         required: true
         default: false
         type: boolean
@@ -32,7 +37,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-stable-release
+  # Push-triggered owner builds must not inherit the workflow_dispatch default version;
+  # otherwise an obsolete approval-waiting run can hold the same concurrency slot forever.
+  group: celikom-windows-stable-release-${{ inputs.version || github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -40,15 +47,17 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    environment: windows-stable-production
+    # Unattended owner-candidate signing/build. This environment must have the P-256
+    # signing secret but NO required reviewers. Customer publication remains separately gated below.
+    environment: windows-stable-owner-build
     runs-on: windows-2022
     timeout-minutes: 50
     outputs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version || '0.24.38' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '1' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.61' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '8' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +76,7 @@ jobs:
           MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
         run: |
           $ErrorActionPreference='Stop'
+          if ('${{ inputs.publish_to_production }}' -eq 'true') { throw 'FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED' }
           if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
           node .github/scripts/windows-stable-key-public.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_PIN_DERIVATION_FAILED' }
@@ -164,87 +174,43 @@ jobs:
             Remove-Item $key,$pub -Force -ErrorAction SilentlyContinue
             Remove-Item Env:MANIFEST_PRIVATE_PEM -ErrorAction SilentlyContinue
           }
-      - name: Create unpublished owner-only draft release
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = $env:RELEASE_VERSION
-          $tag = "celikom-windows-v$version-owner-bootstrap"
-          $out = Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
-          $exeName = "CELIKOM-Windows-$version.exe"
-          $zipName = "CELIKOM-Windows-$version.zip"
-          $exe = Join-Path (Join-Path $out $version) $exeName
-          $zip = Join-Path $out $zipName
-          $checksums = Join-Path $out 'SHA256SUMS.txt'
-          foreach ($file in @($exe, $zip, $checksums)) {
-            if (!(Test-Path -LiteralPath $file -PathType Leaf)) {
-              throw 'W156_DRAFT_RELEASE_ASSET_MISSING'
-            }
-          }
-          gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$tag" *> $null
-          if ($LASTEXITCODE -eq 0) {
-            throw 'W156_DRAFT_RELEASE_TAG_ALREADY_EXISTS'
-          }
-          $notes = @(
-            'DRAFT - unpublished one-time owner bootstrap package.'
-            'Visible only to repository users with push access while this release remains a draft.'
-            'Do not publish this draft. Owner installation and the grouped W154 acceptance are still required.'
-            'The production feed is not published by this workflow run.'
-            ''
-            "Version: $version"
-            "Source commit: $env:GITHUB_SHA"
-          ) -join "`n"
-          gh release create $tag $exe $zip $checksums --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "CELIKOM Windows $version - owner bootstrap (DRAFT)" --notes $notes --draft
-          if ($LASTEXITCODE -ne 0) {
-            throw 'W156_DRAFT_RELEASE_CREATE_FAILED'
-          }
-          $releaseJson = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isDraft,tagName,assets,url
-          if ($LASTEXITCODE -ne 0) {
-            throw 'W156_DRAFT_RELEASE_VERIFY_FAILED'
-          }
-          $release = ($releaseJson -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
-          if ($release.isDraft -ne $true -or $release.tagName -cne $tag) {
-            throw 'W156_DRAFT_RELEASE_MUST_REMAIN_UNPUBLISHED'
-          }
-          $expectedNames = @($exeName, $zipName, 'SHA256SUMS.txt') | Sort-Object
-          $actualNames = @($release.assets | ForEach-Object { [string]$_.name } | Sort-Object)
-          if (Compare-Object -ReferenceObject $expectedNames -DifferenceObject $actualNames) {
-            throw 'W156_DRAFT_RELEASE_ASSET_SET_MISMATCH'
-          }
-          foreach ($asset in $release.assets) {
-            if ($asset.name -ceq $exeName) { $localPath = $exe }
-            elseif ($asset.name -ceq $zipName) { $localPath = $zip }
-            elseif ($asset.name -ceq 'SHA256SUMS.txt') { $localPath = $checksums }
-            else { throw 'W156_DRAFT_RELEASE_ASSET_UNKNOWN' }
-            $localSize = (Get-Item -LiteralPath $localPath).Length
-            if ([int64]$asset.size -ne [int64]$localSize) {
-              throw 'W156_DRAFT_RELEASE_ASSET_SIZE_MISMATCH'
-            }
-          }
-          @(
-            "## CELIKOM Windows $version - draft release ready"
-            ''
-            'State: DRAFT - not published'
-            "Tag: $tag"
-            "Release: $($release.url)"
-            ''
-            'Assets:'
-            "- $exeName"
-            "- $zipName"
-            '- SHA256SUMS.txt'
-          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
-
-      # The Actions artifact is needed only by the separately approved live-feed
-      # publisher. The owner bootstrap uses the unpublished draft release above.
-      - uses: actions/upload-artifact@v4
-        if: inputs.publish_to_production == true
+      - uses: actions/setup-python@v5
         with:
-          name: CELIKOM-Windows-P256-stable-${{ inputs.version }}-${{ github.sha }}
-          path: ${{ runner.temp }}/celikom-stable-ready
+          python-version: '3.12'
+      - name: Pack exact signed six-file Floki transfer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $out=Join-Path $env:RUNNER_TEMP 'celikom-stable-ready'
+          $pub=Join-Path $env:RUNNER_TEMP 'stable-public.der'
+          $bundle=Join-Path $env:RUNNER_TEMP 'CELIKOM-Windows-P256-transfer.zip'
+          [IO.File]::WriteAllBytes($pub,[Convert]::FromBase64String($env:CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64))
+          Copy-Item $pub (Join-Path $out 'manifest-public-key.der')
+          python .github/scripts/windows-stable-private-import.py pack --source "$out" --output "$bundle" --pin "$pub" --version "$env:RELEASE_VERSION" --sequence "$env:RELEASE_SEQUENCE"
+          if ($LASTEXITCODE -ne 0) { throw 'FLOKI_SIGNED_TRANSFER_PACK_FAILED' }
+          $hash=(Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash.ToLowerInvariant()
+          "CELIKOM_WINDOWS_SIGNED_TRANSFER_READY version=$env:RELEASE_VERSION sequence=$env:RELEASE_SEQUENCE sha256=$hash" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-${{ inputs.version || '0.24.61' }}-${{ github.sha }}
+          path: ${{ runner.temp }}/CELIKOM-Windows-P256-transfer.zip
           if-no-files-found: error
-          retention-days: 5
+          retention-days: 1
+
+  private_stage:
+    needs: prepare
+    # Every successfully signed mainline build is copied to the isolated
+    # data-only Floki spool. Root independently checks its P-256 signature,
+    # hash and monotonic version before switching the owner download.
+    if: github.ref == 'refs/heads/main' && needs.prepare.result == 'success'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/windows-stable-floki-private-stage.yml
+    with:
+      version: ${{ inputs.version || '0.24.61' }}
+      sequence: ${{ inputs.sequence || '8' }}
+      source_commit: ${{ github.sha }}
+      send_to_private_intake: false
 
   publish:
     needs: prepare
