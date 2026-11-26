@@ -1,37 +1,57 @@
-# CELIKOM Windows W183 — 0.24.58 owner candidate доставлена на celikom.com (26.11.2026)
+# CELIKOM Windows W184 — 0.24.59 owner candidate доставлена и HTTPS SHA подтверждён (26.11.2026)
 
 ## Текущий статус
 
-**0.24.58 собрана, подписана P-256, передана в Floki runner spool, независимо опубликована root consumer на закрытый owner-download сайт и подтверждена полным SHA-256 по HTTPS.** Версию можно выдавать владельцу для личного теста. Это owner candidate, не клиентский релиз.
+**0.24.59 собрана, подписана P-256, staged на FlokiNET, опубликована root consumer на закрытом owner-download сайте и подтверждена полным SHA-256 по обеим HTTPS-ссылкам.** Это owner test candidate. Клиентский stable канал не менялся.
 
 - Репозиторий: `manufact-test/nomusic`, ветка `main`.
-- Candidate source commit: `72729e6de7b6ccc7881ae751269035d3e6ba42ce`.
-- Версия: **0.24.58**, P-256 signed sequence **5**.
-- EXE SHA-256: `3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
-- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.58.exe
+- Release source commit: `eff02ee8a5ad603374c76c845cd5e4680afc0463`.
+- Версия / sequence: **0.24.59 / 6**.
+- EXE SHA-256: `3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`.
+- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.59.exe
 - Owner latest: https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe
 
-## Доказательства доставки
+## Подтверждённая причина W54 и исправление W183
 
-1. Signed release workflow [45836692248](https://github.com/manufact-test/nomusic/actions/runs/45836692248): **SUCCESS**. Windows/native build, P-256 manifest signing, package verification, owner EXE/ZIP packaging, six-file signed transfer packaging и upload artifact — SUCCESS. EXE SHA совпадает с манифестом: `3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
-2. В том же run reusable private-stage job [139968663294](https://github.com/manufact-test/nomusic/actions/runs/45836692248/job/139968663294): **SUCCESS**, runner `celikom-floki-ci01`. Signed transfer SHA-256 `9b187faa2bdce0f1d34c7e8374409cc66efc5f7d3af0cdedc20cac2f47d5cf76`, size 85,143,246 bytes; атомарно помещён в изолированный spool.
-3. Generic verify [45836692412](https://github.com/manufact-test/nomusic/actions/runs/45836692412): **SUCCESS**. Windows integration CI [45836692130](https://github.com/manufact-test/nomusic/actions/runs/45836692130): **SUCCESS**.
-4. Root consumer независимо импортировал signed transfer, проверил P-256 signature, monotonic sequence, содержимое и package SHA, создал immutable owner EXE и owner latest. По контракту root consumer он пишет `owner-verified.json` только после authenticated HTTPS 200, exact size и full SHA-256 для обеих owner-ссылок; анонимный доступ должен возвращать 401.
-5. Публичная SHA-only receipt verification [45837481219](https://github.com/manufact-test/nomusic/actions/runs/45837481219): **SUCCESS**, лог: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 3dd074ae4aeb2c60c79bb5ff68da23954e0c49543e978640cf7cc1c61aae7364`.
+Диагностика 0.24.58 показала: grant для track `144530503` получен и доставлен, `NATIVE_INITIAL_SOURCE_RELOAD_OK` есть, но отсутствуют `NATIVE_FILEINFO_REQUEST` и наблюдение сетевого запроса плеера. Следовательно, reload выполнялся, а реальный file-info перехват не срабатывал.
 
-## Границы релиза
+Read-only audit официального подписанного Yandex 5.128.0 в workflow [45839165532](https://github.com/manufact-test/nomusic/actions/runs/45839165532) установил точное расхождение:
+- `7123.VE`: current-player state/reload path, `reloadEntity` есть, `getFileInfo` нет.
+- `7695.SonataProvider`: реальный `getFileInfo` и `getMediaSource`.
 
-- **0.24.58 — owner test candidate, ещё НЕ принята владельцем.** Успешная сборка/доставка не доказывает слышимую подмену.
+W183 исправляет разделение обязанностей: `7123.VE` остаётся observer/reload для текущего трека; renderer теперь цепляет adapter к реальному `7695.SonataProvider.prototype.getFileInfo` и проверяет shape `getMediaSource`. Если pinned export не совпадает, событие `RESOURCE_PROVIDER_PIN_MISMATCH` и fail-closed вместо ложного `RESOURCE_HOOK_ATTACHED`. Для диагностики добавлены `RESOURCE_HOOK_ATTACHED_PROVIDER` и `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`.
+
+## Доказательства сборки и доставки
+
+1. Signed release workflow [45843326223](https://github.com/manufact-test/nomusic/actions/runs/45843326223): **SUCCESS**. Prepare job [139990431943](https://github.com/manufact-test/nomusic/actions/runs/45843326223/job/139990431943): **SUCCESS**. P-256 signing, manifest verification, EXE/ZIP owner packaging и six-file Floki transfer прошли.
+2. Manifest: `version=0.24.59`, `sequence=6`, `package_sha256=3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`. `W156_OWNER_PACKAGE_EXE_ZIP_PASS`.
+3. GitHub transport artifact ID `15128423693`, size **84,672,636 bytes**, digest `sha256:1de5c8df09dcc30b54d454154c5a5ffbaa6e71723c36f80d006b1470ac3981e8` (внутренний transport, не ссылка владельцу).
+4. Floki private-stage job [139991820809](https://github.com/manufact-test/nomusic/actions/runs/45843326223/job/139991820809): **SUCCESS**, runner `celikom-floki-ci01`. Transfer ZIP SHA-256 `4c42f63a161db84d1873d591ac3f658d95ad5470640f4be8608867f6079d7d1b`, size **85,154,673 bytes**, `private-staged`.
+5. Root consumer independently promoted immutable owner EXE and owner latest. Correct public SHA-only receipt check [45844107991](https://github.com/manufact-test/nomusic/actions/runs/45844107991): **SUCCESS**, log: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`. Contract verifies authenticated HTTPS 200, exact size and full SHA-256 for both versioned URL and owner latest; anonymous route must return 401.
+6. Важно: ранняя проверка [45843980263](https://github.com/manufact-test/nomusic/actions/runs/45843980263) подтвердила старый SHA 0.24.58 из-за stale expected hash. Её **не считать подтверждением 0.24.59**. Expected SHA исправлен в commit `ad5540301c33c25c94e5d5df2ad1de485872aa1f`; правильное подтверждение — только run `45844107991`.
+
+## CI и границы релиза
+
+- Generic CI [45842438822](https://github.com/manufact-test/nomusic/actions/runs/45842438822): **SUCCESS**.
+- Windows integration CI [45842438810](https://github.com/manufact-test/nomusic/actions/runs/45842438810), attempt **2**: **SUCCESS**, включая W22/W23/W60 audio/source regressions, W21/W24/W15, GUI и Update Supervisor builds.
+- В attempt 1 был отдельный нестабильный W110 named-pipe test (`The pipe is being closed`); повтор только failed job прошёл. Это не было связано с W183 audio hook.
 - `.github/release/windows-customer-stable.json` остаётся `approved:null`.
 - Клиентский подписанный baseline остаётся **0.24.55 / sequence 2**.
-- `publish` job в release workflow пропущен; клиентский канал не менялся.
-- Не делать customer promotion и не заявлять автообновление old→new проверенным до личного acceptance и отдельной команды владельца **«выпускай всем»**.
-- Не менять Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture.
+- Release workflow `publish` job пропущен. Никакого customer promotion или массового OTA не было.
+- **0.24.59 ещё не принята владельцем по фактическому звуку.** CI и HTTPS SHA доказывают сборку/доставку, но не слышимую подмену.
 
 ## Следующий шаг владельца
 
-Установить 0.24.58 по версионной ссылке выше. Проверить mapped track **144530503 («Ау»)**, ещё одну mapped-композицию, обычный unmapped трек, Next, Play/Pause и именно слышимую подмену. Если не работает — прислать свежую диагностику именно 0.24.58. Не путать UI label / CI green с подтверждённым audio output.
+Установить 0.24.59 поверх текущей версии. Проверить:
+1. mapped track **144530503 («Ау»)**;
+2. ещё одну mapped-композицию;
+3. unmapped/original трек;
+4. Next, Play/Pause и возврат после паузы;
+5. именно слышимую подмену, а не только название/лейбл в UI.
 
+В новой W54 диагностике проверить `RESOURCE_HOOK_ATTACHED_PROVIDER`, `NATIVE_FILEINFO_REQUEST`, `SOURCE_MAPPED`. Если появится `RESOURCE_PROVIDER_PIN_MISMATCH` или `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`, это сразу покажет проблему привязки. Сам W54 не подтверждает audible output — финальное доказательство здесь только фактическое прослушивание.
+
+До личного acceptance и отдельной команды владельца **«выпускай всем»** не менять customer stable. Не менять Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture.
 
 ---
 
