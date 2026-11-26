@@ -4369,18 +4369,12 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     Object exactFactory = chain.getThisObject();
                                     STAGE_B_AUDIO.onExoSourceInstanceCreated(
                                         result, exactFactory);
-                                    Object[] creator =
-                                        STAGE_B_AUDIO.exactFreshCreatorOrBetaForDataSource(result);
-                                    if (creator != null) {
-                                        Object[] setter =
-                                            NATIVE_RENDERER_EVIDENCE
-                                                .exactSetterForFreshSourceCreator(
-                                                    creator[0], creator[1], creator[2]);
-                                        if (setter != null)
-                                            NATIVE_EARLY_ADMISSION.armDeferredOriginalDataSource(
-                                                (Long) setter[0], creator[1], creator[2],
-                                                setter[1], result);
-                                    }
+                                    // Construction does NOT mean playback.
+                                    // Even this dynamically resolved factory
+                                    // product may be a prefetched sibling.
+                                    // The sole deferred-issue consumption is
+                                    // at the exact first Exo open() hook below.
+                                    // Never claim alternate bytes here.
                                 }
                             } catch (Throwable ignored) { }
                             return result;
