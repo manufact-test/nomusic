@@ -52,8 +52,11 @@ jobs:
     # Data-only transfer: no deployment environment, SSH, signing secret or
     # publication permission. The VPS root consumer independently verifies
     # the P-256 signature, sequence and complete payload before owner promotion.
+    # GitHub draft-release asset reads require contents:write for GITHUB_TOKEN.
+    # This token is exposed only to the exact-asset GET downloader below; no
+    # release mutation, signing secret, SSH credential or production publish.
     permissions:
-      contents: read
+      contents: write
     timeout-minutes: 18
     env:
       RELEASE_VERSION: ${{ inputs.version || '0.24.57' }}

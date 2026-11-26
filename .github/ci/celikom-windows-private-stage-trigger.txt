@@ -28,3 +28,5 @@
 2026-11-26: isolate candidate stage concurrency by exact release version so a legacy approval-waiting run cannot hold the new data-only 0.24.57 spool transfer.
 
 2026-11-26: retry signed data-only Floki stage with exact 0.24.57/sequence4/source 28587670e9efda35c73eb3a49d9702d2d72b3b8c; never fall back to 0.24.56/sequence3.
+
+2026-11-26: grant the Floki stage job contents:write solely because GitHub's unpublished draft-asset GET endpoint is not visible to the read-only GITHUB_TOKEN; downloader performs only exact repository GETs, then unsets token before local data-only spool write. No release mutation or production publish.
