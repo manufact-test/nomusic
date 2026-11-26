@@ -45,6 +45,22 @@ test("W60 signed vendor class observer reloads current source without changing s
   assert.strictEqual(Object.getOwnPropertyDescriptor(h.NativeYandexPlayback.prototype,"state").get,h.getter);
 });
 
+test("W182 exposes the real player file-info method owner, including inherited methods",()=>{
+  const h=harness(),r=createCurrentSourceRefresh();
+  class ResourceBase { async getFileInfo(params) { return {fileInfo:{trackId:params.id}}; } }
+  Object.setPrototypeOf(h.NativeYandexPlayback.prototype, ResourceBase.prototype);
+  assert.equal(r.attach(h.webpackRequire),true);
+  assert.strictEqual(r.resourcePrototype(),ResourceBase.prototype,
+    "hook target is the prototype that actually owns getFileInfo");
+  r.dispose();
+  assert.equal(r.resourcePrototype(),null);
+});
+test("W182 has no resource prototype when the pinned player has no file-info method",()=>{
+  const h=harness(),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  assert.equal(r.resourcePrototype(),null);
+  r.dispose();
+});
 test("W60 paused Yandex remains paused and at the same position",async()=>{
   const h=harness({status:"paused"}),r=createCurrentSourceRefresh();
   assert.equal(r.attach(h.webpackRequire),true);

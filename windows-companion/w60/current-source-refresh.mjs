@@ -73,6 +73,21 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
     return true;
   }
 
+  function resourcePrototype() {
+    if (disposed || !prototype) return null;
+    // Yandex 5.128 moved the live player's getFileInfo entry point onto
+    // the player class (or its base), rather than the endpoint wrapper that
+    // older builds exposed. Return the actual method owner so instances of
+    // sibling/derived player classes are intercepted too.
+    let owner = prototype;
+    while (owner && owner !== Object.prototype) {
+      if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
+          typeof owner.getFileInfo === "function") return owner;
+      owner = Object.getPrototypeOf(owner);
+    }
+    return null;
+  }
+
   function request(expectedTrackId = null) {
     if (disposed) return Promise.resolve(false);
     if (expectedTrackId !== null &&
@@ -167,5 +182,6 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
   function currentTrackId() { return currentTrack()?.id || ""; }
 
   return Object.freeze({attach, request, dispose, currentTrack, currentTrackId,
+    resourcePrototype,
     get attached() { return !!prototype && !disposed; }});
 }
