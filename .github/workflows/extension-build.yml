@@ -81,6 +81,31 @@ jobs:
           [[ -f "$browser_bin" ]] || { echo "CHROME_FOR_TESTING_BINARY_MISSING"; find "$browser_tmp/chrome" -maxdepth 3 -type f | head -n 30; exit 1; }
           chmod 755 "$browser_bin"
           if [[ -f "$browser_tmp/chrome/chrome-linux64/chrome_crashpad_handler" ]]; then chmod 755 "$browser_tmp/chrome/chrome-linux64/chrome_crashpad_handler"; fi
+          rm -f -- "$browser_tmp/chrome.zip"
+          echo "Chrome dynamic library inspection:"
+          ldd "$browser_bin" || true
+          if ldd "$browser_bin" | grep -q 'not found'; then
+            command -v apt-get >/dev/null 2>&1 || { echo "APT_GET_UNAVAILABLE_FOR_UNPRIVILEGED_CHROME_LIBS"; exit 1; }
+            command -v dpkg-deb >/dev/null 2>&1 || { echo "DPKG_DEB_UNAVAILABLE_FOR_UNPRIVILEGED_CHROME_LIBS"; exit 1; }
+            libs_dir="$browser_tmp/chrome-libs"
+            mkdir -p "$libs_dir/debs" "$libs_dir/root"
+            (
+              cd "$libs_dir/debs"
+              apt-get download libnspr4 libnss3
+              for deb in ./*.deb; do dpkg-deb -x "$deb" "$libs_dir/root"; done
+            )
+            lib_paths="$(find "$libs_dir/root" -type f -name '*.so*' -printf '%h\n' | sort -u | paste -sd: -)"
+            [[ -n "$lib_paths" ]] || { echo "NO_EXTRACTED_CHROME_LIBRARIES"; exit 1; }
+            export LD_LIBRARY_PATH="$lib_paths${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+            echo "Chrome library inspection after private library extraction:"
+            ldd "$browser_bin" || true
+          fi
+          if ldd "$browser_bin" | grep -q 'not found'; then
+            echo "CHROME_RUNTIME_LIBRARIES_STILL_MISSING"
+            cat /etc/os-release || true
+            exit 1
+          fi
           "$browser_bin" --version
           echo "CELIKOM_BROWSER_BINARY=$browser_bin" >> "$GITHUB_ENV"
           node --input-type=module <<'NODE'
