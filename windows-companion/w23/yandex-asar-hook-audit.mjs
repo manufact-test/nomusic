@@ -47,10 +47,10 @@ function moduleForIndex(source, index) {
 }
 function methodShapes(source, name) {
   const patterns = [
-    new RegExp(name+"\\\\s*\\\\(([^)]*)\\\\)\\\\s*\\\\{", "g"),
-    new RegExp(name+"\\\\s*:\\\\s*(?:async\\\\s*)?function\\\\s*\\\\(([^)]*)\\\\)", "g"),
-    new RegExp(name+"\\\\s*:\\\\s*(?:async\\\\s*)?\\\\(([^)]*)\\\\)\\\\s*=>", "g"),
-    new RegExp(name+"\\\\s*=\\\\s*(?:async\\\\s*)?\\\\(([^)]*)\\\\)\\\\s*=>", "g")
+    new RegExp(name+"\\s*\\(([^)]*)\\)\\s*\\{", "g"),
+    new RegExp(name+"\\s*:\\s*(?:async\\s*)?function\\s*\\(([^)]*)\\)", "g"),
+    new RegExp(name+"\\s*:\\s*(?:async\\s*)?\\(([^)]*)\\)\\s*=>", "g"),
+    new RegExp(name+"\\s*=\\s*(?:async\\s*)?\\(([^)]*)\\)\\s*=>", "g")
   ];
   const shapes = [];
   for (const pattern of patterns) {
@@ -59,12 +59,12 @@ function methodShapes(source, name) {
       const body = source.slice(match.index + match[0].length, match.index + match[0].length + 2400);
       shapes.push({
         parameterCount: parameters.length,
-        parameterNames: parameters.filter(x => /^[A-Za-z_$][\\w$]*$/.test(x)),
-        readsTrackId: /\\.trackId\\b/.test(body),
-        readsTrackIds: /\\.trackIds\\b/.test(body),
-        readsId: /\\.id\\b/.test(body),
-        readsIds: /\\.ids\\b/.test(body),
-        readsTrack_id: /\\.track_id\\b/.test(body)
+        parameterNames: parameters.filter(x => /^[A-Za-z_$][\w$]*$/.test(x)),
+        readsTrackId: /\.trackId\b/.test(body),
+        readsTrackIds: /\.trackIds\b/.test(body),
+        readsId: /\.id\b/.test(body),
+        readsIds: /\.ids\b/.test(body),
+        readsTrack_id: /\.track_id\b/.test(body)
       });
       if (shapes.length >= 4) return shapes;
     }
@@ -102,6 +102,10 @@ function walk(files, prefix = "") {
         counts.getFileInfoBatchShapes = methodShapes(module.source, "getFileInfoBatch");
       }
     }
+    if (counts.method_getFileInfo) counts.getFileInfoShapes = methodShapes(source, "getFileInfo");
+    if (counts.method_getFileInfoBatch) counts.getFileInfoBatchShapes = methodShapes(source, "getFileInfoBatch");
+    if (counts.method_reloadEntity) counts.reloadEntityShapes = methodShapes(source, "reloadEntity");
+    if (counts.method_getMediaSource) counts.getMediaSourceShapes = methodShapes(source, "getMediaSource");
     if (Object.keys(counts).length) hits.push({ path, size, counts });
   }
 }
