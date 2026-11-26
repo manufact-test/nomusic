@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - ".github/release/owner-bootstrap-0.24.57.trigger"
+      - ".github/release/owner-bootstrap-0.24.58.trigger"
   workflow_dispatch:
     inputs:
       version:
         description: Version already committed to main
         required: true
-        default: '0.24.57'
+        default: '0.24.58'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
-        default: '4'
+        default: '5'
         type: string
       expires_at:
         description: Leave blank to use an automatic 7-day UTC expiry
@@ -52,8 +52,8 @@ jobs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version || '0.24.57' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '4' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.58' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '5' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
     steps:
       - uses: actions/checkout@v4
@@ -297,8 +297,8 @@ jobs:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
     with:
-      version: ${{ inputs.version || '0.24.57' }}
-      sequence: ${{ inputs.sequence || '4' }}
+      version: ${{ inputs.version || '0.24.58' }}
+      sequence: ${{ inputs.sequence || '5' }}
       source_commit: ${{ github.sha }}
       send_to_private_intake: false
 
