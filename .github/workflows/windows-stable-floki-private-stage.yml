@@ -6,17 +6,17 @@ on:
         description: Exact signed Windows version
         required: true
         type: string
-        default: '0.24.56'
+        default: '0.24.57'
       sequence:
         description: Exact monotonic signed sequence
         required: true
         type: string
-        default: '3'
+        default: '4'
       source_commit:
         description: Exact source commit of the two immutable private drafts
         required: true
         type: string
-        default: '3c743332d134618fd4bba39ee826e833f39aa54c'
+        default: '28587670e9efda35c73eb3a49d9702d2d72b3b8c'
       send_to_private_intake:
         description: Legacy compatibility input; safe Floki spool only
         required: true
@@ -49,9 +49,11 @@ jobs:
   stage:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
     runs-on: celikom-ci-smoke-only
-    environment: windows-stable-production
+    # Data-only transfer: no deployment environment, SSH, signing secret or
+    # publication permission. The VPS root consumer independently verifies
+    # the P-256 signature, sequence and complete payload before owner promotion.
     permissions:
-      contents: write
+      contents: read
     timeout-minutes: 18
     env:
       RELEASE_VERSION: ${{ inputs.version || '0.24.56' }}

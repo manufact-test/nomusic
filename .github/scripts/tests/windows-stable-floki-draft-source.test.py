@@ -6,6 +6,7 @@ import urllib.request
 
 core = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1] / "windows-stable-floki-draft-source.py"))
 plan = core["asset_plan"]
+validate_repository = core["validate_repository"]
 version = "0.24.55"
 commit = "61d17d9eb97f3db5c58c906e30da6c19ee737090"
 
@@ -25,6 +26,28 @@ def fixture():
 
 
 class DraftSourceTests(unittest.TestCase):
+
+    def test_public_or_private_active_main_repository_is_accepted(self):
+        for private in (False, True):
+            repo = {"full_name": "manufact-test/nomusic", "private": private,
+                    "archived": False, "default_branch": "main"}
+            self.assertIsNone(validate_repository(repo))
+
+    def test_wrong_archived_or_non_main_repository_is_refused(self):
+        cases = (
+            {"full_name": "someone/else", "private": False,
+             "archived": False, "default_branch": "main"},
+            {"full_name": "manufact-test/nomusic", "private": False,
+             "archived": True, "default_branch": "main"},
+            {"full_name": "manufact-test/nomusic", "private": False,
+             "archived": False, "default_branch": "master"},
+            {"full_name": "manufact-test/nomusic", "archived": False,
+             "default_branch": "main"},
+        )
+        for repo in cases:
+            with self.assertRaises(ValueError):
+                validate_repository(repo)
+
     def test_exact_six_files_only(self):
         self.assertEqual(set(plan(fixture(),version,2,commit)),
                          {"latest.json","latest.json.sig","manifest-public-key.der",

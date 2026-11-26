@@ -66,9 +66,19 @@ def github_json(path):
         return json.loads(raw)
 
 
-def private_release_records():
+def validate_repository(repo):
+    # The owner temporarily opened this repository to restore GitHub-hosted
+    # runner allocation. Draft releases remain unpublished and are still
+    # fetched only with this repository-scoped token. Accept either visibility,
+    # but pin the exact repository, active state and canonical main branch.
+    need(isinstance(repo, dict) and repo.get("full_name") == REPO
+         and repo.get("archived") is False and repo.get("default_branch") == "main"
+         and type(repo.get("private")) is bool, "UNEXPECTED_RELEASE_REPOSITORY")
+
+
+def unpublished_release_records():
     repo = github_json("/repos/" + REPO)
-    need(repo.get("private") is True, "PRIVATE_REPO_REQUIRED")
+    validate_repository(repo)
     records = []
     for page in range(1, 12):
         group = github_json("/repos/" + REPO + "/releases?per_page=100&page=" + str(page))
@@ -154,7 +164,7 @@ def asset_plan(records, version, sequence, commit):
 
 def prepare(version, sequence, commit, output):
     identity(version, sequence, commit)
-    plan = asset_plan(private_release_records(), version, sequence, commit)
+    plan = asset_plan(unpublished_release_records(), version, sequence, commit)
     with tempfile.TemporaryDirectory(prefix="celikom-draft-source-") as tmp:
         root = pathlib.Path(tmp)
         (root / version).mkdir(mode=0o700)
