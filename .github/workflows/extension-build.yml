@@ -44,19 +44,43 @@ jobs:
           npm run build:extension
           npm --prefix extension run validate
 
-      - name: Prepare bundled headless Chromium and static FFmpeg on the Floki runner
+      - name: Prepare official Chrome for Testing and static FFmpeg on the Floki runner
         shell: bash
         run: |
           set -Eeuo pipefail
-          if ! pgrep -x chromium >/dev/null 2>&1 && ! pgrep -x chrome-headless-shell >/dev/null 2>&1; then
+          if ! pgrep -x chromium >/dev/null 2>&1 && ! pgrep -x chrome >/dev/null 2>&1; then
             rm -rf -- /tmp/chromium /tmp/fonts /tmp/swiftshader /tmp/al2023 /tmp/chromium-pack
           fi
           echo "Disk before browser setup:"
           df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
-          npm install --no-save --package-lock=false @sparticuz/chromium@158.0.0
           tools_dir="$RUNNER_TEMP/celikom-tools"
           browser_tmp="$RUNNER_TEMP/celikom-chromium-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          mkdir -p "$tools_dir" "$browser_tmp"
+          mkdir -p "$tools_dir" "$browser_tmp/chrome"
+          node --input-type=module <<'NODE'
+          import {createWriteStream} from "node:fs";
+          import {Readable} from "node:stream";
+          import {pipeline} from "node:stream/promises";
+          const meta=await fetch("https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json").then(r=>{if(!r.ok)throw Error("Chrome version lookup failed: "+r.status);return r.json();});
+          const stable=meta.channels?.Stable;
+          const url=stable?.downloads?.chrome?.find(item=>item.platform==="linux64")?.url;
+          if(!url)throw Error("Stable Chrome for Testing linux64 download URL missing");
+          console.log("Downloading official Chrome for Testing "+stable.version);
+          const response=await fetch(url);
+          if(!response.ok||!response.body)throw Error("Chrome download failed: "+response.status);
+          await pipeline(Readable.fromWeb(response.body),createWriteStream(process.env.RUNNER_TEMP+"/celikom-chromium-"+process.env.GITHUB_RUN_ID+"-"+process.env.GITHUB_RUN_ATTEMPT+"/chrome.zip"));
+          NODE
+          if command -v python3 >/dev/null 2>&1; then
+            python3 -m zipfile -e "$browser_tmp/chrome.zip" "$browser_tmp/chrome"
+          elif command -v unzip >/dev/null 2>&1; then
+            unzip -q "$browser_tmp/chrome.zip" -d "$browser_tmp/chrome"
+          else
+            echo "ZIP_EXTRACTOR_REQUIRED"
+            exit 1
+          fi
+          browser_bin="$browser_tmp/chrome/chrome-linux64/chrome"
+          [[ -x "$browser_bin" ]] || { echo "CHROME_FOR_TESTING_BINARY_MISSING"; find "$browser_tmp/chrome" -maxdepth 3 -type f | head -n 30; exit 1; }
+          "$browser_bin" --version
+          echo "CELIKOM_BROWSER_BINARY=$browser_bin" >> "$GITHUB_ENV"
           node --input-type=module <<'NODE'
           import {createWriteStream} from "node:fs";
           import {Readable} from "node:stream";
@@ -71,7 +95,6 @@ jobs:
           export PATH="$tools_dir:$PATH"
           echo "$tools_dir" >> "$GITHUB_PATH"
           "$tools_dir/ffmpeg" -version | head -n 1
-          echo "CELIKOM_USE_SPARTICUZ_CHROMIUM=1" >> "$GITHUB_ENV"
           echo "CELIKOM_FFMPEG_BINARY=$tools_dir/ffmpeg" >> "$GITHUB_ENV"
           echo "CELIKOM_REMOVE_FFMPEG_AFTER_FIXTURES=1" >> "$GITHUB_ENV"
           echo "TMPDIR=$browser_tmp" >> "$GITHUB_ENV"
