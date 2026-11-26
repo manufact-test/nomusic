@@ -390,7 +390,7 @@ try{
     const seq=++id,timer=setTimeout(()=>{pending.delete(seq);reject(Error('Browser pipe RPC timeout: '+method+' at '+lastStep+'; stderr: '+launchError));},10000);
     pending.set(seq,{resolve:value=>{clearTimeout(timer);resolve(value);},reject:error=>{clearTimeout(timer);reject(error);}});
     const message={id:seq,method,params};if(sessionId)message.sessionId=sessionId;
-    pipeWrite.write(JSON.stringify(message)+'\\0',error=>{if(error){clearTimeout(timer);pending.delete(seq);reject(error);}});
+    pipeWrite.write(JSON.stringify(message)+'\0',error=>{if(error){clearTimeout(timer);pending.delete(seq);reject(error);}});
    });
    const created=await send('Target.createTarget',{url:pathToFileURL(file).href});
    if(!created.targetId)throw Error('Chromium did not create the audio fixture page');
@@ -401,7 +401,7 @@ try{
    console.log('Chromium DevTools pipe connected');
   }else{
    let port;
-   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\\n')[0].trim();}catch{}if(!port)await pause(50);}
+   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0].trim();}catch{}if(!port)await pause(50);}
    if(!port)throw Error('Chrome debug port unavailable: '+launchError);
    console.log('Chrome DevTools port: '+port+'; waiting up to 15 seconds for the listener');
    const getJson=url=>new Promise((resolve,reject)=>{
