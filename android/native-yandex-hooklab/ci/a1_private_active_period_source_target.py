@@ -28,6 +28,21 @@ REQUIRED={
     holder_proof.STREAM_ADAPTER_CTOR,WRAP_CTOR,SOURCE_FACTORY
 }
 
+def require_adapter_identity_proofs(adapter_checked, child_checked):
+    """Require both wrapper/array wiring and the separate child-argument CFG proof."""
+    if not (
+            adapter_checked.get("child_stream_array_allocated_and_passed_to_nested_MediaPeriod")
+            and adapter_checked.get("child_sample_stream_array_element_loaded_for_adapter")
+            and adapter_checked.get("adapter_child_stream_identity_compared_with_existing_delegate")
+            and adapter_checked.get("new_adapter_stores_exact_child_stream_typed_field")
+            and adapter_checked.get("same_adapter_array_field_read_after_store")
+            and adapter_checked.get("selected_adapter_written_into_original_holder_stream_array")
+            and child_checked.get("child_same_reference_on_all_scoped_ctor_reaching_states")
+            and child_checked.get("constructor_stores_exact_incoming_LR29_argument")
+            and child_checked.get("scoped_reaching_state_count", 0) > 0):
+        raise ValueError("NAV31_CHILD_STREAM_ADAPTER_IDENTITY_UNPROVEN")
+
+
 def derive_fields(splits):
     if player_proof.scan_signed(splits).get(
         "same_LiLb_instance_constructor_to_player_setter_proven") is not True:
@@ -54,11 +69,8 @@ def derive_fields(splits):
         raise ValueError("NAV29_HOLDER_WRAPPER_IDENTITY_UNPROVEN")
     adapter_checked=holder_proof.verify_exact_native_child_to_holder_stream_adapter(
         methods)
-    if not (
-            adapter_checked.get("exact_Lup1_adapter_constructor_takes_exact_LR29_child_stream")
-            and adapter_checked.get("new_adapter_stores_exact_child_stream_typed_field")
-            and adapter_checked.get("selected_adapter_written_into_original_holder_stream_array")):
-        raise ValueError("NAV31_CHILD_STREAM_ADAPTER_IDENTITY_UNPROVEN")
+    child_checked=holder_proof.verify_adapter_child_parameter_identity(methods)
+    require_adapter_identity_proofs(adapter_checked,child_checked)
     def at(method,pc,opcode,expected_owner,expected_type):
         dex,_flags,off=methods[method]
         insn=next(((op,words) for p,op,words in audit.instructions(dex,off)

@@ -6,6 +6,8 @@ on:
       - 'android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py'
       - 'android/native-yandex-hooklab/ci/test_native_period_activation_handoff_exact.py'
       - 'android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_private_active_period_source_target.py'
       - 'android/native-yandex-hooklab/ci/test_a1_exact_datasource_loadable_owner.py'
       - '.github/workflows/android-a1-native-period-activation-readonly.yml'
   workflow_dispatch:
@@ -35,6 +37,7 @@ jobs:
           set -euo pipefail
           python3 -B -m py_compile android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py
           python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py
+          python3 -B -m py_compile android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py
           PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
             python3 -B -m unittest discover \
               -s android/native-yandex-hooklab/ci \
@@ -43,6 +46,10 @@ jobs:
             python3 -B -m unittest discover \
               -s android/native-yandex-hooklab/ci \
               -p 'test_a1_exact_datasource_loadable_owner.py' -v
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B -m unittest discover \
+              -s android/native-yandex-hooklab/ci \
+              -p 'test_a1_private_active_period_source_target.py' -v
       - name: Download exact private signed 2025 Yandex research input
         shell: bash
         env:
