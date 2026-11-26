@@ -7,7 +7,9 @@
 - Repository: manufact-test/nomusic, main only.
 - Signed candidate source commit: 0f05d194555268d51858fd8ca8b598738e37ee53.
 - Candidate: 0.24.58, P-256 sequence 5.
-- Release workflow: 45829991821, push-triggered, currently pending/queued; no signed EXE or Floki root receipt yet.
+- Release workflow: 45830668925, push-triggered, WAITING for owner approval in protected environment windows-stable-production; no signed EXE or Floki root receipt yet.
+- Stale 0.24.57 run 45707797672 still holds the old global release concurrency group while waiting on its obsolete protected stage. Do not approve that 0.24.57 request. The 0.24.58 workflow now uses a per-version concurrency group; run 45830668925 is the valid approval request.
+- The first 0.24.58 run 45829991821 is stale/queued behind the old global group; ignore it.
 - Previous owner candidate 0.24.57 / sequence 4 is on celikom.com but is unaccepted and is not the W182 player-hook repair.
 - Customer channel remains approved:null, baseline 0.24.55 / sequence 2.
 - Last personally accepted audible baseline remains 0.24.54.

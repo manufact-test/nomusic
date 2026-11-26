@@ -33,6 +33,7 @@ The owner-provided W54 diagnostic from CELIKOM 0.24.56 showed RESOURCE_HOOK_ATTA
 ## Release boundary
 
 - Next owner candidate: **0.24.58 / P-256 sequence 5**.
+- Signed candidate source commit: df0edd2c288d7a807504bdae307e12f3976b50b3 (version/installer metadata at 0f05d194555268d51858fd8ca8b598738e37ee53; later commit only isolates release concurrency and retries the same trigger).
 - 0.24.57 / sequence 4 is already on the owner site but remains unaccepted; do not treat it as the repaired build.
 - The signed customer channel remains approved:null, baseline 0.24.55 / sequence 2.
 - Last personally accepted audible version remains 0.24.54.
