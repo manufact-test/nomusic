@@ -76,7 +76,7 @@ jobs:
           print('A1_SOURCE_RUN_AND_BOTH_NATIVE_JVM_GATES_VERIFIED')
           PY
           # No export requested is a normal outcome for routine successful CI.
-          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,tagName,targetCommitish,assets > "$d/release.json"; then
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json id,body,isDraft,tagName,targetCommitish,assets > "$d/release.json"; then
             if [[ "$GITHUB_EVENT_NAME" == workflow_run ]] && ! jq -e '.head_commit.message | contains("[export-beta-audio]")' "$d/run.json" >/dev/null; then
               echo 'No private owner APK export for this run; no delivery.'
               echo 'ready=false' >> "$GITHUB_OUTPUT"
@@ -191,15 +191,12 @@ jobs:
           test "$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' https://api.celikom.com/api/v1/health)" = 200
           # This repository is public. Never print the capability URL to Actions logs or summary.
           # Keep it only in the unpublished owner-only draft release body, visible to repo writers.
-          run_id=$(jq -r .run "$d/metadata.json")
-          attempt=$(jq -r .attempt "$d/metadata.json")
-          tag="celikom-a1-owner-$run_id-$attempt"
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,body > "$d/release-before.json"
+          release_id=$(jq -r .id "$d/release.json")
           python3 - "$d" <<'PY'
           import json,re,sys
           from pathlib import Path
           p=Path(sys.argv[1])
-          release=json.loads((p/'release-before.json').read_text())
+          release=json.loads((p/'release.json').read_text())
           assert release['isDraft'] is True
           body=release.get('body') or ''
           marker='A1_OWNER_DOWNLOAD_URL='
@@ -207,10 +204,13 @@ jobs:
           url=(p/'url').read_text()
           assert re.fullmatch(r'https://celikom\.com/downloads/a1/[0-9a-f]{48}/[A-Za-z0-9_-]{1,100}\.apk',url)
           notes=body.rstrip()+'\n\n---\n\nOwner-only download capability (unpublished draft; do not share):\n'+marker+url+'\n'
-          (p/'release-notes.txt').write_text(notes)
+          (p/'release-patch.json').write_text(json.dumps({'body':notes},separators=(',',':')))
           PY
-          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file "$d/release-notes.txt" >/dev/null 2>&1
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,body > "$d/release-after.json"
+          if ! gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" --input "$d/release-patch.json" >/dev/null 2>&1; then
+            echo A1_OWNER_DRAFT_UPDATE_FAILED >&2
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" > "$d/release-after.json"
           python3 - "$d" <<'PY'
           import json,sys
           from pathlib import Path
@@ -218,7 +218,7 @@ jobs:
           release=json.loads((p/'release-after.json').read_text())
           url=(p/'url').read_text()
           body=release.get('body') or ''
-          assert release['isDraft'] is True
+          assert release['draft'] is True
           assert body.count('A1_OWNER_DOWNLOAD_URL=')==1
           assert 'A1_OWNER_DOWNLOAD_URL='+url in body
           print('A1_OWNER_LINK_STORED_IN_UNPUBLISHED_DRAFT')
