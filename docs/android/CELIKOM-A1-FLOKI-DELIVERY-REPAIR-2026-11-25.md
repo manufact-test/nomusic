@@ -1,3 +1,12 @@
+# CURRENT HANDOFF — 27 November 2026 (BETA22 owner delivery confirmed)
+
+- Source commit `a535cbf3de21faaff7aa32ea6fb3c75a93459b70` experimental Android; signed native/export workflow run `45899350738` attempt 1 **SUCCESS**; separate clone differential run `45899350523` **SUCCESS**. APK `CELIKOM-A1-RAMIL-AU-BETA22-HONOR50-20261127.apk` size `71593964`, SHA256 `836be0f0ed2006455cd6c4e20f3f0a2a45a82455626d1eb530e250c25eeca7de`, unpublished owner draft release `459934139`.
+- Data-only main request `.github/deploy/a1-owner-download-request.json` targets source run `45899350738`, attempt `1`, release `459934139`. Trusted main Floki signed spool run `45901657011` **SUCCESS** on `celikom-floki-ci01`: independently reverified signer, package, SHA, size, root receipt, actual HTTPS and unpublished draft owner-link readback. Capability URL shared **only privately with owner**, never in Git, Actions logs or docs.
+- First delivery run `45900744210` remained stuck on `celikom-floki-ci02` before job steps. Retried same request, issued narrowly scoped cancel/force-cancel request for that stuck run, then used a separate recovery concurrency group on healthy runner `celikom-floki-ci01`. **After successful delivery, restored original main workflow concurrency group and deleted one-time cancellation workflow.** Do not widen host SSH, Docker, root or CI privileges.
+- BETA22 is a **read-only runtime period-to-renderer SampleStream identity experiment**, not verified audible replacement. Owner testing on real Honor 50 is still required. Stable Android/Windows/API/Nginx/signature/root consumer untouched. Historical BETA21 delivery remains below.
+
+---
+
 # CURRENT HANDOFF — 26 November 2026 (BETA21 FlokiNET delivery confirmed)
 
 ## Exact accepted owner APK and delivery evidence
