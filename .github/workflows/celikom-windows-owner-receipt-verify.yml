@@ -1,0 +1,57 @@
+name: CELIKOM Windows 0.24.57 Floki owner HTTPS receipt verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/celikom-windows-owner-receipt-verify.yml'
+      - '.github/ci/celikom-windows-owner-receipt-verify-trigger.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-windows-owner-receipt-verify-02457
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+      - name: Wait for root-verified owner HTTPS SHA receipt
+        env:
+          EXPECTED_SHA256: bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          receipt="$(mktemp)"
+          error_file="$(mktemp)"
+          trap 'rm -f "$receipt" "$error_file"' EXIT
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --connect-timeout 8 --max-time 20 \
+              --output "$receipt" \
+              https://celikom.com/.well-known/celikom-release-receipt.json 2>"$error_file"; then
+              if node - "$receipt" "$EXPECTED_SHA256" <<'NODE'
+          const fs = require('node:fs');
+          const [file, expected] = process.argv.slice(2);
+          try {
+            const receipt = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const actual = receipt?.channels?.windows_owner_sha256;
+            if (receipt?.schema === 1 && actual === expected) {
+              console.log('WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED', actual);
+              process.exit(0);
+            }
+          } catch {}
+          console.log('WINDOWS_OWNER_ROOT_SHA256_NOT_YET_CONFIRMED');
+          process.exit(1);
+          NODE
+              then
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          cat "$error_file" >&2 || true
+          echo WINDOWS_OWNER_ROOT_HTTPS_SHA256_NOT_CONFIRMED
+          exit 1

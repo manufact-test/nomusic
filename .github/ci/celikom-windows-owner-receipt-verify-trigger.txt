@@ -1,0 +1,1 @@
+2026-11-26: verify Floki root consumer promoted exact Windows 0.24.57 owner candidate and completed full authenticated HTTPS SHA256 checks for versioned EXE and owner latest. Expected signed package SHA256 bdba9dc06f5e6315d745cc7c27d83d3e5c22fbc89bdb6f3c3a82c6909ab78e47. Read only public SHA-only receipt; no credentials.
