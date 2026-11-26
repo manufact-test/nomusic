@@ -24,26 +24,52 @@ const terms = [
 ];
 const hits = [];
 let scanned = 0;
-function moduleIdsNear(text, index) {
-  const before = text.slice(Math.max(0, index - 24000), index);
-  const matches = [...before.matchAll(/(?:^|[,{])\s*["']?([0-9]{1,6})["']?\s*:\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g)];
-  return [...new Set(matches.slice(-6).map(match => match[1]))];
+function moduleFactories(source) {
+  const pattern = /(?:^|[,{])\s*["']?([0-9]{1,6})["']?\s*:\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g;
+  return [...source.matchAll(pattern)].map(match => ({
+    id: match[1],
+    start: match.index,
+    end: pattern.lastIndex
+  }));
 }
-function methodShape(source, name) {
-  const pattern = new RegExp("(?:async\\\\s+)?"+name+"\\\\s*\\\\(([^)]*)\\\\)\\\\s*\\\\{");
-  const match = pattern.exec(source);
-  if (!match) return null;
-  const parameters = match[1].split(",").map(x => x.trim()).filter(Boolean);
-  const body = source.slice(pattern.lastIndex, pattern.lastIndex + 2400);
+function moduleForIndex(source, index) {
+  const factories = moduleFactories(source);
+  let selected = null, next = null;
+  for (const item of factories) {
+    if (item.start <= index) selected = item;
+    else { next = item; break; }
+  }
+  if (!selected) return { id: null, source };
   return {
-    parameterCount: parameters.length,
-    parameterNames: parameters.filter(x => /^[A-Za-z_$][\\\\w$]*$/.test(x)),
-    readsTrackId: /\\\\.trackId\\\\b/.test(body),
-    readsTrackIds: /\\\\.trackIds\\\\b/.test(body),
-    readsId: /\\\\.id\\\\b/.test(body),
-    readsIds: /\\\\.ids\\\\b/.test(body),
-    readsTrack_id: /\\\\.track_id\\\\b/.test(body)
+    id: selected.id,
+    source: source.slice(selected.start, next ? next.start : source.length)
   };
+}
+function methodShapes(source, name) {
+  const patterns = [
+    new RegExp(name+"\\\\s*\\\\(([^)]*)\\\\)\\\\s*\\\\{", "g"),
+    new RegExp(name+"\\\\s*:\\\\s*(?:async\\\\s*)?function\\\\s*\\\\(([^)]*)\\\\)", "g"),
+    new RegExp(name+"\\\\s*:\\\\s*(?:async\\\\s*)?\\\\(([^)]*)\\\\)\\\\s*=>", "g"),
+    new RegExp(name+"\\\\s*=\\\\s*(?:async\\\\s*)?\\\\(([^)]*)\\\\)\\\\s*=>", "g")
+  ];
+  const shapes = [];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      const parameters = match[1].split(",").map(x => x.trim()).filter(Boolean);
+      const body = source.slice(match.index + match[0].length, match.index + match[0].length + 2400);
+      shapes.push({
+        parameterCount: parameters.length,
+        parameterNames: parameters.filter(x => /^[A-Za-z_$][\\w$]*$/.test(x)),
+        readsTrackId: /\\.trackId\\b/.test(body),
+        readsTrackIds: /\\.trackIds\\b/.test(body),
+        readsId: /\\.id\\b/.test(body),
+        readsIds: /\\.ids\\b/.test(body),
+        readsTrack_id: /\\.track_id\\b/.test(body)
+      });
+      if (shapes.length >= 4) return shapes;
+    }
+  }
+  return shapes;
 }
 function walk(files, prefix = "") {
   for (const [name, node] of Object.entries(files)) {
@@ -70,12 +96,11 @@ function walk(files, prefix = "") {
       }
       if (count) counts[key] = count;
       if (key.startsWith("endpoint_") && first >= 0) {
-        counts.moduleIdsNearEndpoint = moduleIdsNear(source, first);
+        const module = moduleForIndex(source, first);
+        counts.endpointModuleId = module.id;
+        counts.getFileInfoShapes = methodShapes(module.source, "getFileInfo");
+        counts.getFileInfoBatchShapes = methodShapes(module.source, "getFileInfoBatch");
       }
-    }
-    if (counts.endpoint_get_file_info || counts.endpoint_file_info_path) {
-      counts.getFileInfoShape = methodShape(source, "getFileInfo");
-      counts.getFileInfoBatchShape = methodShape(source, "getFileInfoBatch");
     }
     if (Object.keys(counts).length) hits.push({ path, size, counts });
   }
