@@ -480,8 +480,15 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
         return value;
       }
       emit(field === 'fileInfo' ? 'MEDIASOURCE_SHAPE_FILE' : 'MEDIASOURCE_SHAPE_DOWNLOAD', id);
-      observeOriginalFileInfo(value[field], emit, id);
-      const replacement = toDownloadInfo(value[field], id, grant.signedUrl,
+      const originalInfo = value[field];
+      const originalUrls = [originalInfo.url, ...(Array.isArray(originalInfo.urls) ? originalInfo.urls : [])];
+      if (originalUrls.some(url => typeof url === 'string' &&
+          url.includes(NATIVE_SIGNED_QUERY_GUARD))) {
+        emit('MEDIASOURCE_ALREADY_MAPPED', id);
+        return value;
+      }
+      observeOriginalFileInfo(originalInfo, emit, id);
+      const replacement = toDownloadInfo(originalInfo, id, grant.signedUrl,
         grant.mimeType, qualityFromArgs(args));
       markMapped(id);
       setClassification(id, 'ACTIVE_REPLACEMENT');
@@ -504,6 +511,23 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     mediaSourceDescriptor = descriptor;
     originalMediaSource = original;
     ownMediaSource = wrapped;
+
+    // The live media provider may also expose a batch-prefetch method. Reuse
+    // the existing bounded batch adapter, but leave its single getFileInfo
+    // method untouched: getMediaSource is the proven player-facing boundary.
+    if (!prototype && typeof owner.getFileInfo === 'function' &&
+        typeof owner.getFileInfoBatch === 'function') {
+      const originalGetFileInfo = owner.getFileInfo;
+      try {
+        attach(owner);
+        if (owner.getFileInfo === ownSingle) owner.getFileInfo = originalGetFileInfo;
+        emit('RESOURCE_MEDIA_PROVIDER_BATCH_ATTACHED');
+      } catch {
+        if (prototype && owner.getFileInfo === ownSingle) {
+          try { owner.getFileInfo = originalGetFileInfo; } catch {}
+        }
+      }
+    }
     return adapter;
   }
 
