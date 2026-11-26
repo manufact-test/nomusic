@@ -1,0 +1,1 @@
+2026-11-26: owner-only CELIKOM Windows 0.24.59 candidate, sequence 6. Includes W183 fix: bind Yandex 5.128 module 7695 SonataProvider.getFileInfo; keep 7123.VE only for current-player state/reload. Stage through Floki private spool and root-verified owner download. Do not publish customer stable; await owner audible acceptance and explicit release instruction.
