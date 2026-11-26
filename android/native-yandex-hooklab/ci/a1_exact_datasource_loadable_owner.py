@@ -28,7 +28,6 @@ DATA_SPEC = "LUC2;"
 OPEN = (DATA_SOURCE, "if", "(" + DATA_SPEC + ")J")
 READ = (DATA_SOURCE, "read", "([BII)I")
 CLOSE = (DATA_SOURCE, "close", "()V")
-LOADABLE = "Landroidx/media3/exoplayer/upstream/Loader$Loadable;"
 PERIOD = "Lo96;"
 MEDIA_PERIOD = "Lwh6;"
 SOURCE = "LSl6;"
@@ -45,10 +44,6 @@ MAX_OWNER_CONSTRUCTORS = 24
 
 def is_exact_datasource_target(method):
     return method in (OPEN, READ, CLOSE)
-
-
-def is_loadable_load_method(method, owner_is_loadable):
-    return bool(owner_is_loadable and method[1] == "load" and method[2] == "()V")
 
 
 def parse_hierarchy(dex):
@@ -198,7 +193,7 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
             "nested_under_exact_Lo96": owner.startswith(PERIOD[:-1] + "$"),
             "class_superclass": None,
             "class_interfaces": [],
-            "implements_media3_loader_loadable": False,
+            "implements_exact_loader_inner_contract": False,
             "loader_inner_contracts": [],
             "owner_period_field_count": 0,
             "owner_source_field_count": 0,
@@ -235,7 +230,7 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
         "nested_under_exact_Lo96": owner.startswith(PERIOD[:-1] + "$"),
         "class_superclass": superclass,
         "class_interfaces": interfaces,
-        "implements_media3_loader_loadable": False,
+        "implements_exact_loader_inner_contract": False,
         "loader_inner_contracts": [],
         "owner_period_field_count": period_fields,
         "owner_source_field_count": source_fields,
@@ -368,16 +363,16 @@ def scan_signed(apks):
             method[0], method, class_rows, methods_by_owner
         )
         owner_shape["loader_inner_contracts"] = loader_contracts
-        owner_shape["implements_media3_loader_loadable"] = bool(loader_contracts)
+        owner_shape["implements_exact_loader_inner_contract"] = bool(loader_contracts)
         rows.append({
             **row,
             **owner_shape,
             "exact_open_and_read_same_method": row["same_method_exact_read_calls"] > 0,
             "exact_open_and_close_same_method": row["same_method_exact_close_calls"] > 0,
-            "method_is_loadable_load": bool(loader_contracts),
+            "method_matches_exact_loader_contract": bool(loader_contracts),
         })
 
-    loadable_rows = [row for row in rows if row["method_is_loadable_load"]]
+    loadable_rows = [row for row in rows if row["method_matches_exact_loader_contract"]]
     candidate_owners = {row["method"][0] for row in rows}
     constructor_evidence = scan_candidate_constructor_callers(
         dexes, candidate_owners, media_period_owners
@@ -412,7 +407,7 @@ def scan_signed(apks):
         "unique_loadable_load_caller_count": len(loadable_rows),
         "one_exact_loadable_owner_proven": len(loadable_rows) == 1,
         "loadable_owner_has_exact_Lo96_reference_proven": any(
-            row["method_is_loadable_load"] and (
+            row["method_matches_exact_loader_contract"] and (
                 row["nested_under_exact_Lo96"]
                 or row["owner_period_field_count"] > 0
                 or row["constructors_with_exact_Lo96_parameter"]
