@@ -579,61 +579,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
     lastWebpackRequire = webpackRequire;
 
-    // Keep the existing 7123.VE state/reload observer, but W183's signed
-    // Yandex 5.128.0 ASAR audit identified the actual getFileInfo owner as
-    // module 7695 export SonataProvider. Hook that provider directly: 7123.VE
-    // has reloadEntity/getMediaSource but no getFileInfo, so patching it or the
-    // old endpoint wrapper produces a false-positive attached state.
-    let playerObserverAttached = false;
-    try {
-      playerObserverAttached = playerSourceRefresh.attach(webpackRequire);
-      if (typeof webpackRequire.m[7695] === "function") {
-        let providerClass = null;
-        try { providerClass = webpackRequire(7695)?.SonataProvider; } catch {}
-        if (typeof providerClass === "function" && providerClass.prototype &&
-            typeof providerClass.prototype.getFileInfo === "function" &&
-            typeof providerClass.prototype.getMediaSource === "function") {
-          let owner = providerClass.prototype;
-          while (owner && owner !== Object.prototype) {
-            if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
-                typeof owner.getFileInfo === "function") break;
-            owner = Object.getPrototypeOf(owner);
-          }
-          if (owner && owner !== Object.prototype) {
-            adapter.attach(owner);
-            attached = true;
-            report("RESOURCE_HOOK_ATTACHED_PROVIDER");
-            report("RESOURCE_HOOK_ATTACHED");
-            console.info("[CELIKOM] Native file-info source connector attached");
-            if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
-            return true;
-          }
-        }
-        // 7695 is the W183-pinned 5.128 provider module. If it exists but its
-        // export shape differs, do not silently fall back to the old endpoint.
-        report("RESOURCE_PROVIDER_PIN_MISMATCH");
-        return false;
-      }
-      // Compatibility for a reviewed build where getFileInfo is actually
-      // inherited by the observed current player rather than SonataProvider.
-      const owner = playerSourceRefresh.resourcePrototype();
-      if (owner && typeof owner.getFileInfo === "function") {
-        adapter.attach(owner);
-        attached = true;
-        report("RESOURCE_HOOK_ATTACHED_PLAYER");
-        report("RESOURCE_HOOK_ATTACHED");
-        console.info("[CELIKOM] Native file-info source connector attached");
-        if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
-        return true;
-      }
-    } catch {}
-    // Do not prematurely attach the legacy endpoint wrapper before the live
-    // player's first state read. On Yandex 5.128 this would hide a missed
-    // SonataProvider binding behind an apparently successful endpoint hook.
-    if (playerObserverAttached && !playerSourceRefresh.playerObserved) return false;
-
-    // Compatibility fallback is retained only after a real current player has
-    // been observed and confirmed not to expose the provider method.
+    // W185: restore the exact resource-discovery strategy from the last
+    // personally accepted Windows baseline 0.24.54 (W174). That build already
+    // ran against official Yandex 5.128.0. Static presence of a class/method
+    // in module 7695 did not prove that the live playback call chain invoked it;
+    // W183's synthetic fixture forced that unverified assumption.
     for (const id in webpackRequire.m) {
       let source;
       try { source = webpackRequire.m[id].toString(); } catch { continue; }
@@ -648,8 +598,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         try {
           adapter.attach(klass.prototype);
           attached = true;
-          // Exact original Yandex 5.126.1, no alternate media player.
-          // Failure to bind is safely a no-op; core replacement stays intact.
+          // Preserve the known-good W174 endpoint discovery. The current-player
+          // observer remains a separate state/reload mechanism, not the hook
+          // target. The diagnostic distinguishes this exact attachment path.
           playerSourceRefresh.attach(webpackRequire);
           report("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK");
           report("RESOURCE_HOOK_ATTACHED");

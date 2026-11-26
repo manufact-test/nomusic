@@ -16,8 +16,9 @@ function createRenderer({
 }={}) {
   const logs=[],handlers={};
   class ResourceBase {
-    async getFileInfo(params) {
-      const trackId=params?.trackId ?? params?.id;
+    async getFileInfo(context, params) {
+      const trackId=params?.trackId ?? params?.id ??
+        context?.trackId ?? context?.id;
       return {
         responseTime:13,
         downloadInfo:{trackId:String(trackId),key:"yandex-drm",
@@ -55,10 +56,10 @@ function createRenderer({
       }))};
     }
   }
-  // Existing tests call Resource as a compact file-info fixture. On the
-  // 5.128 path it inherits the real SonataProvider prototype; the old
-  // endpoint wrapper remains a separate, unpatched LegacyResource.
-  class Resource extends (withPlayer ? SonataProvider : LegacyResource) {
+  // W174's accepted 5.128 path hooks the endpoint resource class. Keep
+  // SonataProvider separate: static module presence alone does not prove that
+  // the live player invokes its getFileInfo method.
+  class Resource extends LegacyResource {
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
   }
@@ -67,7 +68,7 @@ function createRenderer({
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
-      this.resourceProvider=new SonataProvider();
+      this.resourceProvider=new LegacyResource();
       this.snapshot={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
         playerState:{status:{value:status},progress:{value:{position}}}
@@ -77,7 +78,7 @@ function createRenderer({
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
       const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await this.resourceProvider.getFileInfo({id});
+      const response=await this.resourceProvider.getFileInfo({}, {trackId:id});
       this.mediaSources.push(response.downloadInfo.url);
       return response;
     }
@@ -140,7 +141,7 @@ test("real bundled renderer integrates one approved source, keeps Yandex pause/s
   r.handlers.beforeunload();
   assert.equal(r.window.__celikomBridgeNativeDrain,undefined);
 });
-test("W183 Yandex 5.128 hooks SonataProvider while leaving the old endpoint wrapper untouched",async()=>{
+test("W185 restores the W174 accepted Yandex 5.128 endpoint hook path",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({
@@ -150,7 +151,8 @@ test("W183 Yandex 5.128 hooks SonataProvider while leaving the old endpoint wrap
   const pending=player.reloadEntity("QUALITY_CHANGE");
   await tick();
   const requests=r.window.__celikomBridgeNativeDrain();
-  assert.equal(requests.length,1,"reloadEntity must pass through SonataProvider.getFileInfo");
+  assert.equal(requests.length,1,
+    "the W174 endpoint getFileInfo(context, {trackId}) path must be intercepted");
   assert.equal(requests[0].trackId,"123");
   r.window.__celikomBridgeNativeReceive(requests[0].requestId,makeGrant("123"));
   const result=await pending;
@@ -160,13 +162,14 @@ test("W183 Yandex 5.128 hooks SonataProvider while leaving the old endpoint wrap
   const events=r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
   assert.ok(events.includes("NATIVE_FILEINFO_REQUEST"));
   assert.ok(events.includes("SOURCE_MAPPED"));
-  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_PROVIDER"));
-  assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
-  assert.equal(Object.hasOwn(r.Resource.prototype,"getFileInfo"),false);
-  assert.equal(Object.hasOwn(r.LegacyResource.prototype,"getFileInfo"),false);
-  const legacy=await new r.LegacyResource().getFileInfo({trackId:"123"});
-  assert.equal(legacy.downloadInfo.url,"https://official.yandex.example/stream",
-    "the old endpoint wrapper must remain original and unpatched");
+  assert.ok(events.includes("RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK"));
+  assert.ok(!events.includes("RESOURCE_HOOK_ATTACHED_PROVIDER"));
+  assert.equal(Object.hasOwn(r.LegacyResource.prototype,"getFileInfo"),true);
+  const originalProviderMethod=r.SonataProvider.prototype.getFileInfo;
+  const provider=await new r.SonataProvider().getFileInfo({trackId:"123"});
+  assert.strictEqual(r.SonataProvider.prototype.getFileInfo,originalProviderMethod,
+    "the unverified SonataProvider remains untouched");
+  assert.equal(provider.downloadInfo.url,"https://official.yandex.example/stream");
   r.handlers.beforeunload();
 });
 
