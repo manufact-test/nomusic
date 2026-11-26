@@ -157,6 +157,8 @@
     const token=`${controllerSession}:admission:${++admissionSequence}`;
     try{
       guard.engage(element,player.mediaId,token);guard.current.trackId=track.id;guard.current.source=source;
+      guard.current.resourceRevision=player.resourceRevision;
+      guard.current.durationMs=Math.round(player.duration*1000);
       handoff={token,admission:true,startedAt:now(),timer:root.setTimeout(()=>release("admission-timeout",token),1000)};
       trace(snapshot,"admission-guarded");
     }catch(_error){release("admission-unavailable",token);}
@@ -192,7 +194,20 @@
     // Resource identity remains authoritative while the adapter deliberately
     // withholds stale track metadata during a stream transition.
     if (element && (element.currentSrc || element.src || "") !== lease.source) reason = "media-source-changed";
-    else if (!snapshot.track?.id) reason = "track-unknown";
+    else if (!snapshot.track?.id) {
+      // MediaSession metadata can disappear briefly while Yandex keeps the
+      // exact same native resource. Its resource revision and duration are the
+      // binding; do not tear down a working replacement for metadata alone.
+      const refreshPending = snapshot.track.evidence === "awaiting-track-refresh";
+      const sameResource = (snapshot.track.ambiguous !== true || refreshPending) && !snapshot.track.playbackMismatch
+        && player?.mediaId === lease.mediaId && !player?.ended && player.readyState >= 1
+        && Number.isSafeInteger(lease.resourceRevision)
+        && player.resourceRevision === lease.resourceRevision
+        && Number.isFinite(player.duration)
+        && Math.abs(player.duration*1000-lease.durationMs)<=1500;
+      if (sameResource) return;
+      reason = "track-unknown";
+    }
     else if (snapshot.track.ambiguous) reason = "track-ambiguous";
     else if (snapshot.track.id !== lease.trackId) reason = "track-changed";
     else if (!element || player?.mediaId !== lease.mediaId) reason = "media-changed";
@@ -340,6 +355,8 @@
       guard.current.trackId = payload.trackId;
       // Compare stream identity only inside MAIN; never serialize the raw URL.
       guard.current.source = element.currentSrc || element.src || "";
+      guard.current.resourceRevision = player.resourceRevision;
+      guard.current.durationMs = Math.round(player.duration*1000);
       // Only an existing transition mute can be reserved while a verified
       // replacement loads. This cannot mute an unrelated initial playback.
       if (payload.preparing) {
