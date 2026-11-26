@@ -26,6 +26,7 @@
   let handoff = null;
   let preparationTimer = null;
   let heldStart = null;
+  let introReservationDeadline = null;
   let wasHidden = Boolean(root.document?.hidden), foregroundGraceUntil = 0;
   let playbackPolicy = {revision:0,enabled:false};
   let lastAdmission = null, admissionSequence = 0;
@@ -66,17 +67,35 @@
     if (heldStart || playbackPolicy.holdIntro !== true || !playbackPolicy.enabled
       || !controllerSession || pageCached || now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS) return null;
     const snapshot = adapter.getSnapshot("intro-start-check"), player = snapshot.player;
-    if (!handoff || !guard.current || !player?.paused || player.seeking || player.readyState<2
+    if ((!handoff && !(preparationTimer !== null && Number.isFinite(introReservationDeadline))) || !guard.current || !player?.paused || player.seeking || player.readyState<2
       || player.currentTime<0 || player.currentTime>0.25 || player.ended
       || adapter.getMediaElement(player.mediaId)!==element || !snapshot.track?.id || snapshot.track.ambiguous
       || snapshot.track.confidence<100 || !Number.isFinite(player.duration)
       || Math.abs(player.duration*1000-snapshot.track.metadata?.durationMs)>1500) return null;
     const pending = {element,invoke,trackId:snapshot.track.id,mediaId:player.mediaId,
-      source:element.currentSrc||element.src||"",timer:null};
+      source:element.currentSrc||element.src||"",timer:null,
+      preparationConfirmed:!handoff && preparationTimer !== null,
+      deadlineAt:Math.min(now()+1000,handoff ? handoff.startedAt+1000 : introReservationDeadline)};
     pending.promise=new Promise((resolve,reject)=>{pending.resolve=resolve;pending.reject=reject;});
     pending.promise.catch(()=>{});
     heldStart=pending;
-    pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},400);
+    const timeout = () => {
+      if (heldStart !== pending) return;
+      // A positively resolved asset may already own this exact reservation.
+      // Do not briefly expose the original while its decoder is finishing.
+      // Use only the remainder of the ORIGINAL one-second handoff; generic
+      // snapshots/preparation messages cannot restart or extend that deadline.
+      const remaining = pending.deadlineAt-now();
+      if (pending.preparationConfirmed && remaining > 0 && guard.current?.element === element
+          && guard.current.trackId === pending.trackId
+          && (element.currentSrc || element.src || "") === pending.source) {
+        pending.timer=root.setTimeout(()=>{if(heldStart===pending)release("intro-start-timeout");},remaining);
+        trace(adapter.getSnapshot("intro-preparation-pending"),"intro-start-awaiting-confirmed-asset");
+        return;
+      }
+      release("intro-start-timeout");
+    };
+    pending.timer=root.setTimeout(timeout,Math.max(0,Math.min(400,pending.deadlineAt-now())));
     trace(snapshot,"intro-start-held");return pending.promise;
   }
 
@@ -97,6 +116,7 @@
     const releasedGeneration = leaseGeneration(token || oldToken);
     if (releasedGeneration) lastReleasedGeneration = Math.max(lastReleasedGeneration, releasedGeneration);
     if (token && guard.current?.token !== token) return { released: false };
+    introReservationDeadline = null;
     stopReplacement();
     const result = guard.release(token);
     finishHeldStart(!/page|unload|session-changed|master-lost|source-changed|track-changed|media-changed/.test(reason), reason);
@@ -306,6 +326,7 @@
         || !Number.isFinite(player.duration) || !snapshot.track.metadata?.durationMs
         || Math.abs(player.duration * 1000 - snapshot.track.metadata.durationMs) > 1500) throw new Error("Master changed before guard");
       if (payload.preparing && !handoff) return { reserved: false };
+      const existingIntroDeadline = handoff ? handoff.startedAt+1000 : introReservationDeadline;
       if (preparationTimer !== null) { root.clearTimeout(preparationTimer); preparationTimer = null; }
       if (handoff && guard.current?.element === element) {
         const pending = handoff;
@@ -321,8 +342,16 @@
       guard.current.source = element.currentSrc || element.src || "";
       // Only an existing transition mute can be reserved while a verified
       // replacement loads. This cannot mute an unrelated initial playback.
-      if (payload.preparing) preparationTimer = root.setTimeout(() => release("preparation-timeout", payload.token), 10000);
-      if (!payload.preparing) finishHeldStart(true,"replacement-prepared");
+      if (payload.preparing) {
+        preparationTimer = root.setTimeout(() => release("preparation-timeout", payload.token), 10000);
+        introReservationDeadline = existingIntroDeadline;
+        if (heldStart?.element === element && heldStart.trackId === payload.trackId
+            && heldStart.mediaId === payload.mediaId
+            && heldStart.source === (element.currentSrc || element.src || "")) {
+          heldStart.preparationConfirmed = true;
+        }
+      }
+      if (!payload.preparing) { introReservationDeadline = null; finishHeldStart(true,"replacement-prepared"); }
       return { guard: guard.state(), snapshot: decorate(adapter.getSnapshot("guard-engaged")) };
     }
     throw new Error(`Unknown bridge request: ${type}`);

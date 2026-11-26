@@ -82,3 +82,29 @@ test('a fresh verified heartbeat after returning resumes the original short MAIN
  f.document.hidden=true;f.visibility();f.tick(60000);f.document.hidden=false;f.visibility();f.send('HEARTBEAT');
  f.tick(12001);f.watchdog();assert.equal(f.media.muted,false,'the dead extension still fails open after a fresh heartbeat expires');
 });
+
+for(const delay of [450,650,850])test('confirmed asset ready at '+delay+'ms does not briefly expose original at 400ms',async()=>{
+ const f=fixture(),pending=f.hold();f.tick(150);f.request(true);f.tick(delay-150);
+ assert.equal(f.plays,0,'native clock must remain paused while the confirmed decoder loads');assert.equal(f.media.muted,true);
+ f.request();await pending;assert.equal(f.plays,1);assert.equal(f.media.muted,true,'handoff must never release the original mute');
+ assert.equal(f.posts.some(m=>m.type==='GUARD_RELEASED'),false);
+});
+test('confirmed but hanging decoder cannot exceed the original handoff deadline or renew it with repeated requests',async()=>{
+ const f=fixture(),pending=f.hold();f.tick(150);f.request(true);f.tick(300);assert.equal(f.plays,0);
+ // Generic snapshots and another preparing request do not extend the deadline.
+ f.request(true);f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'poll'});f.tick(549);assert.equal(f.plays,0);
+ f.tick(1);await pending;assert.equal(f.plays,1);assert.equal(f.media.muted,false);
+});
+test('pause or source change during confirmed intro wait cancels the old native start',async()=>{
+ for(const kind of ['pause','source']){
+  const f=fixture(),pending=f.hold(),rejected=assert.rejects(pending,{name:'AbortError'});f.tick(100);f.request(true);f.tick(500);
+  if(kind==='pause')f.sink.beforeNativeMethod('pause',f.media);
+  else{f.media.src='https://stream.example/new';f.snapshot.track.id='3';f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'loadstart'});}
+  await rejected;f.tick(2000);assert.equal(f.plays,0);
+ }
+});
+test('preparation reservation preceding native play keeps its original deadline',async()=>{
+ const f=fixture();f.sink.onSnapshot({...structuredClone(f.snapshot),reason:'before-method:play',triggerMediaId:'m'});
+ f.tick(100);f.request(true);f.tick(50);const pending=f.hold();assert(pending);
+ f.tick(500);assert.equal(f.plays,0);f.request();await pending;assert.equal(f.plays,1);assert.equal(f.media.muted,true);
+});
