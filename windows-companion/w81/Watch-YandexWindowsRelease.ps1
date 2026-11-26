@@ -7,7 +7,8 @@ param(
     [string]$ReportPath = 'windows-w81-vendor-watch-report.json',
     [string]$ForceVersion = '',
     [switch]$ValidateCandidate,
-    [switch]$StageOnly
+    [switch]$StageOnly,
+    [string]$RetainAsarPath = ''
 )
 $ErrorActionPreference = 'Stop'
 $base = 'https://music-desktop-application.s3.yandex.net/stable'
@@ -16,6 +17,7 @@ $report = [ordered]@{
     schema = 1; status = 'failed'; vendorVersion = ''; exeVersion = ''
     installerSha256 = ''; exeSha256 = ''; asarSha256 = ''
     checks = @(); releaseFeed = $origin; candidateRequiresReview = $false
+    retainedAsarSha256 = ''
 }
 function Save-Report {
     $parent = Split-Path -Parent $ReportPath
@@ -117,6 +119,23 @@ try {
         $report.exeVersion = $exeVersion
         $report.exeSha256 = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
         $report.asarSha256 = (Get-FileHash $asar -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($RetainAsarPath) {
+            # Keep only a verified copy of the signed vendor ASAR for a
+            # read-only CI runtime/API audit. The original temp tree is still
+            # deleted in finally; no owner installation is touched.
+            $retainedPath = [IO.Path]::GetFullPath($RetainAsarPath)
+            $retainedParent = Split-Path -Parent $retainedPath
+            if ($retainedParent) {
+                New-Item -ItemType Directory -Force -Path $retainedParent | Out-Null
+            }
+            Copy-Item -LiteralPath $asar -Destination $retainedPath -Force
+            $retainedHash = (Get-FileHash $retainedPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($retainedHash -ne $report.asarSha256) {
+                throw 'OFFICIAL_ASAR_RETAINED_COPY_HASH_MISMATCH'
+            }
+            $report.retainedAsarSha256 = $retainedHash
+            $report.checks += 'read-only-asar-audit-copy-verified'
+        }
         $report.checks += 'vendor-installer-signature'
         $report.checks += 'inner-executable-signature-and-version'
         $assets = 'windows-companion/w23/dist'

@@ -1,0 +1,73 @@
+name: CELIKOM W181 official Yandex 5.128.0 resource API audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-w181-yandex-51280-asar-audit.yml'
+      - 'windows-companion/w23/yandex-asar-hook-audit.mjs'
+      - 'windows-companion/w81/Watch-YandexWindowsRelease.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-w181-yandex-51280-asar-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build exact CELIKOM native assets
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          if ($LASTEXITCODE -ne 0) { throw 'W181_NATIVE_DEPENDENCIES_FAILED' }
+          node windows-companion/w23/build.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W181_NATIVE_BUILD_FAILED' }
+      - name: Download signed official Yandex 5.128.0 and retain only its verified ASAR
+        shell: pwsh
+        run: |
+          $asar = Join-Path $env:RUNNER_TEMP 'celikom-yandex-5.128.0-app.asar'
+          $vendorReport = 'w181-yandex-vendor-report.json'
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.128.0' -ValidateCandidate -RetainAsarPath $asar -ReportPath $vendorReport
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W181_OFFICIAL_VENDOR_VALIDATION_FAILED' }
+          $vendor = Get-Content $vendorReport -Raw | ConvertFrom-Json
+          if ($vendor.status -ne 'candidate_requires_runtime_review' -or
+              $vendor.vendorVersion -ne '5.128.0' -or
+              $vendor.exeVersion -notmatch '^5\.128\.0\.' -or
+              $vendor.retainedAsarSha256 -ne $vendor.asarSha256 -or
+              $vendor.checks -notcontains 'vendor-installer-signature' -or
+              $vendor.checks -notcontains 'inner-executable-signature-and-version' -or
+              $vendor.checks -notcontains 'read-only-asar-audit-copy-verified') {
+            throw 'W181_VENDOR_PROVENANCE_OR_RETAINED_ASAR_INVALID'
+          }
+          Write-Host "W181_OFFICIAL_YANDEX_51280_VERIFIED exeVersion=$($vendor.exeVersion)"
+      - name: Inspect actual 5.128.0 webpack resource API candidates without exposing vendor source
+        shell: pwsh
+        run: |
+          $asar = Join-Path $env:RUNNER_TEMP 'celikom-yandex-5.128.0-app.asar'
+          $audit = 'w181-yandex-asar-audit.json'
+          node windows-companion/w23/yandex-asar-hook-audit.mjs $asar $audit
+          if ($LASTEXITCODE -ne 0) { throw 'W181_YANDEX_ASAR_HOOK_AUDIT_FAILED' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CELIKOM-W181-YANDEX-51280-RESOURCE-API-AUDIT
+          path: |
+            w181-yandex-vendor-report.json
+            w181-yandex-asar-audit.json
+          if-no-files-found: error
+          retention-days: 7
