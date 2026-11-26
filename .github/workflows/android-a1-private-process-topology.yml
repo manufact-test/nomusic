@@ -7,8 +7,9 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_private_process_topology.py'
       - 'android/native-yandex-hooklab/ci/test_a1_private_process_topology.py'
       - '.github/workflows/android-a1-private-process-topology.yml'
+# Draft owner-provided input requires contents:write; no repo writes in this job.
 permissions:
-  contents: read
+  contents: write
 jobs:
   classify-original-process-topology:
     runs-on: celikom-ci-smoke-only
