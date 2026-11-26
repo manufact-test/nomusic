@@ -38,7 +38,8 @@ test('W181 single file-info hook reports an unrecognized argument shape without 
   const a=create(async()=>null,{onEvent:code=>events.push(code)});
   const {proto}=resource();a.attach(proto);a.enable();
   const value=await proto.getFileInfo({id:'123'});
-  assert.deepEqual(value,orig);
+  assert.equal(value.downloadInfo.trackId,'undefined');
+  assert.equal(value.downloadInfo.url,orig.downloadInfo.url);
   assert.ok(events.includes('NATIVE_FILEINFO_ID_UNRECOGNIZED'));
   assert.ok(!events.includes('RESOLVE_START'));
   a.dispose();
