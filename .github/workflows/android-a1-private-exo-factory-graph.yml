@@ -1,0 +1,32 @@
+name: CELIKOM A1 original Exo factory graph isolated read-only probe
+on:
+  push:
+    branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
+    paths:
+      - '.github/workflows/android-a1-private-exo-factory-graph.yml'
+      - 'android/native-yandex-hooklab/ci/a1_private_exo_factory_graph.py'
+permissions:
+  contents: read
+jobs:
+  verify-private-graph:
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the exact signed publisher input and print only finite graph categories
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          dir="$(mktemp -d "$RUNNER_TEMP/a1-private-factory.XXXXXXXX")"
+          trap 'rm -rf -- "$dir"' EXIT
+          gh release download a1-yandex-2025-gpr-private-test --repo "$GITHUB_REPOSITORY" \
+            --pattern yandex-music-2025-10-4-120-1gpr.xapk --dir "$dir" --clobber >/dev/null
+          file="$dir/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c %s "$file")" = 45961661
+          test "$(sha256sum "$file" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+          python3 -B android/native-yandex-hooklab/ci/a1_private_exo_factory_graph.py --xapk "$file"
