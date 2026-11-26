@@ -2,11 +2,22 @@ import {access,readFile,writeFile,mkdtemp,rm,mkdir} from 'node:fs/promises';
 import {spawn,spawnSync} from 'node:child_process';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
 import {stripTypeScriptTypes} from 'node:module';
-let binary;
-for(const p of [process.env.CELIKOM_BROWSER_BINARY,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){if(!p)continue;try{await access(p);binary=p;break}catch{}}
-if(process.env.CELIKOM_BROWSER_BINARY&&binary!==process.env.CELIKOM_BROWSER_BINARY)throw Error('Requested browser binary unavailable');
+let binary,extraBrowserArgs=[];
+if(process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1'){
+ const {default:chromium,inflate,setupLambdaEnvironment}=await import('@sparticuz/chromium');
+ chromium.graphics=false;
+ binary=await chromium.executablePath();
+ const moduleUrl=import.meta.resolve('@sparticuz/chromium');
+ const al2023Archive=fileURLToPath(new URL('../bin/al2023.tar.br',moduleUrl));
+ await inflate(al2023Archive);
+ setupLambdaEnvironment(join(tmpdir(),'al2023','lib'));
+ extraBrowserArgs=chromium.args;
+}else{
+ for(const p of [process.env.CELIKOM_BROWSER_BINARY,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){if(!p)continue;try{await access(p);binary=p;break}catch{}}
+ if(process.env.CELIKOM_BROWSER_BINARY&&binary!==process.env.CELIKOM_BROWSER_BINARY)throw Error('Requested browser binary unavailable');
+}
 if(!binary){if(process.env.REQUIRE_BROWSER_AUDIO==='1')throw Error('Chromium required');console.log('Audio gain native check deferred to CI');process.exit(0);}
 const directory=await mkdtemp(join(tmpdir(),'celikom-gain-'));
 try{
@@ -324,7 +335,8 @@ try{
  check(document.documentElement.scrollWidth<=innerWidth,'mixer horizontal layout');document.body.dataset.gainResult='pass';
  }catch(e){document.body.dataset.gainResult=e.message+' at '+document.body.dataset.gainStep+' '+e.stack}})();</script></body></html>`;
  const file=join(directory,'gain.html');await writeFile(file,html);await mkdir('dist/layout-proof',{recursive:true});
- const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
+ const version=spawnSync(binary,['--version'],{encoding:'utf8'});if(version.status!==0)throw Error('Chromium could not start: '+(version.stderr||version.stdout||'unknown error'));console.log('Browser gate: '+String(version.stdout||version.stderr).trim());
+ const browser=spawn(binary,['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600','--remote-debugging-port=0','--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio:['ignore','ignore','pipe'],detached:process.platform!=='win32'});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
