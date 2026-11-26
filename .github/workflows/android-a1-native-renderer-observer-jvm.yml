@@ -7,6 +7,7 @@ on:
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java'
       - 'android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java'
+      - 'android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeCertifiedResolveBridgeTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeDeferredExoArmTest.java'
@@ -63,6 +64,7 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java \
+            android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeCertifiedResolveBridgeTest.java \

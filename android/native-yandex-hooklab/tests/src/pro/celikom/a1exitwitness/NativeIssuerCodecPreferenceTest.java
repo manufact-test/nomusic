@@ -1,32 +1,25 @@
 package pro.celikom.a1exitwitness;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.lang.annotation.ElementType;
 import java.lang.reflect.Method;
+import retrofit2.http.Query;
 
 public final class NativeIssuerCodecPreferenceTest {
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.PARAMETER)
-    public @interface Vz8 { String value(); }
-
     interface FileInfoApi {
-        Object fileInfo(@Vz8("trackId") String track,
-            @Vz8("codecs") String codecs,@Vz8("quality") String quality);
+        Object fileInfo(@Query("trackId") String track,
+            @Query("codecs") String codecs,@Query("quality") String quality);
     }
     interface NonString {
-        Object fileInfo(@Vz8("trackId") String track,@Vz8("codecs") int codecs);
+        Object fileInfo(@Query("trackId") String track,@Query("codecs") int codecs);
     }
     interface Duplicate {
-        Object fileInfo(@Vz8("trackId") String track,
-            @Vz8("codecs") String one,@Vz8("codecs") String two);
+        Object fileInfo(@Query("trackId") String track,
+            @Query("codecs") String one,@Query("codecs") String two);
     }
     interface NoCodec {
-        Object fileInfo(@Vz8("trackId") String track,@Vz8("quality") String q);
+        Object fileInfo(@Query("trackId") String track,@Query("quality") String q);
     }
     interface WrongAnnotation {
-        Object fileInfo(String track,@Vz8("codecs") String codecs);
+        Object fileInfo(String track,@Query("codecs") String codecs);
     }
 
     private static Method method(Class<?> type) {
