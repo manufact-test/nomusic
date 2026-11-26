@@ -1,57 +1,61 @@
-# CELIKOM Windows W184 — 0.24.59 owner candidate доставлена и HTTPS SHA подтверждён (26.11.2026)
+# CELIKOM Windows W185 — восстановлен принятый W174 source hook; 0.24.60 доставлена владельцу (26.11.2026)
 
-## Текущий статус
+## Главное
 
-**0.24.59 собрана, подписана P-256, staged на FlokiNET, опубликована root consumer на закрытом owner-download сайте и подтверждена полным SHA-256 по обеим HTTPS-ссылкам.** Это owner test candidate. Клиентский stable канал не менялся.
+**0.24.59 была ещё одной неудачной попыткой: W183 заменил рабочий discovery path неподтверждённым SonataProvider hook.** Ошибка в моём подходе подтверждена исходниками и тестом: статический ASAR audit показал, что module 7695 экспортирует SonataProvider и содержит методы, но не доказал, что реальный playback call chain вызывает именно его. W183 test fixture сам создавал `resourceProvider = new SonataProvider()` и заставлял fake `reloadEntity` вызывать его — тест проверял собственное предположение.
 
-- Репозиторий: `manufact-test/nomusic`, ветка `main`.
-- Release source commit: `eff02ee8a5ad603374c76c845cd5e4680afc0463`.
-- Версия / sequence: **0.24.59 / 6**.
-- EXE SHA-256: `3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`.
-- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.59.exe
+Последняя лично принятая Windows-версия **0.24.54 (W174)** уже работала на официальном Yandex **5.128.0** и использовала динамический поиск endpoint resource по `"get-file-info"` / `"resources/v2/file-info"`. В W185 этот точный discovery path восстановлен. Отдельный current-player observer 7123.VE оставлен только для state/reload, не как file-info hook target. Adapter поддерживает реальную двухаргументную форму `getFileInfo(context, {trackId})`.
+
+## Текущая owner candidate
+
+- Версия: **0.24.60**
+- P-256 sequence: **7**
+- Source/release commit: `863abfd3a7eb7838128aecf54fb1c873bcc30813`
+- W185 source fix commit: `adc09cf73e8deba417c77f7eae00727e894572d7`
+- EXE SHA-256: `986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`
+- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.60.exe
 - Owner latest: https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe
 
-## Подтверждённая причина W54 и исправление W183
+## Root cause, без приукрашивания
 
-Диагностика 0.24.58 показала: grant для track `144530503` получен и доставлен, `NATIVE_INITIAL_SOURCE_RELOAD_OK` есть, но отсутствуют `NATIVE_FILEINFO_REQUEST` и наблюдение сетевого запроса плеера. Следовательно, reload выполнялся, а реальный file-info перехват не срабатывал.
+W54 для **0.24.58**: grant track `144530503` получен и доставлен, `NATIVE_INITIAL_SOURCE_RELOAD_OK` есть, но `NATIVE_FILEINFO_REQUEST` отсутствует. Это показывает разрыв после получения grant/reload — реальный Yandex file-info метод не проходил через прикреплённый CELIKOM adapter.
 
-Read-only audit официального подписанного Yandex 5.128.0 в workflow [45839165532](https://github.com/manufact-test/nomusic/actions/runs/45839165532) установил точное расхождение:
-- `7123.VE`: current-player state/reload path, `reloadEntity` есть, `getFileInfo` нет.
-- `7695.SonataProvider`: реальный `getFileInfo` и `getMediaSource`.
+W182/W183 изменили discovery path относительно принятого W174:
+- W182 стал искать getFileInfo на live player prototype, выводя это из статического анализа.
+- W183 закрепил module 7695 export SonataProvider, хотя наличие класса/методов в ASAR не доказывало, что реальный текущий плеер вызывает именно этот метод.
+- Synthetic W183 test искусственно вызывал SonataProvider из fake player. Он не был проверкой vendor call chain.
 
-W183 исправляет разделение обязанностей: `7123.VE` остаётся observer/reload для текущего трека; renderer теперь цепляет adapter к реальному `7695.SonataProvider.prototype.getFileInfo` и проверяет shape `getMediaSource`. Если pinned export не совпадает, событие `RESOURCE_PROVIDER_PIN_MISMATCH` и fail-closed вместо ложного `RESOURCE_HOOK_ATTACHED`. Для диагностики добавлены `RESOURCE_HOOK_ATTACHED_PROVIDER` и `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`.
+W185 восстановил endpoint discovery из W174. Изменения зафиксированы в `windows-companion/w23/renderer-entry.mjs` и `renderer-relay.test.mjs`. Новый test моделирует старую принятую endpoint-сигнатуру `getFileInfo(context, {trackId})`, проверяет `NATIVE_FILEINFO_REQUEST` и `SOURCE_MAPPED`, а SonataProvider не используется как target.
 
-## Доказательства сборки и доставки
+## Сборка, тесты и доставка
 
-1. Signed release workflow [45843326223](https://github.com/manufact-test/nomusic/actions/runs/45843326223): **SUCCESS**. Prepare job [139990431943](https://github.com/manufact-test/nomusic/actions/runs/45843326223/job/139990431943): **SUCCESS**. P-256 signing, manifest verification, EXE/ZIP owner packaging и six-file Floki transfer прошли.
-2. Manifest: `version=0.24.59`, `sequence=6`, `package_sha256=3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`. `W156_OWNER_PACKAGE_EXE_ZIP_PASS`.
-3. GitHub transport artifact ID `15128423693`, size **84,672,636 bytes**, digest `sha256:1de5c8df09dcc30b54d454154c5a5ffbaa6e71723c36f80d006b1470ac3981e8` (внутренний transport, не ссылка владельцу).
-4. Floki private-stage job [139991820809](https://github.com/manufact-test/nomusic/actions/runs/45843326223/job/139991820809): **SUCCESS**, runner `celikom-floki-ci01`. Transfer ZIP SHA-256 `4c42f63a161db84d1873d591ac3f658d95ad5470640f4be8608867f6079d7d1b`, size **85,154,673 bytes**, `private-staged`.
-5. Root consumer independently promoted immutable owner EXE and owner latest. Correct public SHA-only receipt check [45844107991](https://github.com/manufact-test/nomusic/actions/runs/45844107991): **SUCCESS**, log: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 3226961f4ae767b6a0e2495dc912bcf5c03c9eacf2aeb6f7934ccee4a1192c86`. Contract verifies authenticated HTTPS 200, exact size and full SHA-256 for both versioned URL and owner latest; anonymous route must return 401.
-6. Важно: ранняя проверка [45843980263](https://github.com/manufact-test/nomusic/actions/runs/45843980263) подтвердила старый SHA 0.24.58 из-за stale expected hash. Её **не считать подтверждением 0.24.59**. Expected SHA исправлен в commit `ad5540301c33c25c94e5d5df2ad1de485872aa1f`; правильное подтверждение — только run `45844107991`.
+1. Floki isolated Windows cross-build [45847863878](https://github.com/manufact-test/nomusic/actions/runs/45847863878): **SUCCESS**. Renderer/native regressions: **99 passed, 0 failed**; W185 test PASS; Windows Companion и Update Supervisor cross-compile PASS.
+2. Signed release [45847863957](https://github.com/manufact-test/nomusic/actions/runs/45847863957): **SUCCESS**. Prepare job [140006133313](https://github.com/manufact-test/nomusic/actions/runs/45847863957/job/140006133313): P-256 signature, schema-2 manifest, EXE/ZIP owner package and transfer PASS. `W156_OWNER_PACKAGE_EXE_ZIP_PASS`.
+3. Manifest: `version=0.24.60`, `sequence=7`, `package_sha256=986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`.
+4. GitHub transport artifact ID `15132094218`, size **84,679,085 bytes**, digest `sha256:e1fd1bcc3952b424c1c655bc76492c16e3af04c1e4d34d63a5ddb0da397f10dc`.
+5. Floki private-stage job [140008023675](https://github.com/manufact-test/nomusic/actions/runs/45847863957/job/140008023675): **SUCCESS**, immutable transfer staged. Transfer SHA-256 `6eb656b329936c50f449403a9d428b23246276097f1de52d09a497b2a34f0686`, size **85,161,131 bytes**.
+6. Root consumer HTTPS receipt verification [45848612472](https://github.com/manufact-test/nomusic/actions/runs/45848612472): **SUCCESS**. Exact log: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`. Root receipt is written only after authenticated HTTPS 200, exact size and full SHA-256 checks for both versioned owner URL and owner latest; anonymous route must return 401.
+7. Full Windows integration CI [45847864002](https://github.com/manufact-test/nomusic/actions/runs/45847864002) was blocked by GitHub-hosted runner `ENOSPC: no space left on device` during W113/W148 temp-file tests; Windows integration job was skipped. This is infrastructure failure, not a failed audio assertion. The isolated Floki run above independently passed 99 renderer/native tests and Windows cross-compilation.
 
-## CI и границы релиза
+## Release boundary
 
-- Generic CI [45842438822](https://github.com/manufact-test/nomusic/actions/runs/45842438822): **SUCCESS**.
-- Windows integration CI [45842438810](https://github.com/manufact-test/nomusic/actions/runs/45842438810), attempt **2**: **SUCCESS**, включая W22/W23/W60 audio/source regressions, W21/W24/W15, GUI и Update Supervisor builds.
-- В attempt 1 был отдельный нестабильный W110 named-pipe test (`The pipe is being closed`); повтор только failed job прошёл. Это не было связано с W183 audio hook.
-- `.github/release/windows-customer-stable.json` остаётся `approved:null`.
-- Клиентский подписанный baseline остаётся **0.24.55 / sequence 2**.
-- Release workflow `publish` job пропущен. Никакого customer promotion или массового OTA не было.
-- **0.24.59 ещё не принята владельцем по фактическому звуку.** CI и HTTPS SHA доказывают сборку/доставку, но не слышимую подмену.
+- 0.24.60 is **owner-only test candidate**, not client stable.
+- `.github/release/windows-customer-stable.json` remains `approved:null`.
+- Customer signed baseline remains **0.24.55 / sequence 2**.
+- Release workflow `publish` job was skipped. No customer promotion or mass OTA occurred.
+- **Audible replacement is NOT yet owner-accepted.** CI and HTTPS SHA prove build/delivery only, not sound.
 
 ## Следующий шаг владельца
 
-Установить 0.24.59 поверх текущей версии. Проверить:
-1. mapped track **144530503 («Ау»)**;
-2. ещё одну mapped-композицию;
-3. unmapped/original трек;
-4. Next, Play/Pause и возврат после паузы;
-5. именно слышимую подмену, а не только название/лейбл в UI.
+Install 0.24.60 over the existing installation. No uninstall/re-login or additional approval should be needed. Test once:
+1. mapped track **144530503 («Ау»)** — listen for actual substituted audio;
+2. another mapped track;
+3. unmapped/original track;
+4. Next, Play/Pause and resume.
 
-В новой W54 диагностике проверить `RESOURCE_HOOK_ATTACHED_PROVIDER`, `NATIVE_FILEINFO_REQUEST`, `SOURCE_MAPPED`. Если появится `RESOURCE_PROVIDER_PIN_MISMATCH` или `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`, это сразу покажет проблему привязки. Сам W54 не подтверждает audible output — финальное доказательство здесь только фактическое прослушивание.
+If it still fails, export a fresh W54 diagnostic **from 0.24.60**. Check `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`, `NATIVE_FILEINFO_REQUEST`, `SOURCE_MAPPED`. The W54 supplied earlier was 0.24.58; do not treat it as 0.24.60 diagnostics. W54 does not prove audible output — final acceptance is actual listening.
 
-До личного acceptance и отдельной команды владельца **«выпускай всем»** не менять customer stable. Не менять Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture.
+Do not change Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture or customer stable approval. No further source-hook redesign without fresh runtime evidence.
 
 ---
 
