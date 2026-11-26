@@ -297,7 +297,7 @@
           if(this.snapshot.player.seeking||Math.abs(driftAt(audio.currentTime,target,audio.duration,false))>100)return;
           operation.joinAligned=true;
         }
-        if (!operation.completeJoin && operation.initialMasterTime > 0.25
+        if (!operation.completeJoin && (operation.initialMasterTime > 0.25 || this.snapshot.player.currentTime > 5)
             && !operation.joinAligned && typeof operation.player.prepareMidSongPosition === "function") {
           operation.stage="aligning-mid-song";
           const aligned=await operation.player.prepareMidSongPosition(this.snapshot,async()=>{

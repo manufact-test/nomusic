@@ -246,6 +246,12 @@ test("temporary missing track metadata preserves a replacement only while its na
   assert.equal(replacement.destroyed, true);
   assert.equal(f.engine.operation, null);
   assert.equal(f.engine.restoreCount, 1);
+
+  const ambiguousFixture = fixture(); ambiguousFixture.update(snapshot()); await settle();
+  const ambiguous = snapshot(null); ambiguous.track.ambiguous = true; ambiguous.track.evidence = "candidate-conflict";
+  ambiguousFixture.update(ambiguous); await settle();
+  assert.equal(ambiguousFixture.players[0].destroyed, true,
+    "unrelated candidate ambiguity must still fail open");
 });
 test("guard denial and player construction errors fail open without automatic retry storms", async () => {
   for (const options of [{ rejectGuard: true }, { playerThrows: true }]) {
@@ -351,6 +357,19 @@ test("mid-song activation waits for decoder positioning before acquiring the ori
   assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
   assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), true);
   assert.equal(f.players[0].alignedAt, 137);
+});
+test("a slow intro load that advances beyond five seconds uses the same pre-guard mid-song alignment", async () => {
+  const loadGate = deferred(), joinGate = deferred(), f = fixture({ loadGate, joinGate });
+  const start = snapshot(); start.player.currentTime = 0.1;
+  f.update(start); await settle();
+  const late = snapshot(); late.player.currentTime = 6;
+  f.update(late);
+  loadGate.resolve(); await settle();
+  assert.equal(f.players[0].alignmentStarted, true);
+  assert.equal(f.requests.some(r => r.type === "GUARD_ENGAGE"), false);
+  joinGate.resolve(); await settle();
+  assert.equal(f.engine.phase, "REPLACEMENT_ACTIVE");
+  assert.equal(f.players[0].alignedAt, 6);
 });
 test("selected track descriptor is warmed before Yandex creates its native audio element", async () => {
   let calls = 0;
