@@ -2,7 +2,7 @@ name: CELIKOM Windows x64 build on isolated FlokiNET
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, recovery/windows-w174-02454-known-good-20261126]
     paths:
       - 'windows-companion/**'
       - '.github/ci/celikom-win-crossbuild-trigger.txt'
@@ -39,15 +39,15 @@ jobs:
           dotnet --version
           dotnet --list-sdks
           dotnet --version | cut -d. -f1 | grep -Fx 10
-      - name: W186 live media-source adapter and current-player regression tests
+      - name: W174 known-good renderer/native regression tests
         shell: bash
         working-directory: windows-companion/w23
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund --no-package-lock
           npm run build
-          node --test ../w22/native-resource-adapter.test.mjs ../w60/current-source-refresh.test.mjs initial-current-source.test.mjs native-host.test.mjs renderer-relay.test.mjs
-          echo CELIKOM_W186_LIVE_MEDIA_SOURCE_REGRESSION_PASS
+          node --test ../w15/w15-contract.test.mjs ../w22/native-resource-adapter.test.mjs ../w60/current-source-refresh.test.mjs initial-current-source.test.mjs asar-images.test.mjs native-host.test.mjs renderer-relay.test.mjs audio-probe.test.mjs
+          echo CELIKOM_W174_RENDERER_NATIVE_REGRESSION_PASS
       - name: Cross-compile Windows WinForms companion and updater on Linux
         shell: bash
         run: |

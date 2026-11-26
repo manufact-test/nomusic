@@ -6,17 +6,17 @@ on:
         description: Exact signed Windows version
         required: true
         type: string
-        default: '0.24.57'
+        default: '0.24.61'
       sequence:
         description: Exact monotonic signed sequence
         required: true
         type: string
-        default: '4'
+        default: '8'
       source_commit:
         description: Exact source commit of the two immutable private drafts
         required: true
         type: string
-        default: '28587670e9efda35c73eb3a49d9702d2d72b3b8c'
+        default: 'aa713b99824f20abbe7c239bf06e356cf3f7f367'
       send_to_private_intake:
         description: Legacy compatibility input; safe Floki spool only
         required: true
@@ -43,11 +43,11 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.57' }}
+  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.61' }}
   cancel-in-progress: false
 jobs:
   stage:
-    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    if: github.repository == 'manufact-test/nomusic' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/recovery/windows-w174-02454-known-good-20261126')
     runs-on: celikom-ci-smoke-only
     # Data-only transfer: no deployment environment, SSH, signing secret or
     # publication permission. The VPS root consumer independently verifies
@@ -59,8 +59,8 @@ jobs:
       contents: write
     timeout-minutes: 18
     env:
-      RELEASE_VERSION: ${{ inputs.version || '0.24.57' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '4' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.61' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '8' }}
       RELEASE_COMMIT: ${{ inputs.source_commit || '28587670e9efda35c73eb3a49d9702d2d72b3b8c' }}
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +77,8 @@ jobs:
           python3 -m py_compile .github/scripts/floki-windows-signed-root-consumer.py
           bash -n .github/scripts/floki-windows-owner-download-bootstrap.sh
           bash -n .github/scripts/floki-windows-root-consumer-install.sh
-          node --test .github/scripts/tests/windows-stable-private-import.test.mjs
+          node --test .github/scripts/tests/windows-stable-private-import.test.mjs .github/scripts/tests/windows-stable-publish-floki.test.mjs
+          python3 .github/scripts/tests/floki-windows-owner-verified-receipt.test.py
       - name: Download exact signed transfer artifact from calling release workflow
         uses: actions/download-artifact@v4
         with:

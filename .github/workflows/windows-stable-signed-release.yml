@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - main
+      - recovery/windows-w174-02454-known-good-20261126
     paths:
       - ".github/release/owner-bootstrap-0.24.61.trigger"
   workflow_dispatch:
     inputs:
       version:
-        description: Version already committed to main
+        description: Version committed to the selected recovery source branch
         required: true
         default: '0.24.61'
         type: string
@@ -44,7 +45,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'manufact-test/nomusic' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/recovery/windows-w174-02454-known-good-20261126')
     permissions:
       contents: write
     # Unattended owner-candidate signing/build. This environment must have the P-256
@@ -202,7 +203,7 @@ jobs:
     # Every successfully signed mainline build is copied to the isolated
     # data-only Floki spool. Root independently checks its P-256 signature,
     # hash and monotonic version before switching the owner download.
-    if: github.ref == 'refs/heads/main' && needs.prepare.result == 'success'
+    if: github.repository == 'manufact-test/nomusic' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/recovery/windows-w174-02454-known-good-20261126') && needs.prepare.result == 'success'
     permissions:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
