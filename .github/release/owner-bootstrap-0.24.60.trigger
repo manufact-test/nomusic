@@ -1,0 +1,1 @@
+2026-11-26: owner-only CELIKOM Windows 0.24.60 candidate, sequence 7. W185 restores the exact W174 accepted Yandex 5.128.0 endpoint-hook discovery strategy; W183's unproven SonataProvider hook is removed. Preserve Floki API origin and all release protections. Do not publish customer stable; await owner audible acceptance and explicit release instruction.
