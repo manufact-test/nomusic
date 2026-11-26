@@ -30,6 +30,7 @@ on:
       - 'android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_exo_factory_shape.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py'
       - 'android/native-yandex-hooklab/ci/test_lca9_tca_birth_origin.py'
@@ -195,6 +196,10 @@ jobs:
           f="$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
           test "$(stat -c %s "$f")" = 45961661
           test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+      - name: Audit verified original Exo factory return (fixed enums only, no vendor identities)
+        run: |
+          python3 -B android/native-yandex-hooklab/ci/a1_private_exo_factory_shape.py \
+            --xapk "$RUNNER_TEMP/celikom-lspatch2-private/yandex-music-2025-10-4-120-1gpr.xapk"
       - name: Verify exact original 2025 Passport to userInfo to native screen DEX contract (read-only)
         shell: bash
         run: |
