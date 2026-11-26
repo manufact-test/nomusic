@@ -4334,8 +4334,22 @@ public final class ExitCallsiteWitness extends XposedModule {
             Class<?> source = Class.forName(
                 "com.yandex.music.shared.player.download2.exo.RetryingBalancingDataSource",
                 false, loader);
+            java.util.ArrayList<Class<?>> sourceContracts =
+                new java.util.ArrayList<>();
+            String[] contractNames = {
+                "androidx.media3.datasource.DataSource",
+                "com.google.android.exoplayer2.upstream.DataSource"
+            };
+            for (String contractName : contractNames) {
+                try {
+                    Class<?> contract = Class.forName(contractName, false, loader);
+                    if (contract.isAssignableFrom(source))
+                        sourceContracts.add(contract);
+                } catch (Throwable ignored) { }
+            }
             NativeExoFactoryProductWitness.Resolution resolution =
-                NativeExoFactoryProductWitness.resolve(factoryObject, source);
+                NativeExoFactoryProductWitness.resolve(factoryObject, source,
+                    sourceContracts.toArray(new Class<?>[0]));
             if (resolution.method == null) {
                 emit("AUDIO_EXO_FACTORY_PRODUCT_HOOK", "METHOD",
                     resolution.candidateCount == 0 ? "NO_EXACT_METHOD" : "AMBIGUOUS");
