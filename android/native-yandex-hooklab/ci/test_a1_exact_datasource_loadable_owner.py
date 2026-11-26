@@ -62,7 +62,7 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
     def test_datasource_dispatch_is_restricted_to_its_exact_type_hierarchy(self):
         classes = {
             DATA_SOURCE: (None, "Lbase;", ["Ldatasource-contract;"], 0x11),
-            "Lbase;": (None, "Ljava/lang/Object;", [], 0x11),
+            "Lbase;": (None, "Ljava/lang/Object;", [], 0x401),
             "Ldatasource-contract;": (None, "Ljava/lang/Object;", [], 0x200),
             "Lunrelated;": (None, "Ljava/lang/Object;", [], 0x11),
         }
@@ -73,22 +73,25 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
         )
 
         class FakeDex:
-            method_count = 3
+            method_count = 4
             methods = [
-                ("Ldatasource-contract;", "open", "(LUC2;)J"),
-                ("Lunrelated;", "open", "(LUC2;)J"),
-                (DATA_SOURCE, "if", "(LUC2;)J"),
+                ("Ldatasource-contract;", "if", "(LUC2;)J"),
+                ("Lbase;", "if", "(LUC2;)J"),
+                ("Lunrelated;", "if", "(LUC2;)J"),
+                (DATA_SOURCE, "native", "(LUC2;)J"),
             ]
             def method(self, index):
                 return self.methods[index]
 
         targets = collect_dispatch_targets(
-            [FakeDex()], scope, "(LUC2;)J"
+            [FakeDex()], classes, scope, "(LUC2;)J",
+            (DATA_SOURCE, "if", "(LUC2;)J")
         )
         self.assertEqual(
             targets,
             {
-                ("Ldatasource-contract;", "open", "(LUC2;)J"),
+                ("Ldatasource-contract;", "if", "(LUC2;)J"),
+                ("Lbase;", "if", "(LUC2;)J"),
                 (DATA_SOURCE, "if", "(LUC2;)J"),
             }
         )
