@@ -3,3 +3,5 @@ Latest personally accepted audible baseline 0.24.54. The 0.24.57 owner candidate
 Owner must install and personally verify mapped «Ау» track 144530503, another mapped replacement, original/unmapped playback, Next and Play/Pause. Do not promote to customers without explicit owner acceptance and «выпускай всем».
 
 2026-11-26: retry 0.24.58 sequence5 using per-version release concurrency. The old 0.24.57 W180 run is still waiting for its obsolete protected deployment and must not block this candidate. No customer publish.
+
+2026-11-26: unattended owner build uses windows-stable-owner-build with the existing W155 P-256 key; no required reviewers. Customer publication remains separately gated in windows-stable-production.
