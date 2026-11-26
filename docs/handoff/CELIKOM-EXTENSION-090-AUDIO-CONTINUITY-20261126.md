@@ -47,3 +47,9 @@ Candidate version: **0.4.90**. This document does not claim that real Yandex pla
 - seek, pause/resume, and leave the page in the background.
 
 Do not add 0.4.90 to `.github/release/extension-owner-promotions.json` until the Floki build, checksum, native Chromium gate and private owner-delivery checks have all passed. Do not promote to customers or replace the accepted baseline without owner listening acceptance.
+
+## 26 Nov 2026 — transfer to Work / real Chrome
+
+The owner paused this chat and moved the extension continuation to ChatGPT Work to use a real Chrome-capable test environment, instead of continuing to patch a headless self-hosted Floki runner. **No 0.4.90 owner listening acceptance or release promotion exists yet.**
+
+Current status, exact defects, browser-testing limitations and next actions are recorded in **`docs/handoff/CELIKOM-EXTENSION-WORK-TRANSFER-20261126.md`**. Read that document before making new code/CI changes. Do not assume Work's managed browser allows unpacked extension installation until checked.
