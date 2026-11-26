@@ -7,7 +7,7 @@ const script=fs.readFileSync(new URL("./dist/renderer.js",import.meta.url),"utf8
 const origin="https://api.celikom.example";
 const tick=()=>new Promise(r=>setImmediate(r));
 function harness() {
- const clock={now:Date.now()},handlers={};
+ const clock={now:Date.now()},handlers={},intervals=[];
  class Resource {
    async getFileInfo(p){return {downloadInfo:{trackId:String(p.trackId),url:"https://yandex.example/old"}};}
  }
@@ -30,11 +30,12 @@ function harness() {
     webpackChunk_N_E:chunks,addEventListener:(name,fn)=>{handlers[name]=fn;}};
  vm.runInNewContext(script,{window,URL,AbortController,
    Date:class extends Date{static now(){return clock.now;}},
-   setTimeout,clearTimeout,setInterval:()=>1,clearInterval:()=>{},
+   setTimeout,clearTimeout,setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval:()=>{},
    console:{info:()=>{}}},{timeout:2000});
  const player=new Player();
  window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
  void player.state;
+ for(const fn of intervals) fn();
  return {clock,window,player,handlers};
 }
 function signedGrant(id="123"){
