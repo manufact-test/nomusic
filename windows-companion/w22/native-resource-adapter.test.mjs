@@ -488,3 +488,70 @@ test('W76: authoritative catalog absence remains a cached original, no transient
   assert.ok(!events.includes('RESOLVE_TRANSIENT'));
   a.dispose();
 });
+
+
+test("W186 live mediaProvider.getMediaSource maps the exact nested entity ID",async()=>{
+  const events=[];
+  const a=create(async id=>mappedGrant(id),{onEvent:(code,id)=>events.push([code,id])});
+  const original=async params=>({
+    downloadInfo:{trackId:params.entity.id,key:"drm",codec:"aac",
+      urls:["https://official.example/native"],url:"https://official.example/native"},
+    responseTime:41
+  });
+  const owner={getMediaSource:original};
+  a.attachMediaSource(owner);a.enable();
+  const value=await owner.getMediaSource({entity:{id:"123"},quality:"hq"});
+  assert.equal(value.responseTime,41);
+  assert.equal(value.downloadInfo.trackId,"123");
+  assert.equal(value.downloadInfo.url,signedUrlFor("123")+"&celikom_native_query_guard=0");
+  assert.equal(value.downloadInfo.codec,"mp3");
+  assert.equal(value.downloadInfo.key,undefined);
+  assert.ok(events.some(([code,id])=>code==="NATIVE_MEDIASOURCE_REQUEST"&&id==="123"));
+  assert.ok(events.some(([code,id])=>code==="NATIVE_MEDIASOURCE_OK"&&id==="123"));
+  assert.ok(events.some(([code,id])=>code==="SOURCE_MAPPED"&&id==="123"));
+  assert.equal(a.status,"SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED");
+  a.dispose();
+  assert.strictEqual(owner.getMediaSource,original,"dispose restores the exact live provider method");
+});
+
+test("W186 mediaSource no-grant and unrecognized arguments preserve original Yandex response",async()=>{
+  const events=[];
+  const a=create(async()=>null,{onEvent:(code,id)=>events.push([code,id])});
+  let calls=0;
+  const owner={async getMediaSource(params){calls++;return {downloadInfo:{trackId:params?.entity?.id||"123",
+    url:"https://official.example/native"}};}};
+  const original=owner.getMediaSource;
+  a.attachMediaSource(owner);a.enable();
+  const noGrant=await owner.getMediaSource({entity:{id:"456"}});
+  assert.equal(noGrant.downloadInfo.url,"https://official.example/native");
+  const unknown=await owner.getMediaSource({other:"789"});
+  assert.equal(unknown.downloadInfo.url,"https://official.example/native");
+  assert.equal(calls,2);
+  assert.ok(events.some(([code,id])=>code==="SOURCE_ORIGINAL"&&id==="456"));
+  assert.ok(events.some(([code])=>code==="NATIVE_MEDIASOURCE_ID_UNRECOGNIZED"));
+  assert.ok(!events.some(([code])=>code==="SOURCE_MAPPED"));
+  a.dispose();
+  assert.strictEqual(owner.getMediaSource,original);
+});
+
+test("W186 unsupported mediaSource envelope remains byte-for-byte structurally unchanged",async()=>{
+  const events=[];
+  const a=create(async id=>mappedGrant(id),{onEvent:code=>events.push(code)});
+  const original=async()=>({responseTime:37,otherMetadata:{sample:true}});
+  const owner={getMediaSource:original};
+  a.attachMediaSource(owner);a.enable();
+  const value=await owner.getMediaSource({entity:{id:"123"}});
+  assert.deepEqual(value,{responseTime:37,otherMetadata:{sample:true}});
+  assert.ok(events.includes("MEDIASOURCE_SHAPE_MISSING"));
+  assert.ok(!events.includes("SOURCE_MAPPED"));
+  a.dispose();
+  assert.strictEqual(owner.getMediaSource,original);
+});
+
+test("W186 native mediaSource errors propagate and are never hidden by a valid grant",async()=>{
+  const a=create(async id=>mappedGrant(id));
+  const owner={async getMediaSource(){throw new Error("native media source unavailable");}};
+  a.attachMediaSource(owner);a.enable();
+  await assert.rejects(()=>owner.getMediaSource({entity:{id:"123"}}),/native media source unavailable/);
+  a.dispose();
+});
