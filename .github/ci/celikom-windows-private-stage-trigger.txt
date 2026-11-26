@@ -24,3 +24,5 @@
 2026-11-25: final W176 regression: quote Nginx version matcher, latest trusted script Git object pins, isolated safe root parser; idempotently prove stored signed 0.24.56 without publishing.
 
 2026-11-26: transfer exact signed owner candidate 0.24.57/sequence4 from unpublished drafts to isolated Floki data-only spool. Accept public/private visibility only for exact active manufact-test/nomusic main; both release records must remain drafts and match source commit 28587670e9efda35c73eb3a49d9702d2d72b3b8c. No SSH, signing secret, customer channel or publication.
+
+2026-11-26: isolate candidate stage concurrency by exact release version so a legacy approval-waiting run cannot hold the new data-only 0.24.57 spool transfer.

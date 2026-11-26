@@ -43,7 +43,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-private-floki-stage
+  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.57' }}
   cancel-in-progress: false
 jobs:
   stage:
