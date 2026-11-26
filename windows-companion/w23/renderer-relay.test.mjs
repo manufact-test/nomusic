@@ -40,6 +40,7 @@ function createRenderer({
   const originalPause=Resource.prototype.pause,originalSeek=Resource.prototype.seek;
   class NativeYandexPlayer extends ResourceBase {
     constructor({trackId="123",status="playing",position=57.1}={}) {
+      super();
       this.reloadReasons=[];
       this.mediaSources=[];
       this.snapshot={

@@ -74,7 +74,8 @@ function methodShapes(source, name) {
   return shapes;
 }
 function callShapes(source, name) {
-  const pattern = new RegExp("([A-Za-z_$][\\\\w$]*(?:\\\\.[A-Za-z_$][\\\\w$]*)*)\\\\."+name+"\\\\s*\\\\(", "g");
+  const pattern = new RegExp(
+    "([A-Za-z_$][\\w$]*(?:\\.[A-Za-z_$][\\w$]*)*)\\."+name+"\\s*\\(", "g");
   const shapes = [];
   for (const match of source.matchAll(pattern)) {
     const start = match.index + match[0].length;
@@ -86,12 +87,12 @@ function callShapes(source, name) {
     }
     const args = source.slice(start, Math.max(start, end - 1));
     const first = args.split(",")[0].trim();
-    const keys = [...first.matchAll(/([A-Za-z_$][\\w$]*)\\s*:/g)].map(x => x[1]);
+    const keys = [...first.matchAll(/([A-Za-z_$][\w$]*)\s*:/g)].map(x => x[1]);
     shapes.push({
       receiver: match[1],
       firstArgumentKind: first.startsWith("{") ? "object" :
-        /^[A-Za-z_$][\\w$]*\\./.test(first) ? "property-access" :
-        /^[A-Za-z_$][\\w$]*$/.test(first) ? "identifier" : "other",
+        /^[A-Za-z_$][\w$]*\./.test(first) ? "property-access" :
+        /^[A-Za-z_$][\w$]*$/.test(first) ? "identifier" : "other",
       firstArgumentPropertyKeys: [...new Set(keys)]
     });
     if (shapes.length >= 8) break;

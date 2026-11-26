@@ -61,7 +61,7 @@ test('W182 player getFileInfo({id}) is mapped',async()=>{
   const {proto}=resource();a.attach(proto);a.enable();
   const value=await proto.getFileInfo({id:'123'});
   assert.equal(value.downloadInfo.trackId,'123');
-  assert.equal(value.downloadInfo.url,signed('123')+'&celikom_native_query_guard=0');
+  assert.equal(value.downloadInfo.url,signedUrlFor('123')+'&celikom_native_query_guard=0');
   a.dispose();
 });
 test('W182 two-argument Yandex getFileInfo reads trackId from the second object',async()=>{
@@ -74,7 +74,7 @@ test('W182 two-argument Yandex getFileInfo reads trackId from the second object'
   a.attach(proto);a.enable();
   const value=await proto.getFileInfo({quality:'hq'},{trackId:'123'});
   assert.equal(value.downloadInfo.trackId,'123');
-  assert.equal(value.downloadInfo.url,signed('123')+'&celikom_native_query_guard=0');
+  assert.equal(value.downloadInfo.url,signedUrlFor('123')+'&celikom_native_query_guard=0');
   assert.equal(value.downloadInfo.quality,'hq');
   a.dispose();
 });
@@ -90,7 +90,7 @@ test('W182 batch getFileInfoBatch({ids}) is mapped',async()=>{
   };
   a.attach(proto);a.enable();
   const value=await proto.getFileInfoBatch({ids:['123']});
-  assert.equal(value.downloadInfos[0].url,signed('123')+'&celikom_native_query_guard=0');
+  assert.equal(value.downloadInfos[0].url,signedUrlFor('123')+'&celikom_native_query_guard=0');
   a.dispose();
 });
 test('disabled is transparent: no CELIKOM request',async()=>{
