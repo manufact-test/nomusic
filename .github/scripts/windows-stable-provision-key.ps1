@@ -186,7 +186,7 @@ try {
     Write-Output "The private PEM was not printed. Do not send it to ChatGPT or commit it."
 
     if (!$NoUi) {
-        Start-Process "https://github.com/manufact-test/nomusic/settings/environments/windows-stable-production"
+        Start-Process "https://github.com/manufact-test/nomusic/settings/environments/windows-stable-owner-build"
         Start-Process -FilePath (Join-Path $env:WINDIR "System32\notepad.exe") -ArgumentList ('"' + $privatePath + '"')
     }
 }
