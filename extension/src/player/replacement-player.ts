@@ -358,7 +358,10 @@ function createGainChain(context, audio, db) {
         const target=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),audio.duration,this.demoLoop);
         if(!Number.isFinite(audio.currentTime)||!Number.isFinite(audio.duration)||audio.duration<=0)
           throw new Error("mid-song-join-timeout");
-        if(Math.abs(driftAt(audio.currentTime,target,audio.duration,this.demoLoop))>80)audio.currentTime=target;
+        if(Math.abs(driftAt(audio.currentTime,target,audio.duration,this.demoLoop))>80) {
+          try { audio.currentTime=target; }
+          catch(_error) { throw new Error("mid-song-join-timeout"); }
+        }
         if(audio.seeking||audio.readyState<3)await waitForDecoder();
         if(this.destroyed)throw new Error("Replacement cancelled");
         snapshot=await refreshSnapshot();
