@@ -75,11 +75,13 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
 
   function resourcePrototype() {
     if (disposed || !prototype) return null;
-    // Yandex 5.128 moved the live player's getFileInfo entry point onto
-    // the player class (or its base), rather than the endpoint wrapper that
-    // older builds exposed. Return the actual method owner so instances of
-    // sibling/derived player classes are intercepted too.
-    let owner = prototype;
+    // W183: the exported state-observer class may be a base class. The live
+    // Yandex player can be a derived instance with getFileInfo on its own
+    // prototype. Resolve the method owner from the exact instance whose state
+    // getter was observed, not from the exported base prototype.
+    const player = current?.deref();
+    if (!player) return null;
+    let owner = player;
     while (owner && owner !== Object.prototype) {
       if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
           typeof owner.getFileInfo === "function") return owner;
@@ -183,5 +185,6 @@ export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
 
   return Object.freeze({attach, request, dispose, currentTrack, currentTrackId,
     resourcePrototype,
+    get playerObserved() { return !!current?.deref(); },
     get attached() { return !!prototype && !disposed; }});
 }
