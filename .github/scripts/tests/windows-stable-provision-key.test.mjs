@@ -6,8 +6,6 @@ const provision = await readFile(
   new URL("../windows-stable-provision-key.ps1", import.meta.url), "utf8");
 const releaseWorkflow = await readFile(
   new URL("../../workflows/windows-stable-signed-release.yml", import.meta.url), "utf8");
-const gui = await readFile(
-  new URL("../../../windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj", import.meta.url), "utf8");
 
 test("W155 owner key setup uses only built-in Windows PowerShell and GitHub web UI", () => {
   assert.match(provision, /ECDsaCng/);
@@ -31,7 +29,9 @@ test("W188 release signs the current version and permits only the recovery owner
   assert.ok(releaseWorkflow.includes("if: github.repository == 'manufact-test/nomusic' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/recovery/windows-w174-02454-known-good-20261126')"));
   assert.ok(releaseWorkflow.includes("if: github.repository == 'manufact-test/nomusic' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/recovery/windows-w174-02454-known-good-20261126') && needs.prepare.result == 'success'"));
   assert.match(releaseWorkflow, /if:\s*github\.ref == 'refs\/heads\/main' && inputs\.publish_to_production == true/);
-  const version = gui.match(/<Version>(\d+\.\d+\.\d+)<\/Version>/)?.[1];
+  const version = (await readFile(
+    new URL("../../../windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj", import.meta.url), "utf8"))
+    .match(/<Version>(\d+\.\d+\.\d+)<\/Version>/)?.[1];
   assert.ok(version);
   assert.ok(releaseWorkflow.includes("default: '" + version + "'"));
   assert.ok(releaseWorkflow.includes(".github/release/owner-bootstrap-" + version + ".trigger"));
