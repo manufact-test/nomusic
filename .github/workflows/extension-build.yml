@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/ci/celikom-extension-build-trigger.txt'
+      - '.github/workflows/extension-build.yml'
+      - 'scripts/test-audio-gain-browser.mjs'
       - 'extension/**'
       - 'package.json'
       - 'package-lock.json'
@@ -46,9 +48,15 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if ! pgrep -x chromium >/dev/null 2>&1 && ! pgrep -x chrome-headless-shell >/dev/null 2>&1; then
+            rm -rf -- /tmp/chromium /tmp/fonts /tmp/swiftshader /tmp/al2023 /tmp/chromium-pack
+          fi
+          echo "Disk before browser setup:"
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
           npm install --no-save --package-lock=false @sparticuz/chromium@158.0.0
           tools_dir="$RUNNER_TEMP/celikom-tools"
-          mkdir -p "$tools_dir"
+          browser_tmp="$RUNNER_TEMP/celikom-chromium-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir -p "$tools_dir" "$browser_tmp"
           node --input-type=module <<'NODE'
           import {createWriteStream} from "node:fs";
           import {Readable} from "node:stream";
@@ -64,11 +72,26 @@ jobs:
           echo "$tools_dir" >> "$GITHUB_PATH"
           "$tools_dir/ffmpeg" -version | head -n 1
           echo "CELIKOM_USE_SPARTICUZ_CHROMIUM=1" >> "$GITHUB_ENV"
+          echo "CELIKOM_FFMPEG_BINARY=$tools_dir/ffmpeg" >> "$GITHUB_ENV"
+          echo "CELIKOM_REMOVE_FFMPEG_AFTER_FIXTURES=1" >> "$GITHUB_ENV"
+          echo "TMPDIR=$browser_tmp" >> "$GITHUB_ENV"
+          echo "CELIKOM_BROWSER_TMP=$browser_tmp" >> "$GITHUB_ENV"
+          echo "Disk after browser setup:"
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
       - name: Run real Chromium media and decoder regression
         env:
           REQUIRE_BROWSER_AUDIO: '1'
         run: node scripts/test-audio-gain-browser.mjs
+
+      - name: Clean browser test runtime
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${CELIKOM_BROWSER_TMP:-}" ]]; then rm -rf -- "$CELIKOM_BROWSER_TMP"; fi
+          rm -f -- "$RUNNER_TEMP/celikom-tools/ffmpeg"
+          df -h "$GITHUB_WORKSPACE" "$RUNNER_TEMP"
 
       - name: Security audit
         run: npm run security

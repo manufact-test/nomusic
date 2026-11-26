@@ -8,12 +8,19 @@ let binary,extraBrowserArgs=[];
 if(process.env.CELIKOM_USE_SPARTICUZ_CHROMIUM==='1'){
  const {default:chromium,inflate,setupLambdaEnvironment}=await import('@sparticuz/chromium');
  chromium.setGraphicsMode=false;
- binary=await chromium.executablePath();
  const moduleUrl=import.meta.resolve('@sparticuz/chromium');
- const al2023Archive=fileURLToPath(new URL('../bin/al2023.tar.br',moduleUrl));
- await inflate(al2023Archive);
+ const binDir=fileURLToPath(new URL('../bin/',moduleUrl));
+ console.log('Chromium fixture: extracting headless binary and fonts; WebGL disabled, SwiftShader omitted');
+ binary=await inflate(join(binDir,'chromium.br'));
+ await inflate(join(binDir,'fonts.tar.br'));
+ const al2023Archive=join(binDir,'al2023.tar.br');
+ try{await access(join(tmpdir(),'al2023','lib'));}catch{
+  await rm(join(tmpdir(),'al2023'),{recursive:true,force:true});
+  await inflate(al2023Archive);
+ }
  setupLambdaEnvironment(join(tmpdir(),'al2023','lib'));
  extraBrowserArgs=chromium.args;
+ console.log('Chromium fixture: browser files ready');
 }else{
  for(const p of [process.env.CELIKOM_BROWSER_BINARY,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium']){if(!p)continue;try{await access(p);binary=p;break}catch{}}
  if(process.env.CELIKOM_BROWSER_BINARY&&binary!==process.env.CELIKOM_BROWSER_BINARY)throw Error('Requested browser binary unavailable');
@@ -43,6 +50,10 @@ try{
  const seekEncoded=spawnSync('ffmpeg',['-v','error','-f','lavfi','-i','sine=frequency=440:duration=60','-c:a','libmp3lame','-b:a','128k',seekFile]);
  if(seekEncoded.status!==0)throw Error('Long synthetic MP3 encoder required');
  const seekMp3=await readFile(seekFile);
+ if(process.env.CELIKOM_REMOVE_FFMPEG_AFTER_FIXTURES==='1'&&process.env.CELIKOM_FFMPEG_BINARY){
+  await rm(process.env.CELIKOM_FFMPEG_BINARY,{force:true});
+  console.log('Audio fixtures ready; released temporary FFmpeg binary before Chromium extraction');
+ }
  const bytes=await readFile('extension/assets/test-audio.mp3');
  const css=await readFile('server/src/Admin/admin-style.css','utf8');
  const html=`<!doctype html><html><head><style>${css}</style></head><body><main><div class="player-wrap" id="audio-version-5"><audio data-gain-audio data-gain-db="0" controls></audio></div><details class="detail-toggle" data-gain-toggle><summary>Громкость версии</summary><form class="audio-gain-form" method="post" action="/admin/audio-gain" data-audio-gain data-audio-id="audio-version-5"><input type="hidden" name="csrf" value="fixture"><input type="hidden" name="gain_before" value="0"><label>Громкость версии <output data-gain-value>0 дБ</output></label><div class="audio-gain-controls"><span>Тише</span><input name="gain_db" type="range" min="-12" max="12" step="0.5" value="0"><span>Громче</span></div><button type="button" data-gain-reset>Исходная громкость</button><button type="submit">Сохранить громкость</button><p data-gain-note>Прослушайте и сохраните</p><p data-gain-save-status hidden></p></form></details><details><summary>Технические сведения</summary></details></main><script>${ui}\n${core}\n${adapterCode}\n${guardCode}\n${mainCode}\n${player}\n${syncCode}\n${failOpenCode}\n${controllerCode}\n(async()=>{try{
