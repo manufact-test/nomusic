@@ -1,4 +1,4 @@
-name: CELIKOM Windows 0.24.58 Floki owner HTTPS receipt verification
+name: CELIKOM Windows 0.24.59 Floki owner HTTPS receipt verification
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: celikom-windows-owner-receipt-verify-02458
+  group: celikom-windows-owner-receipt-verify-02459
   cancel-in-progress: false
 
 jobs:
