@@ -24,9 +24,6 @@ function createRenderer({
           url:"https://official.yandex.example/stream",codec:"aac"}
       };
     }
-    async getMediaSource(params) {
-      return this.getFileInfo(params);
-    }
     async getFileInfoBatch(params={}) {
       const ids=params.trackIds || params.ids || ["123","456"];
       return {downloadInfos:ids.map((id,index)=>({
@@ -45,6 +42,9 @@ function createRenderer({
         downloadInfo:{trackId:String(trackId),key:"yandex-drm",
           url:"https://official.yandex.example/stream",codec:"aac"}
       };
+    }
+    async getMediaSource(params) {
+      return this.getFileInfo(params);
     }
     async getFileInfoBatch(params={}) {
       const ids=params.trackIds || params.ids || ["123","456"];
