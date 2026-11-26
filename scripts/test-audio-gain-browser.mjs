@@ -358,7 +358,7 @@ try{
   const pause=ms=>new Promise(r=>setTimeout(r,ms));let port;
   for(let i=0;i<600&&!port;i++){try{port=(await readFile(join(directory,'profile','DevToolsActivePort'),'utf8')).split('\n')[0];}catch{}if(!port)await pause(50);}
   if(!port)throw Error('Chrome debug port unavailable: '+launchError);
-  console.log('Chrome DevTools port: '+port);
+  console.log('Chrome DevTools port: '+port+'; waiting up to 15 seconds for the listener');
   const getJson=url=>new Promise((resolve,reject)=>{
    const request=httpGet(url,response=>{
     let body='';
@@ -373,12 +373,14 @@ try{
    request.on('error',reject);
   });
   let pages,lastFetchError;
-  for(let i=0;i<100&&!pages;i++){
+  for(let i=0;i<300&&!pages;i++){
+   if(browser.exitCode!==null)break;
    try{pages=await getJson('http://127.0.0.1:'+port+'/json/list');}
    catch(error){lastFetchError=error;}
    if(!pages)await pause(50);
   }
-  if(!pages)throw Error('Chrome DevTools endpoint did not become ready: '+(lastFetchError?.message||'no response')+'; stderr: '+launchError);
+  if(!pages)throw Error('Chrome DevTools endpoint did not become ready: '+(lastFetchError?.message||'no response')+'; exit='+browser.exitCode+'; stderr: '+launchError);
+  console.log('Chrome DevTools endpoint ready');
   const page=pages.find(x=>x.type==='page');if(!page)throw Error('Chrome page unavailable; stderr: '+launchError);
   socket=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{socket.onopen=resolve;socket.onerror=reject;});
   let id=0;const pending=new Map();
