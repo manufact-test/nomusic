@@ -9,8 +9,12 @@
  */
 const ALLOWED_STATUS = new Set(["playing", "paused"]);
 const CURRENT_STATUS = new Set(["playing", "paused", "stopped"]);
-const MODULE_ID = 7123;
-const MODULE_EXPORT = "VE";
+// Official signed Yandex 5.128.0: the live SonataProvider is module 7695.
+ // 7123.VE is retained only for previously reviewed legacy builds.
+const PLAYER_MODULES = [
+  {id: 7695, name: "SonataProvider"},
+  {id: 7123, name: "VE"}
+];
 const KNOWN_RELOAD_REASON = "QUALITY_CHANGE";
 const EXACT_ID = /^[1-9][0-9]{0,23}$/;
 
@@ -42,42 +46,52 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
     if (disposed) return false;
     if (prototype) return true;
     if (typeof webpackRequire !== "function" ||
-        typeof webpackRequire.m !== "object" ||
-        typeof webpackRequire.m[MODULE_ID] !== "function") return false;
-    let klass;
-    try { klass = webpackRequire(MODULE_ID)?.[MODULE_EXPORT]; }
-    catch { return false; }
-    if (typeof klass !== "function" || !klass.prototype ||
-        typeof klass.prototype.reloadEntity !== "function") return false;
-    const proto = klass.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, "state");
-    if (!descriptor?.configurable || typeof descriptor.get !== "function" ||
-        descriptor.set !== undefined) return false;
-
-    const observedGet = function() {
-      const state = descriptor.get.call(this);
-      if (!disposed) {
-        // The vendor getter must keep its exact return/throw behavior even if
-        // an exotic entity's metadata accessor rejects our observer.
-        try {
-          if (currentEntity(state)) {
-            current = new WeakRef(this);
-            try { onPlayerObserved(this); } catch {}
-          }
-        } catch {}
+        typeof webpackRequire.m !== "object") return false;
+    for (const candidate of PLAYER_MODULES) {
+      if (typeof webpackRequire.m[candidate.id] !== "function") continue;
+      let klass;
+      try { klass = webpackRequire(candidate.id)?.[candidate.name]; }
+      catch { continue; }
+      if (typeof klass !== "function" || !klass.prototype ||
+          typeof klass.prototype.reloadEntity !== "function") continue;
+      // The state getter may be inherited. Patch its real owner while the
+      // current instance is observed with the original this-binding intact.
+      let stateOwner = klass.prototype, descriptor = null;
+      while (stateOwner && stateOwner !== Object.prototype) {
+        descriptor = Object.getOwnPropertyDescriptor(stateOwner, "state");
+        if (descriptor) break;
+        stateOwner = Object.getPrototypeOf(stateOwner);
       }
-      return state;
-    };
-    try {
-      Object.defineProperty(proto, "state", { ...descriptor, get: observedGet });
-    } catch { return false; }
-    prototype = proto;
-    original = descriptor;
-    patchedGetter = observedGet;
-    note("NATIVE_TOGGLE_PLAYER_OBSERVER_READY");
-    return true;
-  }
+      if (!stateOwner || !descriptor?.configurable ||
+          typeof descriptor.get !== "function" || descriptor.set !== undefined)
+        continue;
 
+      const observedGet = function() {
+        const state = descriptor.get.call(this);
+        if (!disposed) {
+          // The vendor getter must keep its exact return/throw behavior even if
+          // an exotic entity's metadata accessor rejects our observer.
+          try {
+            if (currentEntity(state)) {
+              current = new WeakRef(this);
+              try { onPlayerObserved(this); } catch {}
+            }
+          } catch {}
+        }
+        return state;
+      };
+      try {
+        Object.defineProperty(stateOwner, "state", { ...descriptor, get: observedGet });
+      } catch { continue; }
+      prototype = stateOwner;
+      original = descriptor;
+      patchedGetter = observedGet;
+      note(candidate.id === 7695 ? "NATIVE_TOGGLE_PLAYER_OBSERVER_READY" :
+        "NATIVE_TOGGLE_PLAYER_OBSERVER_LEGACY_READY");
+      return true;
+    }
+    return false;
+  }
   function resourcePrototype() {
     if (disposed || !prototype) return null;
     // W183: the exported state-observer class may be a base class. The live
