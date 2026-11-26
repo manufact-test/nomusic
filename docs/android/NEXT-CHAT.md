@@ -1,3 +1,17 @@
+# CURRENT HANDOFF — 27.11.2026 (BETA22 delivered via verified FlokiNET; awaiting Honor 50 audio check)
+
+**Latest owner build:** CELIKOM Android A1 BETA22 source commit `a535cbf3de21faaff7aa32ea6fb3c75a93459b70` on `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Owner APK `CELIKOM-A1-RAMIL-AU-BETA22-HONOR50-20261127.apk`, size **71593964 bytes**, SHA-256 `836be0f0ed2006455cd6c4e20f3f0a2a45a82455626d1eb530e250c25eeca7de`. Native ARM13 owner-export run `45899350738` attempt 1 **SUCCESS** (both source jobs); JVM regression run `45899350649` and separate clone differential run `45899350523` **SUCCESS**. Unpublished owner draft release **459934139**. Main manual data-only request points to exact run/attempt/release. Trusted-main Floki spool run **45901657011 SUCCESS** on `celikom-floki-ci01`; original owner signer/package, APK hash/size, independent root receipt, HTTPS and unpublished draft readback were verified. Final capability download URL was sent **only in owner chat**, never put it in docs, public commits or logs.
+
+**What changed:** Runtime read-only NAV47 identity check correlates the exact active MediaPeriod `Lup1` wrapper adapter array with the *same Java SampleStream instance* handed to Renderer, probes adapter child `LR29` and enforces the same callback's original period/current slot/STARTED/non-EOS/source conditions before marking `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH`. Previously only independent per-layer events were available. Original publisher audio or PCM is not modified by NAV47; it is **NOT an acoustic fix**. Earlier BETA21 alternate MP3 open/read were confirmed, not audible replacement. `acoustic_replacement_proven=false` remains.
+
+**Owner next action:** Install BETA22 over BETA21 without clearing data on Honor 50, play Ramil/10AGE «Ау» original track `144530503`, album `38902809`, listen 00:43–00:54, export TXT privately. Check marker `A1_TRACKID_BETA22_EXACT_PERIOD_RENDERER_STREAM_IDENTITY_20261127` and `PERIOD_STREAM_ADAPTER`, `PERIOD_ADAPTER_RENDERER_STREAM_MATCH/DIFFERENT/UNAVAILABLE`, `PERIOD_ADAPTER_CHILD_STREAM_PRESENT/MISSING`, `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH`, `AUDIO_OPEN/READ`, actual renderer and codec state. Do not equate any source-read/codec/JVM indicator with audible playback. If BETA22 still fails acoustic, investigate the exact open caller ownership to live period/renderer and actual decoding, not new global counters.
+
+**Delivery recovery:** Initial main spool run `45900744210` was stuck in-progress with no job steps on `celikom-floki-ci02`; ordinary and forced cancellation requested through a narrow temporary main workflow, followed by isolated recovery group on healthy `celikom-floki-ci01`. The latter completed `45901657011` SUCCESS. **Temporary cancellation workflow deleted and original trusted-main spool concurrency group restored**; no lasting infra bypass. Verify no recurring CI02 runner issue before next build delivery; do not broaden runner host privileges.
+
+**Unchanged:** stable Android `0.3.92`, staged Android, Windows, server/API, root consumer, signer, original signed Yandex APK, OTA. Legacy direct SSH download workflow remains disabled. No private diagnostic TXT, signed audio bytes, secret links or tokens in public Git.
+
+---
+
 # CURRENT HANDOFF — 26.11.2026 (BETA21 delivered; awaiting Honor 50 acoustic verification)
 
 **Сейчас:** владелец получил BETA21 через FlokiNET. Ждём новый TXT и подтверждение звучания на реальном Honor 50. НЕ утверждать, что подмена заработала, на основании APK/CI/Exo read.
