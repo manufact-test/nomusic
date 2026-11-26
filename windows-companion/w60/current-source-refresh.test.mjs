@@ -234,3 +234,31 @@ test("W141 stopped current entity is explicit but cannot trigger a reload",async
   assert.deepEqual(p.calls,[]);
   r.dispose();
 });
+
+
+test("W186 discovers getMediaSource on the exact live player's mediaProvider owner",()=>{
+  const h=harness(),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const providerProto={
+    async getMediaSource(params){return {downloadInfo:{trackId:params.entity.id}};}
+  };
+  const player=new h.NativeYandexPlayback();
+  player.mediaProvider=Object.create(providerProto);
+  void player.state;
+  assert.strictEqual(r.mediaSourceOwner(),providerProto,
+    "must follow the live instance's injected mediaProvider, not a webpack export guess");
+  r.dispose();
+  assert.equal(r.mediaSourceOwner(),null);
+});
+
+test("W186 mediaProvider discovery never invokes vendor accessors",()=>{
+  const h=harness(),r=createCurrentSourceRefresh();
+  assert.equal(r.attach(h.webpackRequire),true);
+  const player=new h.NativeYandexPlayback();
+  Object.defineProperty(player,"mediaProvider",{
+    configurable:true,get(){throw new Error("must not invoke vendor getter");}
+  });
+  void player.state;
+  assert.equal(r.mediaSourceOwner(),null);
+  r.dispose();
+});
