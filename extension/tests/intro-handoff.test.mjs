@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../dist/unpacked/player/main-world-entry.js',import.meta.url),'utf8');
 function fixture(){
- let time=10000,seq=0,sink,plays=0;const timers=new Map(),listeners=new Map(),posts=[];
+ let time=10000,seq=0,sink,plays=0;const timers=new Map(),listeners=new Map(),posts=[],documentListeners=new Map();let watchdog;
  const media={src:'https://stream.example/one',paused:true,muted:false};
  const snapshot={track:{id:'2',confidence:240,ambiguous:false,metadata:{durationMs:200000}},player:{mediaId:'m',paused:true,seeking:false,ended:false,readyState:4,currentTime:.1,duration:200}};
  const adapter={mounted:false,service:'yandex',mount(s){sink=s;this.mounted=true},unmount(){this.mounted=false},getSnapshot(reason){return structuredClone({...snapshot,reason,triggerMediaId:'m'})},getMediaElement(){return media}};
@@ -16,10 +16,11 @@ function fixture(){
   release(){if(this.current)this.current.element.muted=false;this.current=null;return {released:true};}
  }
  class Clock extends Date{static now(){return time}}
- const ctx=vm.createContext({Date:Clock,console,document:{querySelectorAll:()=>[],addEventListener(){},removeEventListener(){}},
+ const document={hidden:false,querySelectorAll:()=>[],addEventListener:(name,fn)=>documentListeners.set(name,fn),removeEventListener:name=>documentListeners.delete(name)};
+ const ctx=vm.createContext({Date:Clock,console,document,
   __CELIKOM_PLAYER_CORE_V1__:{CHANNEL:'test',PROTOCOL_VERSION:1,VERSION:'test'},
   __CELIKOM_YANDEX_ADAPTER_V1__:{createAdapter:()=>adapter},__CELIKOM_ORIGINAL_GUARD_V1__:{OriginalAudioGuard:Guard},
-  setTimeout:(fn,ms)=>{const id=++seq;timers.set(id,{at:time+ms,fn});return id},clearTimeout:id=>timers.delete(id),setInterval:()=>++seq,clearInterval(){},
+  setTimeout:(fn,ms)=>{const id=++seq;timers.set(id,{at:time+ms,fn});return id},clearTimeout:id=>timers.delete(id),setInterval:fn=>{watchdog=fn;return ++seq},clearInterval(){},
   addEventListener:(type,fn)=>listeners.set(type,fn),removeEventListener:type=>listeners.delete(type),postMessage:m=>posts.push(m)});
  vm.runInContext(source,ctx);const root=vm.runInContext('globalThis',ctx);
  const send=(type,payload={})=>listeners.get('message')({source:root,data:{channel:'test',protocolVersion:1,direction:'to-main',sessionId:'test-session',type,payload,requestId:'request'}});
@@ -27,7 +28,7 @@ function fixture(){
  const hold=()=>{sink.onSnapshot(adapter.getSnapshot('before-method:play'));return sink.holdIntroPlay(media,()=>{plays++;media.paused=false;snapshot.player.paused=false;return Promise.resolve()})};
  const tick=ms=>{const end=time+ms;for(;;){const next=[...timers].filter(([,t])=>t.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!next)break;time=next[1].at;timers.delete(next[0]);next[1].fn()}time=end};
  const request=(preparing=false)=>send('REQUEST',{type:'GUARD_ENGAGE',payload:{token:'test-session:1',trackId:'2',mediaId:'m',preparing}});
- return {media,snapshot,hold,tick,request,send,posts,get plays(){return plays},get sink(){return sink}};
+ return {document,visibility:()=>documentListeners.get("visibilitychange")?.(),watchdog:()=>watchdog(),media,snapshot,hold,tick,request,send,posts,get plays(){return plays},get sink(){return sink}};
 }
 test('guarded decoder readiness resumes native intro within the unchanged 400ms deadline',async()=>{
  const f=fixture(),pending=f.hold();assert(pending);assert.equal(f.media.muted,true);
@@ -58,3 +59,26 @@ test('negative or bypass policy never admits an intro hold; mid-song play is nev
  const f=fixture();f.snapshot.player.currentTime=40;assert.equal(f.hold(),null);
 });
 
+
+test('mid-song resume without a prepared replacement never mutes native audio for an intro admission',()=>{
+ const f=fixture();f.snapshot.player.currentTime=2.437;
+ assert.equal(f.hold(),null);assert.equal(f.media.muted,false);
+});
+
+
+test('MAIN keeps its hidden lease while a returning visible tab verifies the worker, but repeated visible notifications cannot extend it',async()=>{
+ const f=fixture(),pending=f.hold();f.request();await pending;
+ f.document.hidden=true;f.visibility();f.tick(60000);f.watchdog();assert.equal(f.media.muted,true);
+ f.document.hidden=false;f.visibility();f.watchdog();assert.equal(f.media.muted,true,'do not retroactively apply 12s visible timeout to a hidden interval');
+ f.tick(11000);f.visibility();f.tick(1001);f.watchdog();assert.equal(f.media.muted,false,'no verified reply: bounded foreground grace must expire');
+});
+test('MAIN visibility grace cannot exceed the existing hidden heartbeat deadline',async()=>{
+ const f=fixture(),pending=f.hold();f.request();await pending;
+ f.document.hidden=true;f.visibility();f.tick(119000);f.document.hidden=false;f.visibility();f.watchdog();assert.equal(f.media.muted,true);
+ f.tick(1001);f.watchdog();assert.equal(f.media.muted,false,'a return at the hidden deadline cannot grant another twelve seconds');
+});
+test('a fresh verified heartbeat after returning resumes the original short MAIN deadline',async()=>{
+ const f=fixture(),pending=f.hold();f.request();await pending;
+ f.document.hidden=true;f.visibility();f.tick(60000);f.document.hidden=false;f.visibility();f.send('HEARTBEAT');
+ f.tick(12001);f.watchdog();assert.equal(f.media.muted,false,'the dead extension still fails open after a fresh heartbeat expires');
+});

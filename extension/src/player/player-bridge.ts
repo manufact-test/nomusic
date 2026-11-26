@@ -32,6 +32,20 @@
       this.listeners = new Map();
       this.heartbeatTimer = null;
       this.onMessage = this.onMessage.bind(this);
+      this.wasHidden = Boolean(this.targetWindow.document?.hidden);
+      this.foregroundGraceUntil = 0;
+      this.onVisibilityChange = () => {
+        const hidden = Boolean(this.targetWindow.document?.hidden);
+        if (!hidden && this.wasHidden) {
+          // The elapsed interval belongs to the hidden tab. Give its verified
+          // worker reply one visible window, never beyond the existing hidden
+          // deadline; repeated visibility notifications cannot renew it.
+          this.foregroundGraceUntil = Math.min(Date.now() + this.heartbeatIntervalMs * 4,
+            this.lastSeenAt + 120000);
+          this.heartbeat();
+        }
+        this.wasHidden = hidden;
+      };
     }
 
     on(type, listener) {
@@ -73,6 +87,7 @@
       if (this.started) return this;
       this.started = true;
       this.targetWindow.addEventListener("message", this.onMessage);
+      this.targetWindow.document?.addEventListener("visibilitychange", this.onVisibilityChange);
       this.connect();
       this.heartbeatTimer = this.targetWindow.setInterval(() => this.heartbeat(), this.heartbeatIntervalMs);
       return this;
@@ -128,7 +143,9 @@
     }
 
     isHealthy(now = Date.now()) {
-      return this.ready && this.lastSeenAt > 0 && now - this.lastSeenAt <= this.heartbeatIntervalMs * 4;
+      const timeoutMs = this.targetWindow.document?.hidden ? 120000 : this.heartbeatIntervalMs * 4;
+      return this.ready && this.lastSeenAt > 0
+        && (now - this.lastSeenAt <= timeoutMs || now < this.foregroundGraceUntil);
     }
 
     request(type, payload = {}, timeoutMs = this.requestTimeoutMs) {
@@ -183,7 +200,7 @@
       }
 
       if (!this.acceptSequence(message)) return;
-      if (message.type === "READY" || message.type === "HEARTBEAT_ACK") this.ready = true;
+      if (message.type === "READY" || message.type === "HEARTBEAT_ACK") { this.ready = true; this.foregroundGraceUntil = 0; }
       if (message.type === "BRIDGE_TIMEOUT") {
         this.ready = false;
         this.lastSequence = 0;
@@ -199,6 +216,7 @@
       this.ready = false;
       this.started = false;
       this.targetWindow.removeEventListener("message", this.onMessage);
+      this.targetWindow.document?.removeEventListener("visibilitychange", this.onVisibilityChange);
       this.targetWindow.clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
       for (const pending of this.pending.values()) {

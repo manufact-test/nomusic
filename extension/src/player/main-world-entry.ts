@@ -26,6 +26,7 @@
   let handoff = null;
   let preparationTimer = null;
   let heldStart = null;
+  let wasHidden = Boolean(root.document?.hidden), foregroundGraceUntil = 0;
   let playbackPolicy = {revision:0,enabled:false};
   let lastAdmission = null, admissionSequence = 0;
   const transitionTrace = []; let tracePrevious = null;
@@ -123,6 +124,7 @@
     const player=snapshot.player,track=snapshot.track;
     if(snapshot.reason!=="before-method:play"||!playbackPolicy.enabled||pageCached||!controllerSession
       ||now()-lastHeartbeatAt>VISIBLE_TIMEOUT_MS||!player||snapshot.triggerMediaId!==player.mediaId||!player.paused||player.ended||player.readyState<2
+      ||player.currentTime>0.25
       ||!track?.id||track.ambiguous||track.confidence<100||!track.metadata?.durationMs
       ||!Number.isFinite(player.duration)||Math.abs(player.duration*1000-track.metadata.durationMs)>1500
       ||(playbackPolicy.testTrackId&&playbackPolicy.testTrackId!==track.id)
@@ -359,6 +361,7 @@
       // the installed Chrome service worker can renew an active audio lease.
       // Generic requests (including stale snapshots) must NOT keep it alive.
       lastHeartbeatAt = now();
+      foregroundGraceUntil = 0;
       post("HEARTBEAT_ACK", {
         bridgeVersion: core.VERSION,
         hidden: Boolean(root.document?.hidden)
@@ -398,13 +401,19 @@
     if (!controllerSession) return;
     const timeoutMs = root.document?.hidden ? HIDDEN_TIMEOUT_MS : VISIBLE_TIMEOUT_MS;
     const elapsedMs = now() - lastHeartbeatAt;
-    if (elapsedMs <= timeoutMs) return;
+    if (elapsedMs <= timeoutMs || now() < foregroundGraceUntil) return;
     post("BRIDGE_TIMEOUT", { elapsedMs, hidden: Boolean(root.document?.hidden) });
     detach("heartbeat-timeout");
   }
 
   function onVisibilityChange() {
-    if (root.document?.hidden) return;
+    const hidden = Boolean(root.document?.hidden);
+    if (hidden) { wasHidden = true; return; }
+    if (wasHidden) {
+      foregroundGraceUntil = Math.min(now() + VISIBLE_TIMEOUT_MS,
+        lastHeartbeatAt + HIDDEN_TIMEOUT_MS);
+      wasHidden = false;
+    }
     checkHeartbeat();
     announce();
   }

@@ -1,3 +1,5 @@
+> Extension update26 Nov: **0.4.86 owner candidate** fixes confirmed85 paused/background bridge teardown loops and inappropriate intro mute on mid-song resume.400 local tests + manifest/security pass; actual listening pending.85 stays rollback/test reference, no public promotion. Read `docs/handoff/CELIKOM-EXTENSION-086-BACKGROUND-PAUSE-20261126.md`. No server/Android/Windows changes.
+
 > Latest extension candidate: **0.4.85**, based on the recovered FINAL **0.4.78** (not 73). Starts the authorized selected-track resolve during native loading; guard/player/sync remain at 78. Restores omitted support/upload/My Wave features; retains Floki delivery/access fixes. Local 392 tests, manifest and security gate pass. Owner listening pending; no public promotion. See `docs/handoff/CELIKOM-EXTENSION-085-EARLY-RESOLVE-20261125.md`. 78 Floki control remains rollback. No Android/Windows/server changes.
 
 # 25 November2026 — owner baseline correction:0.4.78

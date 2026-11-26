@@ -170,3 +170,31 @@ test("unresponsive installed-worker verification does not send blind heartbeats"
   assert.equal(target.posts.filter(m => m.type === "HEARTBEAT").length, 0);
   bridge.destroy();
 });
+
+test('hidden bridge accepts minute-spaced verified heartbeats without reconnecting every other tick',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const target=new FakeWindow();target.document={hidden:true,addEventListener(){},removeEventListener(){}};
+ const bridge=new PlayerBridge(target,{sessionId:'background-minute',confirmAlive:async()=>true}).start();
+ target.dispatch(message(bridge,'READY',1));
+ for(let n=1;n<=8;n++){
+  t.mock.timers.tick(60000);assert.equal(bridge.isHealthy(),true,'browser timer batching is not a dead bridge');
+  bridge.heartbeat();for(let i=0;i<12;i++)await Promise.resolve();
+  assert.equal(target.posts.at(-1).type,'HEARTBEAT');target.dispatch(message(bridge,'HEARTBEAT_ACK',n+1));
+ }
+ assert.equal(target.posts.filter(m=>m.type==='INIT').length,1);bridge.destroy();
+});
+test('background grace is bounded and a visible bridge still uses the original short deadline',t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const target=new FakeWindow();target.document={hidden:true,addEventListener(){},removeEventListener(){}};
+ const bridge=new PlayerBridge(target).start();target.dispatch(message(bridge,'READY',1));
+ t.mock.timers.tick(120001);assert.equal(bridge.isHealthy(),false);bridge.destroy();
+ const visible=new PlayerBridge(new FakeWindow()).start();visible.targetWindow.dispatch(message(visible,'READY',1));
+ t.mock.timers.tick(4001);assert.equal(visible.isHealthy(),false);visible.destroy();
+});
+test('return from a throttled hidden tab requests verification before applying the visible deadline; repeated events do not renew it',async t=>{
+ t.mock.timers.enable({apis:['Date'],now:1000000});const target=new FakeWindow(),listeners=new Map();
+ target.document={hidden:true,addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
+ const bridge=new PlayerBridge(target,{confirmAlive:()=>new Promise(()=>{})}).start();target.dispatch(message(bridge,'READY',1));
+ t.mock.timers.tick(60000);target.document.hidden=false;listeners.get('visibilitychange')();
+ assert.equal(bridge.isHealthy(),true);t.mock.timers.tick(3000);listeners.get('visibilitychange')();
+ t.mock.timers.tick(1001);assert.equal(bridge.isHealthy(),false,'an unanswered verification cannot renew authority');
+ assert.equal(target.posts.filter(m=>m.type==='HEARTBEAT').length,0);bridge.destroy();assert.equal(listeners.size,0);
+});

@@ -490,7 +490,7 @@ test('first native play after page load is muted synchronously until the resolve
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
   vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(r=>globalThis.finishAsset=r)',isolated);
-  vm.runInContext("globalThis.original=new HTMLMediaElement();original.pause();globalThis.utility=new HTMLMediaElement();utility.src='data:audio/wav;base64,fixture';utility.duration=.015;utility.play()",main);
+  vm.runInContext("globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.pause();globalThis.utility=new HTMLMediaElement();utility.src='data:audio/wav;base64,fixture';utility.duration=.015;utility.play()",main);
   assert.equal(vm.runInContext('original.physicalMuted',main),false,'utility playback cannot admit a different paused original');
   vm.runInContext('original.play()',main);
   assert.equal(vm.runInContext('original.physicalMuted',main),true,'guard applies before native play returns, without a previous replacement');
@@ -509,7 +509,7 @@ test('first-play admission fails open on its deadline and does not remute on rep
  await createControllerBootstrap(f.api,{wait}).ensure(42);
  try{
   vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.resolveAsset=()=>new Promise(()=>{})',isolated);
-  vm.runInContext('globalThis.original=new HTMLMediaElement();original.play()',main);
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=.1;original.play()',main);
   assert.equal(vm.runInContext('original.physicalMuted',main),true);
   await new Promise(r=>setTimeout(r,1050));assert.equal(vm.runInContext('original.physicalMuted',main),false);
   vm.runInContext('original.pause();original.play()',main);assert.equal(vm.runInContext('original.physicalMuted',main),false);
@@ -643,5 +643,33 @@ test('packaged adapter and controller warm the selected descriptor during native
   vm.runInContext('finishWarm({found:false,retryAfterMs:15000})',isolated);await wait();
   assert.equal(f.elements.size,0);assert.equal(vm.runInContext('original.physicalMuted',main),false);
   assert.deepEqual(f.errors.map(e=>e.message),[]);
+ }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
+});
+
+test('eight minutes paused in a throttled background tab retain the same decoder and resume position',async()=>{
+ const f=browserFixture(),main=f.worlds.get('MAIN'),isolated=f.worlds.get('ISOLATED');const wait=()=>new Promise(r=>setTimeout(r,10));
+ await createControllerBootstrap(f.api,{wait}).ensure(42);
+ try{
+  f.changeStorage({testTrackId:{newValue:'1944599'}});
+  vm.runInContext('globalThis.original=new HTMLMediaElement();original.currentTime=2.437;original.play()',main);await wait();await wait();
+  vm.runInContext('original.pause()',main);await wait();
+  const player=[...f.elements][0];assert(player);const count=vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.activationCount',isolated);
+  const time=Date.now();for(const ctx of [main,isolated])vm.runInContext(`globalThis.testNow=${time};globalThis.Date=class extends Date{static now(){return testNow}}`,ctx);
+  f.document.hidden=true;f.dispatchDocument('visibilitychange');await wait();
+  for(let n=0;n<8;n++){
+   for(const ctx of [main,isolated])vm.runInContext('testNow+=60000',ctx);
+   for(const callback of [...f.timers.values()])callback();await wait();await wait();
+   assert.equal(f.elements.size,1);assert.equal([...f.elements][0],player,'minute-spaced callbacks must not rebuild the decoder');
+   assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.activationCount',isolated),count);
+   assert.equal(player.paused,true);
+  }
+  // Force MAIN watchdog to run before the returning worker's asynchronous reply.
+  for(const ctx of [main,isolated])vm.runInContext('testNow+=59000',ctx);
+  f.document.hidden=false;f.dispatchDocument('visibilitychange');for(const callback of [...f.timers.values()])callback();
+  await wait();await wait();vm.runInContext('original.play()',main);await wait();await wait();
+  assert.equal([...f.elements][0],player);assert.equal(player.paused,false);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.activationCount',isolated),count);
+  assert.equal(vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.engine.restoreCount',isolated),0);
+  assert.equal(vm.runInContext('original.currentTime',main),2.437);assert.deepEqual(f.errors.map(e=>e.message),[]);
  }finally{vm.runInContext('__CELIKOM_CONTENT_CONTROLLER_V2__.destroy()',isolated);vm.runInContext('__CELIKOM_MAIN_BRIDGE_V1__.destroy()',main);}
 });
