@@ -66,12 +66,28 @@ jobs:
           set -euo pipefail
           python3 -B android/native-yandex-hooklab/ci/native_period_activation_handoff_exact.py \
             --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk"
-      - name: Trace the exact hooked DataSource open to its signed Loadable owner
+      - name: Trace exact DataSource open to its signed Loadable owner (sanitized proof)
         shell: bash
         run: |
           set -euo pipefail
-          python3 -B android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
-            --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk"
+          report="$(python3 -B android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
+            --xapk "$RUNNER_TEMP/celikom-activation-period-input/yandex-music-2025-10-4-120-1gpr.xapk")"
+          printf '%s' "$report" | python3 -c '
+          import json, sys
+          d=json.load(sys.stdin)
+          rows=[r for r in d.get("exact_open_direct_callers", []) if r.get("method_matches_exact_loader_contract")]
+          owner=rows[0].get("method", [None])[0] if len(rows)==1 else None
+          lo96_sites=[x for x in d.get("candidate_constructor_callsites", [])
+                      if owner is not None and x.get("constructed_owner")==owner
+                      and x.get("caller_is_exact_Lo96_method")]
+          print("A1_EXACT_LOADABLE_OWNER_COUNT="+str(len(rows)))
+          print("A1_LOADABLE_HAS_EXACT_LO96_REFERENCE="+str(bool(d.get("loadable_owner_has_exact_Lo96_reference_proven"))).upper())
+          print("A1_LOADABLE_CONSTRUCTED_INSIDE_EXACT_LO96="+str(bool(d.get("loadable_owner_constructed_inside_exact_Lo96_method"))).upper())
+          print("A1_EXACT_LO96_LOADABLE_CONSTRUCTOR_SITE_COUNT="+str(len(lo96_sites)))
+          print("A1_ACTIVE_PERIOD_SAMPLE_STREAM_RENDERER_LINK_STATIC="+str(bool(d.get("active_period_sample_stream_renderer_link_proven"))).upper())
+          if d.get("verdict") != "ONE_EXACT_LOADABLE_OPENS_HOOKED_EXO_DATASOURCE":
+              raise SystemExit("A1_EXACT_LOADABLE_OWNER_NOT_UNIQUE")
+          ' 
       - name: Delete the original research input and guard untouched products
         if: always()
         shell: bash
