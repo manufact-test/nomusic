@@ -11,3 +11,5 @@ BETA22 диагностика подтвердила подписанный од
 4. Экспортировать TXT и отправить только приватно в чат.
 
 В диагностике: DIAGNOSTIC_BETA_BUILD, ISSUER_CODEC_MP3_REQUESTED, CODEC_CONFIG_MPEG / AAC, AUDIO_OPEN/READ, ENGINE_HOLDER_TYPE1_STATE2 и READ_RETURN_MINUS4. Даже если MP3 запрошен, не считать подмену доказанной без звука. Stable Android/Windows/API/подписанный Yandex и OTA не затронуты.
+
+Проверка MP3-выбора: новая метка ISSUER_CODEC_MP3_REQUESTED доказывает только изменение аргумента настоящего оригинального FileInfoApi. Она не доказывает, что Яндекс реально вернул MP3 или альтернативный звук попал в декодер. Если метка ONE/FEW, но CODEC_CONFIG_MPEG=NONE, сперва исследовать, какой формат исходный API вернул для этого трека, и не повторять старую подмену DataSource вслепую.
