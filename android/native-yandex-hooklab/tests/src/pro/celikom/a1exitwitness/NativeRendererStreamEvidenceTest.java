@@ -725,8 +725,15 @@ public final class NativeRendererStreamEvidenceTest {
         FakeSource source;
         FakePeriod(FakeSource source) {this.source=source;}
     }
+    private interface FakeSampleStream {}
+    private static final class FakeChildStream implements FakeSampleStream {}
+    private static final class FakeStreamAdapter implements FakeSampleStream {
+        FakeSampleStream child;
+        FakeStreamAdapter(FakeSampleStream child){this.child=child;}
+    }
     private static final class FakeNested {
         Object period;
+        FakeStreamAdapter[] adapters=new FakeStreamAdapter[0];
         FakeNested(FakePeriod period) {this.period=period;}
     }
     private static final class FakeHolderSource {
@@ -1743,6 +1750,96 @@ public final class NativeRendererStreamEvidenceTest {
         try{e.onAttach(renderer,stream);}
         finally{e.exitSecondaryCaller(c);e.exitEngine(f);}
     }
+    private static void nav47Setup(NativeRendererStreamEvidence e) {
+        nav41Setup(e);
+        try {
+            e.setExactActivePeriodFields(
+                Nav41Holder.class.getDeclaredField("nested"),
+                FakeNested.class.getDeclaredField("period"),
+                FakePeriod.class.getDeclaredField("source"),
+                FakeNested.class,FakePeriod.class,FakeSource.class);
+            e.setExactActivePeriodStreamFields(
+                FakeNested.class.getDeclaredField("adapters"),
+                FakeStreamAdapter.class.getDeclaredField("child"),
+                FakeNested.class,FakeStreamAdapter.class,FakeSampleStream.class);
+            e.onHookRegistration("LIVE_PERIOD_ORIGINAL_SOURCE",true);
+            e.onHookRegistration("PERIOD_STREAM_ADAPTER",true);
+            e.onHookRegistration("TRACK_PLAYER_SOURCE_SCOPE",true);
+            e.onHookRegistration("NATIVE_PLAYER_SOURCE_SETTER",true);
+        } catch(ReflectiveOperationException ex) {throw new AssertionError(ex);}
+    }
+
+    private static void testNav47ExactAdapterAndCurrentSourceSameStartedRead() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav47Setup(e);
+        Object uid=new Object(),renderer=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        FakeStreamAdapter adapter=new FakeStreamAdapter(new FakeChildStream());
+        Nav41Id id=new Nav41Id(uid,-1,5);
+        Nav41Holder holder=new Nav41Holder(id,adapter);
+        holder.nested=new FakeNested(new FakePeriod(source));
+        ((FakeNested)holder.nested).adapters=new FakeStreamAdapter[]{adapter};
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);} finally {e.exitTrackPlayerSource(player);}
+        nav41Attach(e,engine,holder,renderer,adapter);
+        e.onRendererTypeStateRead(renderer,adapter,1,1,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_RENDERER_STREAM_MATCH;error=ONE"),
+              "NAV47_EXACT_ADAPTER_REFERENCE_MATCH_WHILE_ENABLED");
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_CHILD_STREAM_PRESENT;error=ONE"),
+              "NAV47_EXACT_CHILD_STREAM_REFERENCE_PRESENT");
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=NONE"),
+              "NAV47_ENABLED_IS_NOT_STARTED");
+        e.onRendererTypeStateRead(renderer,adapter,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=ONE"),
+              "NAV47_SAME_CALLBACK_STARTED_NON_EOS_LIVE_SLOT_SOURCE_MATCH");
+    }
+
+    private static void testNav47DifferentRendererStreamCannotMatchPeriodAdapter() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav47Setup(e);
+        Object uid=new Object(),renderer=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        FakeStreamAdapter adapter=new FakeStreamAdapter(new FakeChildStream());
+        Object differentStream=new Object();
+        Nav41Id id=new Nav41Id(uid,-1,6);
+        Nav41Holder holder=new Nav41Holder(id,differentStream);
+        holder.nested=new FakeNested(new FakePeriod(source));
+        ((FakeNested)holder.nested).adapters=new FakeStreamAdapter[]{adapter};
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);} finally {e.exitTrackPlayerSource(player);}
+        nav41Attach(e,engine,holder,renderer,differentStream);
+        e.onRendererTypeStateRead(renderer,differentStream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_RENDERER_STREAM_DIFFERENT;error=ONE"),
+              "NAV47_DIFFERENT_STREAM_REJECTED");
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=NONE"),
+              "NAV47_DIFFERENT_STREAM_CANNOT_PROMOTE");
+    }
+
+    private static void testNav47AdapterWithoutChildCannotPromote() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav47Setup(e);
+        Object uid=new Object(),renderer=new Object(),wrapper=new Object();
+        FakeSource source=new FakeSource();
+        FakeStreamAdapter adapter=new FakeStreamAdapter(null);
+        Nav41Id id=new Nav41Id(uid,-1,7);
+        Nav41Holder holder=new Nav41Holder(id,adapter);
+        holder.nested=new FakeNested(new FakePeriod(source));
+        ((FakeNested)holder.nested).adapters=new FakeStreamAdapter[]{adapter};
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);} finally {e.exitTrackPlayerSource(player);}
+        nav41Attach(e,engine,holder,renderer,adapter);
+        e.onRendererTypeStateRead(renderer,adapter,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_RENDERER_STREAM_MATCH;error=ONE"),
+              "NAV47_ADAPTER_REFERENCE_SEEN");
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_CHILD_STREAM_MISSING;error=ONE"),
+              "NAV47_MISSING_CHILD_EXPLICIT");
+        check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=NONE"),
+              "NAV47_MISSING_CHILD_CANNOT_PROMOTE");
+    }
+
     private static void testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         nav41Setup(e);
@@ -3101,6 +3198,9 @@ public final class NativeRendererStreamEvidenceTest {
         testNav38CreatorTrackLaterFlowExactIdentity();
         testNav40ExactLaterFlowUnderLiveOriginalSource();
         testNav36ConstructorWitnessCannotCrossWrongSource();
+        testNav47ExactAdapterAndCurrentSourceSameStartedRead();
+        testNav47DifferentRendererStreamCannotMatchPeriodAdapter();
+        testNav47AdapterWithoutChildCannotPromote();
         testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod();
         testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition();
         testNav41NoFieldsOrNoActiveSlotCannotProduceMatch();

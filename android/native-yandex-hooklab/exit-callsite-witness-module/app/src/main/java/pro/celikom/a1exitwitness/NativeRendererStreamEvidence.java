@@ -172,7 +172,12 @@ final class NativeRendererStreamEvidence {
     private final ThreadLocal<TrackPlayerScope> inPlayerTrack=new ThreadLocal<>();
     private final ArrayList<PlayerSourceLink> playerSources=new ArrayList<>();
     private Field holderWrapperField,wrapperPeriodField,periodSourceField;
-    private Class<?> exactWrapperClass,exactPeriodClass;
+    private Field wrapperAdaptersField,adapterChildStreamField;
+    private Class<?> exactWrapperClass,exactPeriodClass,exactAdapterClass,sampleStreamClass;
+    private int periodStreamAdapterHook;
+    private int periodAdapterRendererStreamMatch,periodAdapterRendererStreamDifferent;
+    private int periodAdapterRendererStreamUnavailable,periodAdapterChildStreamPresent;
+    private int periodAdapterChildStreamMissing,periodAdapterStartedNonEosSourceMatch;
     private int originalPeriodPrepareHook;
     interface OriginalPeriodBeforePrepareObserver {
         void beforeOriginalPeriodPrepare(long generation,Object originalTrack,
@@ -1183,6 +1188,27 @@ final class NativeRendererStreamEvidence {
         exactPeriodClass=periodClass;
     }
 
+    synchronized void setExactActivePeriodStreamFields(Field wrapperAdapters,
+            Field adapterChildStream,Class<?> wrapperClass,Class<?> adapterClass,
+            Class<?> streamClass) {
+        if(wrapperAdapters==null || adapterChildStream==null || wrapperClass==null
+                || adapterClass==null || streamClass==null
+                || wrapperClass!=exactWrapperClass
+                || wrapperAdapters.getDeclaringClass()!=wrapperClass
+                || !wrapperAdapters.getType().isArray()
+                || wrapperAdapters.getType().getComponentType()!=adapterClass
+                || adapterChildStream.getDeclaringClass()!=adapterClass
+                || adapterChildStream.getType()!=streamClass
+                || !streamClass.isAssignableFrom(adapterClass))
+            throw new IllegalArgumentException("Publisher-exact stream adapter fields required");
+        wrapperAdapters.setAccessible(true);
+        adapterChildStream.setAccessible(true);
+        wrapperAdaptersField=wrapperAdapters;
+        adapterChildStreamField=adapterChildStream;
+        exactAdapterClass=adapterClass;
+        sampleStreamClass=streamClass;
+    }
+
     synchronized void setPublisherMediaPeriodInterface(Class<?> periodInterface) {
         if(periodInterface==null || !periodInterface.isInterface())
             throw new IllegalArgumentException("Publisher MediaPeriod interface required");
@@ -1287,6 +1313,59 @@ final class NativeRendererStreamEvidence {
             else if(nested==null)priorSelectedExactCleared=inc(priorSelectedExactCleared);
             // Different non-null wrapper is a new generation: no promotion.
             break;
+        }
+    }
+
+    // NAV47: compare the exact renderer stream reference with the adapter array
+    // retained by this exact live holder's Lup1 wrapper. Read only object
+    // references; no sample bytes, metadata, IDs or decoder buffers are touched.
+    private boolean observeRendererStreamAdapter(Object currentHolder,Object rendererStream) {
+        if(periodStreamAdapterHook<=0)return false;
+        if(currentHolder==null || rendererStream==null || holderWrapperField==null
+                || wrapperAdaptersField==null || adapterChildStreamField==null
+                || exactWrapperClass==null || exactAdapterClass==null
+                || sampleStreamClass==null) {
+            periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+            return false;
+        }
+        try {
+            Object wrapper=holderWrapperField.get(currentHolder);
+            if(wrapper==null || !exactWrapperClass.isInstance(wrapper)) {
+                periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+                return false;
+            }
+            Object raw=wrapperAdaptersField.get(wrapper);
+            if(raw==null || !raw.getClass().isArray()
+                    || raw.getClass().getComponentType()!=exactAdapterClass) {
+                periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+                return false;
+            }
+            int n=Array.getLength(raw);
+            if(n>32) {
+                periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+                return false;
+            }
+            int hits=0;
+            for(int i=0;i<n;i++)if(Array.get(raw,i)==rendererStream)hits++;
+            if(hits==0) {
+                periodAdapterRendererStreamDifferent=inc(periodAdapterRendererStreamDifferent);
+                return false;
+            }
+            if(hits!=1) {
+                periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+                return false;
+            }
+            periodAdapterRendererStreamMatch=inc(periodAdapterRendererStreamMatch);
+            Object child=adapterChildStreamField.get(rendererStream);
+            if(child==null || !sampleStreamClass.isInstance(child)) {
+                periodAdapterChildStreamMissing=inc(periodAdapterChildStreamMissing);
+                return false;
+            }
+            periodAdapterChildStreamPresent=inc(periodAdapterChildStreamPresent);
+            return true;
+        } catch(Throwable ignored) {
+            periodAdapterRendererStreamUnavailable=inc(periodAdapterRendererStreamUnavailable);
+            return false;
         }
     }
 
@@ -1549,6 +1628,7 @@ final class NativeRendererStreamEvidence {
             case "TRACK_PLAYER_SOURCE_SCOPE": trackPlayerScopeHook=status; break;
             case "NATIVE_PLAYER_SOURCE_SETTER": nativeSourceSetterHook=status; break;
             case "LIVE_PERIOD_ORIGINAL_SOURCE": livePeriodSourceHook=status; break;
+            case "PERIOD_STREAM_ADAPTER": periodStreamAdapterHook=status; break;
             case "ORIGINAL_PERIOD_PREPARE": originalPeriodPrepareHook=status; break;
             case "HOLDER_SELECT_PHASE": holderSelectHook=status; break;
             case "NATIVE_PERIOD_ADAPTER": periodAdapterHook=status; break;
@@ -1909,6 +1989,11 @@ final class NativeRendererStreamEvidence {
             return;
         }
         engineRendererType1=inc(engineRendererType1);
+        // This is a reference-only check, deliberately recorded even while
+        // STATE_ENABLED. It is not promoted to active playback unless the
+        // same callback also proves STARTED + non-EOS + live SLOT_B + source.
+        boolean periodAdapterStreamMatch=
+            observeRendererStreamAdapter(matchedHolder,stream);
         if(state!=2) {
             engineType1StateOther=inc(engineType1StateOther);
             return;
@@ -1936,6 +2021,18 @@ final class NativeRendererStreamEvidence {
                 // Only independently proven exact holder + live SLOT_B.
                 ExactOriginalSourceRead exactLateSource=
                     observeActivePeriodSource(live.holder.get());
+                // NAV47 full same-callback identity: renderer's exact stream
+                // is the adapter retained by this holder's active MediaPeriod,
+                // its child stream exists, and the same period source resolves
+                // to the current player source while the live slot is unchanged.
+                if(periodAdapterStreamMatch && originalResult==-4
+                        && Boolean.FALSE.equals(endOfStream)
+                        && livePeriodSourceMatched>beforeSourceSame
+                        && originalPeriodIdStillCurrent(live.engine.get(),live.holder.get())
+                        && liveQueueSlotMatches(live.engine.get(),live.holder.get())==1) {
+                    periodAdapterStartedNonEosSourceMatch=
+                        inc(periodAdapterStartedNonEosSourceMatch);
+                }
                 // NAV43 narrow admission *witness*, NOT audio replacement:
                 // source+late Flow and PlaybackInfo PeriodID must BOTH have
                 // advanced on this exact original -4 renderer callback.
@@ -2071,6 +2168,7 @@ final class NativeRendererStreamEvidence {
             registrationLine("TRACK_PLAYER_SOURCE_SCOPE",trackPlayerScopeHook),
             registrationLine("NATIVE_PLAYER_SOURCE_SETTER",nativeSourceSetterHook),
             registrationLine("LIVE_PERIOD_ORIGINAL_SOURCE",livePeriodSourceHook),
+            registrationLine("PERIOD_STREAM_ADAPTER",periodStreamAdapterHook),
             registrationLine("HOLDER_SELECT_PHASE",holderSelectHook),
             registrationLine("NATIVE_PERIOD_ADAPTER",periodAdapterHook),
             registrationLine("NATIVE_PERIOD_FACTORY",periodFactoryHook),
@@ -2205,6 +2303,12 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_CONFLICT",scopedAlbumConflict),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_OTHER",livePeriodSourceDifferent),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_NO_LINK",livePeriodSourceNoLink),
+            line("PERIOD_ADAPTER_RENDERER_STREAM_MATCH",periodAdapterRendererStreamMatch),
+            line("PERIOD_ADAPTER_RENDERER_STREAM_DIFFERENT",periodAdapterRendererStreamDifferent),
+            line("PERIOD_ADAPTER_RENDERER_STREAM_UNAVAILABLE",periodAdapterRendererStreamUnavailable),
+            line("PERIOD_ADAPTER_CHILD_STREAM_PRESENT",periodAdapterChildStreamPresent),
+            line("PERIOD_ADAPTER_CHILD_STREAM_MISSING",periodAdapterChildStreamMissing),
+            line("PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH",periodAdapterStartedNonEosSourceMatch),
             line("ENGINE_HOLDER_READ_RETURN_MINUS4",engineReadMinus4),
             line("ENGINE_HOLDER_READ_RETURN_MINUS5",engineReadMinus5),
             line("ENGINE_HOLDER_READ_RETURN_MINUS3",engineReadMinus3),

@@ -269,6 +269,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private boolean nav29NativeSourceSetterHooked;
     private boolean a1OriginalPeriodPrepareHookAttempted;
     private boolean nav29PeriodFieldsReady;
+    private boolean nav47PeriodStreamAdapterFieldsReady;
     private boolean nav30PeriodAdapterHooked;
     private boolean nav30PeriodFactoryHooked;
     private boolean nav31HolderSelectHooked;
@@ -2819,6 +2820,33 @@ public final class ExitCallsiteWitness extends XposedModule {
                 NATIVE_RENDERER_EVIDENCE.onHookRegistration(
                     "LIVE_PERIOD_ORIGINAL_SOURCE",false);
                 emit("AUDIO_NATIVE_RENDERER_HOOK","LIVE_PERIOD_ORIGINAL_SOURCE","NO_HOOK");
+            }
+        }
+        // NAV47: the signed-original private target supplies the exact
+        // Lup1 adapter-array and Lup1$a child-stream field names. At runtime
+        // we compare Java references only; no bytes or metadata are read.
+        if (nav29PeriodFieldsReady && !nav47PeriodStreamAdapterFieldsReady) {
+            try {
+                Class<?> inner=Class.forName(
+                    "pro.celikom.a1exitwitness.PrivateNativeActivePeriodTarget",
+                    false,ExitCallsiteWitness.class.getClassLoader());
+                Class<?> periodWrapper=Class.forName("up1",false,loader);
+                Class<?> adapter=Class.forName("up1$a",false,loader);
+                Class<?> sampleStream=Class.forName("R29",false,loader);
+                Field fourth=inner.getDeclaredField("WRAPPER_ADAPTERS_FIELD_NAME");
+                Field fifth=inner.getDeclaredField("ADAPTER_CHILD_STREAM_FIELD_NAME");
+                fourth.setAccessible(true);
+                fifth.setAccessible(true);
+                Field adapters=periodWrapper.getDeclaredField((String)fourth.get(null));
+                Field child=adapter.getDeclaredField((String)fifth.get(null));
+                NATIVE_RENDERER_EVIDENCE.setExactActivePeriodStreamFields(
+                    adapters,child,periodWrapper,adapter,sampleStream);
+                nav47PeriodStreamAdapterFieldsReady=true;
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("PERIOD_STREAM_ADAPTER",true);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","PERIOD_STREAM_ADAPTER","REGISTERED");
+            } catch(Throwable ignored) {
+                NATIVE_RENDERER_EVIDENCE.onHookRegistration("PERIOD_STREAM_ADAPTER",false);
+                emit("AUDIO_NATIVE_RENDERER_HOOK","PERIOD_STREAM_ADAPTER","NO_HOOK");
             }
         }
         // NAV34: classify historical Track Flow->Album for the SAME tCa

@@ -30,6 +30,8 @@ on:
       - 'android/native-yandex-hooklab/tests/src/NativeGrantContractTest.java'
       - 'android/native-yandex-hooklab/ci/lca9_tca_birth_origin.py'
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
+      - 'android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
       - 'android/native-yandex-hooklab/ci/a1_private_exo_factory_shape.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_original_child_item_field_witness.py'
@@ -81,6 +83,16 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java \
             android/native-yandex-hooklab/tests/src/NativeExoFactoryProductWitnessTest.java
           java -cp "$d" pro.celikom.a1exitwitness.NativeExoFactoryProductWitnessTest
+      - name: Verify exact active MediaPeriod-to-Renderer stream adapter identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          javac --release 17 -d "$d" \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
+          java -cp "$d" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
 
   actual-2025-own-lspatch2-disposable-native-arm13:
     needs: jvm-issuer-proxy-contract
