@@ -32,3 +32,21 @@ Changed scope: extension controller, three regression tests, extension version m
 2. Owner-channel promotion requires the existing verified build/spool receipt and required decoder checks. `.github/release/extension-owner-promotions.json` remains unchanged/empty. No site ZIP or customer baseline was replaced.
 3. Once a verified owner ZIP is available, deliver through celikom.com under the existing private owner mechanism; never send an Actions URL. Verify the receipt and protected HTTPS download bytes/hash before giving the URL.
 4. Real listening remains required for fresh Start; reload and Play mid-song; fast skips; seek during loading and active playback; Stop during metadata refresh; pause/long pause/resume; VPN changes; displayed song matching actual audio. Passing 440 tests is not listening acceptance.
+
+## Verified private owner delivery — 26 November 2026
+
+This section supersedes the earlier pending-delivery status. The owner explicitly directed delivery of the test candidate despite the headless browser failure; customer publication remains unauthorized.
+
+- Playback source from PR #70 is merged at `ab12dd2ccf81ecd55dda34cf601e34053f056310`.
+- Build source: `e52f819d6c69dc7e96734f60e14a17a92394b84c`; run `45876465975`, attempt `1`.
+- All 440 extension tests, build/manifest, security, checksum and private spool checks passed before staging. Extension source is unchanged by the delivery changes.
+- Workflow stores the package in the existing PRIVATE spool after those checks and before the separate native browser gate. Native failures remain failures; no fake green result or decoder/product change was introduced.
+- Independent trusted-host spool/ZIP verification: administrative run `45876680481`, SUCCESS.
+- Exact package: `celikom-extension-0.4.91.zip`, 2,501,753 bytes, SHA-256 `018741154c8440e53f21a4f76465bf2be5e37f234897c61f21f46d777ed6c9cb`.
+- Owner-only approval recorded in `.github/release/extension-owner-promotions.json`; `public_stable` stays null.
+- Existing root-owned timer was confirmed active/enabled. Existing mirror-sync and owner publisher services were invoked; no service installation, authentication changes, or new public distribution route.
+- Final independent HTTPS verification: administrative run `45876874240`, job `140106069137`, SUCCESS. Both versioned and latest URLs return anonymous 401 and authorized 200 with exact size and SHA-256. Trusted `current-owner.json` matches the approved source/run/attempt/package.
+- Verified download: https://celikom.com/downloads/extension/celikom-extension-0.4.91.zip
+- Verified latest: https://celikom.com/downloads/extension/celikom-extension-latest.zip
+
+The old attempt `45869945370/1` failed before any job steps; retry 2 reached native playback and failed `audio_gain_blocked` at the synthetic M4A fixture. No owner listening acceptance exists. Work still cannot install the unpacked extension through its cloud browser. This is an explicitly authorized PRIVATE OWNER TEST CANDIDATE, not a verified stable customer release. Preserve the current extension installation folder/session when updating its unpacked files.
