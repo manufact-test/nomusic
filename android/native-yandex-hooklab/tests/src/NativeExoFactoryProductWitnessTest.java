@@ -31,6 +31,30 @@ public final class NativeExoFactoryProductWitnessTest {
     }
     static final class DefaultOnlyFactory implements DefaultFactory { }
 
+
+    static final class InnerSourceFactory { }
+    static final class Middle {
+        private final InnerSourceFactory factory;
+        Middle(InnerSourceFactory factory) { this.factory=factory; }
+    }
+    static final class NestedOuter {
+        private final Middle middle;
+        NestedOuter(InnerSourceFactory factory) { middle=new Middle(factory); }
+    }
+    static final class DirectOuter {
+        private final InnerSourceFactory factory;
+        DirectOuter(InnerSourceFactory factory) {this.factory=factory;}
+    }
+    static final class DuplicateOuter {
+        private final Middle first,second;
+        DuplicateOuter(InnerSourceFactory factory) {
+            first=new Middle(factory); second=new Middle(factory);
+        }
+    }
+    static final class TooDeepOuter {
+        private final NestedOuter first;
+        TooDeepOuter(InnerSourceFactory factory) {first=new NestedOuter(factory);}
+    }
     private static int assertions;
     private static void check(boolean value, String label) {
         assertions++;
@@ -93,6 +117,22 @@ public final class NativeExoFactoryProductWitnessTest {
         check(defaultMethod.method.getDeclaringClass() == DefaultFactory.class,
             "default interface method selected");
 
+
+        InnerSourceFactory target=new InnerSourceFactory(),other=new InnerSourceFactory();
+        check(NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            new NestedOuter(target),target),"unique two-hop reference");
+        check(NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            new DirectOuter(target),target),"direct reference");
+        check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            new NestedOuter(other),target),"different original instance");
+        check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            new DuplicateOuter(target),target),"ambiguous field paths");
+        check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            new TooDeepOuter(target),target),"unverified depth rejected");
+        check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            target,target),"factory cannot be its own wrapper");
+        check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
+            null,target),"absent outer");
         System.out.println("NATIVE_EXO_FACTORY_PRODUCT_WITNESS_PASS assertions=" + assertions);
     }
 }
