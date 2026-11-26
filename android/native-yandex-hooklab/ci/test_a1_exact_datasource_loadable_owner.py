@@ -5,7 +5,7 @@ import unittest
 from a1_exact_datasource_loadable_owner import (
     CLOSE, DATA_SOURCE, DATA_SPEC, OPEN, PERIOD, READ,
     collect_dispatch_targets, hierarchy_owners, loader_contract_for_method,
-    is_exact_datasource_target, implements,
+    is_exact_datasource_target, implements, trace_upstream_methods,
 )
 
 
@@ -95,6 +95,31 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
                 (DATA_SOURCE, "if", "(LUC2;)J"),
             }
         )
+
+    def test_upstream_trace_follows_helper_to_loadable_and_exact_period(self):
+        target = ("Lhelper;", "open", "()V")
+        base_target = ("Lbase;", "open", "()V")
+        loadable = ("Lloadable;", "load", "()V")
+        period = (PERIOD, "prepare", "()V")
+        reverse = {base_target: {loadable}, loadable: {period}}
+        aliases = {target: {target, base_target}, loadable: {loadable}, period: {period}}
+        traced = trace_upstream_methods(
+            [target], reverse, lambda method: aliases.get(method, {method})
+        )
+        self.assertEqual(traced[target][loadable], 1)
+        self.assertEqual(traced[target][period], 2)
+
+    def test_upstream_trace_is_cycle_safe_and_depth_bounded(self):
+        target = ("Ltarget;", "open", "()V")
+        helper = ("Lhelper;", "read", "()V")
+        period = (PERIOD, "prepare", "()V")
+        reverse = {target: {helper}, helper: {target, period}}
+        traced = trace_upstream_methods(
+            [target], reverse, lambda method: {method}, max_depth=2
+        )
+        self.assertIn(helper, traced[target])
+        self.assertIn(period, traced[target])
+        self.assertEqual(traced[target][period], 2)
 
     def test_period_hierarchy_walk_is_bounded_and_exact(self):
         classes = {

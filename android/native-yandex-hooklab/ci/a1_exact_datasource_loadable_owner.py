@@ -9,6 +9,7 @@ direct caller(s), finite type roles, and whether a caller is an Exo Loadable.
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import json
 import os
 import re
@@ -38,6 +39,9 @@ MAX_INSTRUCTIONS_PER_METHOD = 12000
 MAX_TOTAL_INSTRUCTIONS = 12000000
 MAX_OPEN_CALLERS = 24
 MAX_CLASS_INTERFACES = 256
+MAX_CALL_GRAPH_EDGES = 1000000
+MAX_UPSTREAM_DEPTH = 8
+MAX_UPSTREAM_NODES_PER_TARGET = 512
 MAX_OWNER_FIELDS = 128
 MAX_OWNER_CONSTRUCTORS = 24
 
@@ -249,6 +253,47 @@ def inspect_owner_shape(owner, class_rows, methods_by_owner):
     }
 
 
+def method_aliases(method, classes, methods_by_owner):
+    """Return exact virtual/interface declarations that may dispatch to method."""
+    owner, name, descriptor = method
+    aliases = {method}
+    for ancestor in hierarchy_owners(owner, classes):
+        if ancestor == owner:
+            continue
+        for candidate, flags, _code_off in methods_by_owner.get(ancestor, []):
+            if (candidate[1] == name and candidate[2] == descriptor
+                    and not (flags & 0x2) and not (flags & 0x8)):
+                aliases.add(candidate)
+    return aliases
+
+
+def trace_upstream_methods(target_methods, reverse_calls, aliases_for_method,
+                           max_depth=MAX_UPSTREAM_DEPTH,
+                           max_nodes=MAX_UPSTREAM_NODES_PER_TARGET):
+    """Bounded reverse call-graph walk from direct DataSource.open callers."""
+    if len(target_methods) > MAX_OPEN_CALLERS:
+        raise ValueError("LOADABLE_UPSTREAM_TARGET_LIMIT")
+    result = {}
+    for target in target_methods:
+        distances = {target: 0}
+        queue = deque([target])
+        while queue:
+            current = queue.popleft()
+            depth = distances[current]
+            if depth >= max_depth:
+                continue
+            for alias in aliases_for_method(current):
+                for caller in reverse_calls.get(alias, ()):
+                    if caller in distances:
+                        continue
+                    distances[caller] = depth + 1
+                    if len(distances) > max_nodes:
+                        raise ValueError("LOADABLE_UPSTREAM_NODE_LIMIT")
+                    queue.append(caller)
+        result[target] = distances
+    return result
+
+
 def scan_signed(apks):
     class_rows = {}
     methods_by_owner = {}
@@ -310,6 +355,8 @@ def scan_signed(apks):
     open_callers = {}
     exact_read_callers = set()
     exact_close_callers = set()
+    reverse_calls = {}
+    call_edge_count = 0
     total_instructions = 0
 
     for dex in dexes:
@@ -331,6 +378,10 @@ def scan_signed(apks):
                 if opcode not in audit.INVOKES or not 0x6E <= opcode <= 0x78:
                     continue
                 callee = dex.method(words[1])
+                reverse_calls.setdefault(callee, set()).add(method)
+                call_edge_count += 1
+                if call_edge_count > MAX_CALL_GRAPH_EDGES:
+                    raise ValueError("LOADABLE_CALL_GRAPH_EDGE_LIMIT")
                 if callee in read_dispatch_targets:
                     read_count += 1
                 elif callee in close_dispatch_targets:
@@ -384,6 +435,79 @@ def scan_signed(apks):
     constructor_evidence = scan_candidate_constructor_callers(
         dexes, candidate_owners, media_period_owners
     )
+    upstream_by_target = trace_upstream_methods(
+        [tuple(row["method"]) for row in rows], reverse_calls,
+        lambda method: method_aliases(method, class_rows, methods_by_owner)
+    )
+    upstream_loadable_methods = set()
+    upstream_open_callers_with_loadable = 0
+    upstream_open_callers_with_lo96 = 0
+    upstream_open_callers_with_media_period = 0
+    upstream_method_union = set()
+    upstream_open_caller_summaries = []
+    for index, distances in enumerate(upstream_by_target.values(), 1):
+        upstream_method_union.update(distances)
+        loadable_for_target = {
+            method for method in distances
+            if loader_contract_for_method(method[0], method, class_rows, methods_by_owner)
+        }
+        lo96_for_target = {method for method in distances if method[0] == PERIOD}
+        media_for_target = {method for method in distances if method[0] in media_period_owners}
+        upstream_loadable_methods.update(loadable_for_target)
+        upstream_open_callers_with_loadable += bool(loadable_for_target)
+        upstream_open_callers_with_lo96 += bool(lo96_for_target)
+        upstream_open_callers_with_media_period += bool(media_for_target)
+        upstream_open_caller_summaries.append({
+            "index": index,
+            "reachable_method_count": len(distances),
+            "max_depth": max(distances.values(), default=0),
+            "loadable_method_count": len(loadable_for_target),
+            "exact_Lo96_ancestor_count": len(lo96_for_target),
+            "media_period_ancestor_count": len(media_for_target),
+        })
+    upstream_loadable_owners = {method[0] for method in upstream_loadable_methods}
+    if len(upstream_loadable_owners) > MAX_OPEN_CALLERS:
+        raise ValueError("LOADABLE_UPSTREAM_OWNER_LIMIT")
+    upstream_loadable_constructor_evidence = scan_candidate_constructor_callers(
+        dexes, upstream_loadable_owners, media_period_owners
+    ) if upstream_loadable_owners else {"candidate_constructor_callsites": []}
+    upstream_loadable_shapes = [
+        inspect_owner_shape(owner, class_rows, methods_by_owner)
+        for owner in sorted(upstream_loadable_owners)
+    ]
+    upstream_loadable_has_exact_Lo96_reference = any(
+        shape.get("nested_under_exact_Lo96")
+        or shape.get("owner_period_field_count", 0) > 0
+        or bool(shape.get("constructors_with_exact_Lo96_parameter"))
+        for shape in upstream_loadable_shapes
+    )
+    upstream_loadable_constructed_inside_exact_Lo96 = any(
+        item.get("constructed_owner") in upstream_loadable_owners
+        and item.get("caller_is_exact_Lo96_method")
+        for item in upstream_loadable_constructor_evidence.get("candidate_constructor_callsites", [])
+    )
+    upstream_loadable_constructed_inside_any_media_period = any(
+        item.get("constructed_owner") in upstream_loadable_owners
+        and item.get("caller_is_signed_MediaPeriod_implementer")
+        for item in upstream_loadable_constructor_evidence.get("candidate_constructor_callsites", [])
+    )
+    upstream_loadable_exact_Lo96_constructor_site_count = sum(
+        1 for item in upstream_loadable_constructor_evidence.get("candidate_constructor_callsites", [])
+        if item.get("constructed_owner") in upstream_loadable_owners
+        and item.get("caller_is_exact_Lo96_method")
+    )
+    if len(upstream_loadable_owners) == 1 and (
+            upstream_loadable_has_exact_Lo96_reference
+            or upstream_loadable_constructed_inside_exact_Lo96):
+        upstream_verdict = "ONE_UPSTREAM_LOADABLE_BOUND_TO_EXACT_LO96"
+    elif len(upstream_loadable_owners) == 1:
+        upstream_verdict = "ONE_UPSTREAM_LOADABLE_PERIOD_BINDING_UNPROVEN"
+    elif len(upstream_loadable_owners) > 1:
+        upstream_verdict = "MULTIPLE_UPSTREAM_LOADABLE_OWNERS_REVIEW"
+    elif upstream_open_callers_with_lo96 or upstream_open_callers_with_media_period:
+        upstream_verdict = "MEDIA_PERIOD_UPSTREAM_WITHOUT_UNIQUE_LOADABLE"
+    else:
+        upstream_verdict = "NO_MEDIA_PERIOD_UPSTREAM_CALLER_PROVEN"
     return {
         "verdict": (
             "ONE_EXACT_LOADABLE_OPENS_HOOKED_EXO_DATASOURCE"
@@ -446,6 +570,21 @@ def scan_signed(apks):
             for row in rows
         ),
         "active_period_sample_stream_renderer_link_proven": False,
+        "upstream_call_graph_edge_count": call_edge_count,
+        "upstream_method_count": len(upstream_method_union),
+        "upstream_open_callers_with_loadable_count": upstream_open_callers_with_loadable,
+        "upstream_open_callers_with_exact_Lo96_ancestor_count": upstream_open_callers_with_lo96,
+        "upstream_open_callers_with_media_period_ancestor_count": upstream_open_callers_with_media_period,
+        "upstream_loadable_method_count": len(upstream_loadable_methods),
+        "upstream_loadable_owner_count": len(upstream_loadable_owners),
+        "upstream_loadable_owner_has_exact_Lo96_reference_proven": upstream_loadable_has_exact_Lo96_reference,
+        "upstream_loadable_owner_constructed_inside_exact_Lo96_method": upstream_loadable_constructed_inside_exact_Lo96,
+        "upstream_loadable_owner_constructed_inside_any_signed_MediaPeriod": upstream_loadable_constructed_inside_any_media_period,
+        "upstream_loadable_exact_Lo96_constructor_site_count": upstream_loadable_exact_Lo96_constructor_site_count,
+        "upstream_loadable_owner_shapes": upstream_loadable_shapes,
+        "upstream_loadable_constructor_callsites": upstream_loadable_constructor_evidence.get("candidate_constructor_callsites", []),
+        "upstream_open_caller_summaries": upstream_open_caller_summaries,
+        "upstream_verdict": upstream_verdict,
         "active_audio_or_replacement_playback_proven": False,
         "private_field_names_values_urls_ids_tokens_or_audio_exported": False,
     }
