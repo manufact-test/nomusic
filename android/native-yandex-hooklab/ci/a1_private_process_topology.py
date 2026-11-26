@@ -85,6 +85,10 @@ def inspect(xapk,editor):
     with zipfile.ZipFile(xapk) as bundle:
         parts=[x for x in bundle.infolist() if x.filename.endswith('.apk')]
         if not 1<=len(parts)<=32:raise ValueError('SPLIT_COUNT_NOT_PINNED')
+        total_splits=len(parts)
+        # Main package split is the largest in the fixed verified XAPK.
+        # Avoid decoding resource-only config splits in this narrow audit.
+        parts=[max(parts,key=lambda part:part.file_size)]
         with tempfile.TemporaryDirectory(prefix='a1-private-topology-') as td:
             for i,part in enumerate(parts):
                 if part.file_size>250_000_000:raise ValueError('APK_PART_TOO_LARGE')
@@ -102,7 +106,9 @@ def inspect(xapk,editor):
     names=tuple(entries[0].keys())
     out={k:(any(x[k] for x in entries) if k=='application_explicit_process'
          else sum(x[k] for x in entries)) for k in names}
-    out['splits']=len(entries)
+    if out['services']<1:raise ValueError('MAIN_SERVICE_SET_ABSENT')
+    out['splits_in_original_xapk']=total_splits
+    out['manifests_inspected']=len(entries)
     return out
 
 if __name__=='__main__':
