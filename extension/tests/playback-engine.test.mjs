@@ -500,6 +500,7 @@ test("cancelled native play and an old rejection after pause/resume do not block
     const pending = deferred(); media.play = () => pending.promise;
     player.play(); await settle();
     player.pause(); player.play();
+    media.play = Media.prototype.play;
     pending.reject(new DOMException("old attempt", "NotAllowedError")); await settle();
     assert.deepEqual(fatal, [], "a previous play attempt cannot fail the resumed intent");
     media.play = Media.prototype.play;
@@ -686,4 +687,112 @@ test('complete-file mode cannot alter accepted guarded intro preparation',async(
  f.engine.createPlayer=fatal=>{const p=create(fatal),prepare=p.prepare;p.prepare=async(asset,options)=>{complete=options.completeMp3;await prepare(asset);};p.prepareCompleteJoin=()=>{throw Error('intro must never use complete join');};return p;};
  f.engine.configure(true,'');const s=snapshot();s.player.currentTime=.1;s.guard={active:true};f.update(s);await settle();
  assert.equal(complete,false);assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
+});
+
+test('rapid pause/resume fulfils the newer play intent after pending gain resume without another snapshot',async()=>{
+ const media=new Media(),gate=deferred(),p=new ReplacementPlayer({document:{createElement:()=>media}},()=>assert.fail('unexpected fatal'));
+ p.gainContext={state:'suspended',resume:async()=>{await gate.promise;p.gainContext.state='running';}};
+ p.play();await settle();p.pause();p.play();gate.resolve();await settle();
+ assert.equal(media.paused,false,'no500ms/background poll is needed to fulfil resume');
+ p.gainContext=null;p.destroy();
+});
+test('a current AbortError can be retried once for a queued later PLAY, but a later pause always wins',async()=>{
+ for(const paused of [false,true]){
+  const media=new Media(),gate=deferred(),p=new ReplacementPlayer({document:{createElement:()=>media}},()=>assert.fail('unexpected fatal'));
+  let calls=0;media.play=()=>++calls===1?gate.promise:Media.prototype.play.call(media);
+  p.play();await settle();p.play();if(paused)p.pause();
+  gate.reject(new DOMException('native pause interrupted play','AbortError'));await settle();
+  assert.equal(media.paused,paused);assert.equal(calls,paused?1:2);p.destroy();
+ }
+});
+test('late intro decoder seek finishes while original remains audible, before the guard request',async()=>{
+ let prime,finish;
+ const gate=deferred(),g=fixture({loadGate:gate});
+ g.update(snapshot('2',{player:{...snapshot().player,currentTime:.1}}));await settle();
+ const gp=g.players[0];gp.prepareIntroPosition=async()=>{prime=true;await new Promise(r=>finish=r);return true;};
+ g.update(snapshot('2',{player:{...snapshot().player,currentTime:.7}}));gate.resolve();await settle();
+ assert.equal(prime,true);assert.equal(g.requests.filter(x=>x.type==='GUARD_ENGAGE').length,0);
+ assert.equal(g.engine.phase,'PREPARING');finish();await settle();
+ assert.equal(g.requests.filter(x=>x.type==='GUARD_ENGAGE').length,1);assert.equal(g.engine.phase,'REPLACEMENT_ACTIVE');g.engine.destroy();
+});
+test('a Stop during intro alignment disposes the player and a late decoder callback cannot acquire a guard',async()=>{
+ const gate=deferred(),aligned=deferred(),f=fixture({loadGate:gate});
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:.1}}));await settle();
+ f.players[0].prepareIntroPosition=()=>aligned.promise;
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:.7}}));gate.resolve();await settle();
+ f.engine.configure(false,'2');aligned.resolve(true);await settle();
+ assert.equal(f.players[0].destroyed,true);assert.equal(f.requests.filter(x=>x.type==='GUARD_ENGAGE').length,0);
+});
+test('fully buffered paused audio renews both descriptor and signed access without destroying position or reacquiring the guard',async()=>{
+ let calls=0;const f=fixture({resolveAsset:async()=>{calls++;return {...remoteAsset(),expiresAt:Date.now()+600000};}});
+ f.engine.configure(true,'');const paused=snapshot('2');paused.player.paused=true;paused.player.currentTime=165.735;
+ f.update(paused);await settle();
+ const operation=f.engine.operation,player=f.players[0];let probes=0;
+ player.canRevalidateAuthorization=()=>true;player.revalidateAuthorization=async()=>{probes++;return true;};
+ operation.asset.expiresAt=Date.now()+1000;player.audio.currentTime=165.735;
+ const before=f.requests.filter(x=>x.type==='GUARD_ENGAGE').length;
+ f.engine.tick();await settle();
+ assert.equal(calls,2);assert.equal(probes,1);assert.equal(f.engine.operation,operation);assert.equal(f.engine.restoreCount,0);
+ assert.equal(f.engine.authorizationRefreshCount,1);assert.equal(player.audio.currentTime,165.735);
+ assert.equal(f.requests.filter(x=>x.type==='GUARD_ENGAGE').length,before);
+ const resumed=snapshot('2');resumed.player.currentTime=165.735;f.update(resumed,'PLAY');await settle();
+ assert.equal(f.engine.operation,operation);assert.equal(f.players.length,1);f.engine.destroy();
+});
+test('an expired paused grant cannot play while renewal is pending, and explicit revocation fails open immediately',async()=>{
+ for(const denied of [false,true]){
+  const grant=deferred();let calls=0;
+  const f=fixture({resolveAsset:()=>++calls===1?remoteAsset():grant.promise});f.engine.configure(true,'');
+  const paused=snapshot();paused.player.paused=true;f.update(paused);await settle();
+  const operation=f.engine.operation;operation.player.canRevalidateAuthorization=()=>true;operation.player.revalidateAuthorization=async()=>true;
+  operation.asset.expiresAt=Date.now()-1;f.engine.tick();await settle();
+  assert.equal(f.engine.operation,operation);assert.equal(operation.player.audio.paused,true);
+  if(denied){grant.reject(Error('api_forbidden'));await settle();assert.equal(f.engine.operation,null);assert.equal(f.engine.lastError,'api_forbidden');}
+  else{f.update(snapshot(),'PLAY');await settle();assert.equal(f.engine.operation,null);grant.resolve(remoteAsset());await settle();assert.equal(f.engine.operation,null);}
+  f.engine.destroy();
+ }
+});
+
+test('actual intro seek stays muted until ready and is cancelled on destroy',async()=>{
+ const media=new Media(),p=new ReplacementPlayer({document:{createElement:()=>media},setTimeout,clearTimeout},()=>assert.fail('unexpected fatal'));
+ media.duration=200;media.seeking=true;media.readyState=1;
+ const state=snapshot();state.player.currentTime=.7;media.currentTime=.7;
+ const pending=p.prepareIntroPosition(state,async()=>state);await settle();assert.equal(media.muted,true);
+ media.seeking=false;media.readyState=4;media.dispatchEvent(new Event('seeked'));
+ assert.equal(await pending,true);assert.equal(media.paused,true,'only the normal activation plays audio');
+ media.seeking=true;const cancelled=p.prepareIntroPosition(state,async()=>state);
+ const checked=assert.rejects(cancelled,/cancelled/);p.destroy();await checked;
+});
+
+test('paused signed-authorization renewal with a late result never resurrects an old track',async()=>{
+ const grant=deferred();let calls=0;
+ const f=fixture({resolveAsset:()=>++calls===1?remoteAsset():grant.promise});f.engine.configure(true,'');
+ const paused=snapshot();paused.player.paused=true;f.update(paused);await settle();
+ const old=f.engine.operation;old.player.canRevalidateAuthorization=()=>true;old.player.revalidateAuthorization=async()=>true;
+ old.asset.expiresAt=Date.now()+5000;f.engine.tick();await settle();
+ f.engine.manualRestore();grant.resolve(remoteAsset());await settle();
+ assert.equal(f.engine.operation,null);assert.equal(f.engine.authorizationRefreshCount,0);assert.equal(old.player.destroyed,true);
+});
+
+test('user seek during loading keeps the established seek path and never enters intro priming',async()=>{
+ const gate=deferred(),f=fixture({loadGate:gate});
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:.1}}));await settle();
+ f.players[0].prepareIntroPosition=()=>assert.fail('user seek is not a late intro');
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:2}}),'SEEK');gate.resolve();await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
+});
+test('a native seek during intro alignment does not permanently block the track',async()=>{
+ const gate=deferred(),aligned=deferred(),f=fixture({loadGate:gate});
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:.1}}));await settle();
+ f.players[0].prepareIntroPosition=()=>aligned.promise;
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:.7}}));gate.resolve();await settle();
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:42,seeking:true,readyState:1}}),'SEEK');
+ aligned.resolve(false);await settle();assert.equal(f.engine.blockedTrackId,null);assert(f.engine.operation);
+ f.update(snapshot('2',{player:{...snapshot().player,currentTime:42}}));await settle();
+ assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');f.engine.destroy();
+});
+test('paused audio with a confirmed removed replacement releases immediately rather than retaining its old signed grant',async()=>{
+ let calls=0;const f=fixture({resolveAsset:async()=>++calls===1?remoteAsset():({found:false,retryAfterMs:15000})});f.engine.configure(true,'');
+ const paused=snapshot();paused.player.paused=true;f.update(paused);await settle();
+ f.engine.operation.player.canRevalidateAuthorization=()=>true;f.engine.operation.asset.expiresAt=Date.now()+9000;
+ f.engine.tick();await settle();assert.equal(f.engine.operation,null);assert.equal(f.engine.negativeResolution.trackId,'2');assert.equal(calls,2);
 });

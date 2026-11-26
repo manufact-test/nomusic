@@ -418,3 +418,30 @@ test('warmed maintenance policy overrides an already cached positive mapping',as
  const result=await client.resolve('yandex','7',{configReady:Promise.resolve({...config,maintenance:true})});
  assert.equal(result.found,false);assert.equal(calls,before,'maintenance does not dispatch audio resolve');
 });
+
+test('authorized playback warms public policy before a switch; resolve still needs access and only resolve remains on the critical path',async()=>{
+ const urls=[];let allowed=false,accessChecks=0;
+ const broker=createApiBroker({runtime:{id:'fixture',getManifest:()=>({version:'0.4.89'})}},
+  {warmPublicConfig:true,now:()=>now,readConfig:async()=>({baseUrl:'https://celikom.example'}),
+   withAccess:async fn=>{accessChecks++;if(!allowed)throw Error('invalid_session');return fn({access_token:'private'});},
+   fetch:async url=>{urls.push(url);return response(url.endsWith('/config')?config:found);}});
+ assert.equal(await broker.warmPublicConfig(),true);
+ assert.equal(accessChecks,0,'warming public flags never signs an asset or opens audio');
+ assert.equal(urls.length,1);assert(urls[0].endsWith('/config'));
+ assert.equal((await broker({type:'CELIKOM_API_RESOLVE',service:'yandex',trackId:'7'},{id:'fixture',url:'https://music.yandex.ru/'})).error,'api_access_missing');
+ assert.equal(urls.length,1,'denied access cannot resolve a signed URL');allowed=true;
+ const result=await broker({type:'CELIKOM_API_RESOLVE',service:'yandex',trackId:'7'},{id:'fixture',url:'https://music.yandex.ru/'});
+ assert.equal(result.asset.found,true);assert.equal(urls.length,2);assert(urls[1].includes('/resolve?'));
+});
+test('public prewarming refreshes near expiry without extending a failed policy cache or hammering an outage',async()=>{
+ let clock=now,calls=0,fail=false;
+ const broker=createApiBroker({runtime:{getManifest:()=>({version:'0.4.89'})}},
+  {warmPublicConfig:true,now:()=>clock,readConfig:async()=>({baseUrl:'https://celikom.example'}),
+   fetch:async()=>{calls++;if(fail)return response({});return response(config);}});
+ await broker.warmPublicConfig();assert.equal(calls,1);
+ clock+=44000;await broker.warmPublicConfig();assert.equal(calls,1);
+ clock+=1001;await broker.warmPublicConfig();assert.equal(calls,2,'refresh before the60s deadline');
+ clock+=45001;fail=true;await broker.warmPublicConfig();assert.equal(calls,3);
+ for(let i=0;i<20;i++)await broker.warmPublicConfig();assert.equal(calls,3,'failed warmups have their own bounded cooldown');
+ clock+=5001;fail=false;assert.equal(await broker.warmPublicConfig(),true);assert.equal(calls,4);
+});

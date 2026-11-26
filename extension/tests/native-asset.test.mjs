@@ -19,26 +19,26 @@ function fixture({size=2500000,mimeType="audio/mp4"}={}){
  const player=()=>{const p=new ReplacementPlayer(env,()=>{});p.fetchAbort=new AbortController();return p};
  return {asset,bytes,player,get calls(){return calls},get peak(){return peak},setTag:v=>tag=v,setStatus:v=>status=v,offsets,fail:(offset,sequence)=>failures.set(offset,sequence),overflow:()=>oversize=true};
 }
-test('native M4A uses one continuation without concurrent bursts and preserves bytes and cache still makes an authorized signed request',async()=>{
+test('native M4A uses one bounded cold response without concurrent bursts and preserves bytes and cache still makes an authorized signed request',async()=>{
  const f=fixture(),p=f.player(),blob=await p.fetchNativeAsset(f.asset);
- assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),f.bytes);assert.equal(f.calls,2);assert.equal(f.peak,1);
+ assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),f.bytes);assert.equal(f.calls,1);assert.equal(f.peak,1);
  const before=f.calls;const cached=await f.player().fetchNativeAsset({...f.asset,url:f.asset.url.replace('current','rotated')});
  assert.equal(cached,blob);assert.equal(f.calls,before+1,'cache reuse requires a fresh signed range');
  f.setStatus(403);await assert.rejects(f.player().fetchNativeAsset(f.asset),/remote-stream-http/);
  f.setStatus(206);f.setTag('"'+'b'.repeat(64)+'-2"');const changed=await f.player().fetchNativeAsset({...f.asset,version:2});
- assert.notEqual(changed,blob);assert.equal(f.calls,before+4,'changed version downloads all bytes again');
+ assert.notEqual(changed,blob);assert.equal(f.calls,before+3,'changed version downloads all bytes again');
 });
 test('native download rejects oversized range bodies and cancelled work cannot populate cache',async()=>{
  const f=fixture();f.overflow();await assert.rejects(f.player().fetchNativeAsset(f.asset),/remote-stream-range/);
  const g=fixture(),p=g.player();const task=p.fetchNativeAsset({...g.asset,version:99});p.destroyed=true;p.fetchAbort.abort();await assert.rejects(task,/cancelled/);
- const before=g.calls;await g.player().fetchNativeAsset({...g.asset,version:99});assert.equal(g.calls,before+2);
+ const before=g.calls;await g.player().fetchNativeAsset({...g.asset,version:99});assert.equal(g.calls,before+1);
 });
 
-test('M4A retries a temporary 503 at the failed continuation without discarding the first chunk',async()=>{
- const f=fixture();f.fail(524288,[503,503,206]);const p=f.player();
+test('cold native file retries temporary HTTP503 without parallel readers',async()=>{
+ const f=fixture();f.fail(0,[503,503,206]);const p=f.player();
  const blob=await p.fetchNativeAsset({...f.asset,version:200});
  assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),f.bytes);
- assert.deepEqual(f.offsets,[0,524288,524288,524288]);assert.equal(f.peak,1);assert.equal(p.streamState.receivedBytes,f.bytes.length);
+ assert.deepEqual(f.offsets,[0,0,0]);assert.equal(f.peak,1);assert.equal(p.streamState.receivedBytes,f.bytes.length);
 });
 test('M4A retries remain bounded and never retry a revoked signed response',async()=>{
  const f=fixture();f.setStatus(503);const p=f.player();
@@ -50,6 +50,22 @@ test('M4A retries remain bounded and never retry a revoked signed response',asyn
 test('approved complete MP3 is byte-preserving, bounded, sequential and still enforces signed access',async()=>{
  const f=fixture({mimeType:'audio/mpeg'}),p=f.player(),blob=await p.fetchNativeAsset(f.asset);
  assert.equal(blob.type,'audio/mpeg');assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),f.bytes);
- assert.deepEqual(f.offsets,[0,524288]);assert.equal(f.peak,1);
+ assert.deepEqual(f.offsets,[0]);assert.equal(f.peak,1);
  f.setStatus(403);await assert.rejects(f.player().fetchNativeAsset(f.asset),/remote-stream-http/);
+});
+
+test('buffered audio renewal needs a fresh signed Range and exact content/version/gain; it never trusts an offline cache',async()=>{
+ const f=fixture(),p=f.player();f.setTag('"'+'a'.repeat(64)+'-301"');await p.fetchNativeAsset({...f.asset,version:301});
+ assert.equal(p.canRevalidateAuthorization(),true);
+ const grant={...f.asset,version:301,url:f.asset.url.replace('current','new-grant')},before=f.calls;
+ assert.equal(await p.revalidateAuthorization(grant),true);assert.equal(f.calls,before+1);
+ assert.equal(await p.revalidateAuthorization({...grant,gainDb:1}),false,'gain changes cannot reuse the old audio graph');
+ assert.equal(await p.revalidateAuthorization({...grant,version:302}),false);
+ f.setTag('"'+'b'.repeat(64)+'-301"');assert.equal(await p.revalidateAuthorization(grant),false);
+ f.setStatus(403);await assert.rejects(p.revalidateAuthorization(grant),error=>error.streamDetail.httpStatus===403);
+});
+test('an aborted signed renewal cannot approve a destroyed player',async()=>{
+ const f=fixture(),p=f.player();f.setTag('"'+'a'.repeat(64)+'-303"');await p.fetchNativeAsset({...f.asset,version:303});
+ const pending=p.revalidateAuthorization({...f.asset,version:303});p.destroyed=true;p.authorizationAbort.abort();
+ await assert.rejects(pending,/cancelled/);assert.equal(p.authorizationAbort,null);
 });

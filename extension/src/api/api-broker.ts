@@ -14,6 +14,26 @@ export function createApiBroker(api, options = {}) {
     }
     return client;
   }
+  function publicClient(origin) {
+    if (!configWarmer || configWarmer.origin !== origin) configWarmer = new ApiClient(origin,
+      {...options, clientVersion:api.runtime.getManifest().version,
+        onNetwork:item=>{networkHistory.push(item);if(networkHistory.length>16)networkHistory.shift();}});
+    return configWarmer;
+  }
+  let warming = null, warmRetryAt = 0;
+  function warmPublicConfig() {
+    if (options.warmPublicConfig !== true) return Promise.resolve(false);
+    if (warming) return warming;
+    if ((options.now || Date.now)() < warmRetryAt) return Promise.resolve(false);
+    const pending = (async()=>{
+      const config = await readConfig();
+      if (!config.baseUrl) return false;
+      await publicClient(config.baseUrl).config({refreshAheadMs:15000});
+      return true;
+    })().catch(()=>{warmRetryAt=(options.now || Date.now)()+5000;return false;})
+      .finally(()=>{if(warming===pending)warming=null;});
+    warming=pending;return pending;
+  }
   const analytics = new AnalyticsEventService(api, async () => ({ config: () => withAccess(async (session) => (await getClient(session))?.config()), events: (batch) =>
     withAccess(async (session) => (await getClient(session))?.events(batch)) }));
   const handle = async (message, sender) => {
@@ -31,9 +51,7 @@ export function createApiBroker(api, options = {}) {
          descriptor or audio request is sent until withAccess has accepted. */
       let configReady;
       if (options.warmPublicConfig === true) {
-        if (!configWarmer || configWarmer.origin !== config.baseUrl) configWarmer = new ApiClient(config.baseUrl,
-          {...options, clientVersion:api.runtime.getManifest().version,
-            onNetwork:item=>{networkHistory.push(item);if(networkHistory.length>16)networkHistory.shift();}});
+        publicClient(config.baseUrl);
         if (message.forceRefresh === true) configWarmer.resetTransport();
         configReady = configWarmer.config();
         configReady.catch(()=>{});
@@ -53,5 +71,5 @@ export function createApiBroker(api, options = {}) {
       return { ok: false, error: safeErrors.has(code) ? code : "api_unavailable" };
     }
   };
-  return Object.assign(handle, { networkDiagnostics:()=>networkHistory.map(item=>({...item})), resetTransport: () => { client?.resetTransport(); configWarmer?.resetTransport(); } });
+  return Object.assign(handle, { warmPublicConfig, networkDiagnostics:()=>networkHistory.map(item=>({...item})), resetTransport: () => { warmRetryAt=0; client?.resetTransport(); configWarmer?.resetTransport(); } });
 }

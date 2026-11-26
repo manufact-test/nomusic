@@ -287,6 +287,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
       if (access === "denied") { actionIcon.clear(); await chrome.storage.local.set({ enabled: false }); return; }
       await chrome.tabs.sendMessage(sender.tab?.id, { type: "CELIKOM_ACCESS_STATE", state: access }).catch(() => undefined);
       if (access !== "allowed") { actionIcon.update(sender.tab?.id, false); return; }
+      void resolveApi.warmPublicConfig?.();
       actionIcon.update(sender.tab?.id, connected);
     })().catch(() => actionIcon.update(sender.tab?.id, false));
     return false;
@@ -333,6 +334,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
         // after a popup closes; existing POSTs are never automatically replayed.
         accessEpoch++; accessCheck = null; resetTransportOnRetry = false;
         userAuth.resetTransport?.(); resolveApi.resetTransport?.();
+        void resolveApi.warmPublicConfig?.();
         const preview = await userAuth.perform("account-preview", {});
         if (preview.localSession === false) {
           sendResponse({ ...DEFAULT_STATE, accessError: "sign_in_required" }); return;

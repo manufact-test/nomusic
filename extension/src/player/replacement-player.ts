@@ -160,6 +160,9 @@ function createGainChain(context, audio, db) {
         if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
             || from !== offset || last < from || last > lastRequested
             || (total !== null && length !== total)) throw new Error("remote-stream-range");
+        if (total !== null && this.loadedIdentity && response.headers.get("etag") !== this.loadedIdentity.etag)
+          throw new Error("remote-stream-range");
+        if (total === null) this.rememberAssetIdentity(asset, response, length);
         total = length;
         this.streamState.phase="body";
         const bytes = await response.arrayBuffer();
@@ -214,7 +217,7 @@ function createGainChain(context, audio, db) {
         if((response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase()!==asset.mimeType)problem="remote-stream-format";
         else if(!Number.isSafeInteger(size)||size<1024||size>31457280||from!==offset||last!==Math.min(requestedEnd,size-1)||(total!==null&&size!==total)||(total!==null&&responseEtag!==etag))problem="remote-stream-range";
         if(problem){await response.body?.cancel();throw new Error(problem);}
-        if(total===null){total=size;etag=responseEtag;}
+        if(total===null){total=size;etag=responseEtag;this.rememberAssetIdentity(asset,response,size);}
         const parts=[],reader=response.body.getReader();let count=0;
         this.streamState.phase="body";
         try{
@@ -228,7 +231,13 @@ function createGainChain(context, audio, db) {
       try{
         // A real signed range is required on EVERY use, including a cache hit.
         // Its strong content hash/version ETag also fences deleted/replaced files.
-        const first=await readRange(0,524287);
+        // On a cold native-file load, request the entire bounded representation
+        // in ONE signed Range rather than paying another WAN round trip after
+        // an initial512KiB. A possible cache hit needs only a1KiB live probe.
+        const identity=JSON.stringify([new URL(asset.url).origin,new URL(asset.url).pathname,
+          asset.replacementId,asset.version,asset.mimeType]);
+        const firstEnd=nativeCache?.identity===identity?1023:31457279;
+        const first=await readRange(0,firstEnd);
         const cacheKey=etag&&/^"[a-f0-9]{64}-[0-9]+"$/.test(etag)
           ?JSON.stringify([new URL(asset.url).origin,new URL(asset.url).pathname,asset.replacementId,asset.version,asset.mimeType,total,etag]):null;
         if(cacheKey&&nativeCache?.key===cacheKey){this.streamState.phase="cached";return nativeCache.blob;}
@@ -236,18 +245,81 @@ function createGainChain(context, audio, db) {
         // One sequential continuation avoids triggering hosting burst limits.
         // The total and every streamed body remain bounded to 30 MiB.
         const chunks=[first];
-        if(total>524288)chunks.push(await readRange(524288,total-1));
+        const firstLength=Math.min(firstEnd+1,total);
+        if(total>firstLength)chunks.push(await readRange(firstLength,total-1));
         if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
         const blob=new Blob(chunks.flat(),{type:asset.mimeType});
         if(blob.size!==total)throw new Error("remote-stream-range");
-        if(cacheKey)nativeCache={key:cacheKey,blob};
+        if(cacheKey)nativeCache={key:cacheKey,identity,blob};
         this.streamState.phase="complete";return blob;
       }catch(error){
         const reason=this.streamState.phase==="timeout"?"remote-stream-timeout":error instanceof TypeError?"remote-stream-network":error.message;
         const failure=new Error(reason);failure.streamDetail={...this.streamState};abort.abort();throw failure;
       }finally{this.environment.clearTimeout(timer);}
     }
+    rememberAssetIdentity(asset, response, total) {
+      const etag=response.headers.get("etag");
+      if (!/^"[a-f0-9]{64}-[0-9]+"$/.test(etag || "") || !etag.endsWith("-"+asset.version+'"')) { this.loadedIdentity=null; return; }
+      const url=new URL(asset.url);
+      this.loadedIdentity={replacementId:asset.replacementId,version:asset.version,mimeType:asset.mimeType,
+        gainDb:asset.gainDb??0,origin:url.origin,path:url.pathname,total,etag};
+    }
+    canRevalidateAuthorization() {
+      return !this.destroyed && Boolean(this.loadedIdentity)
+        && ["complete","cached"].includes(this.streamState.phase);
+    }
+    async revalidateAuthorization(asset) {
+      if (!this.canRevalidateAuthorization()) return false;
+      const old=this.loadedIdentity,url=new URL(asset.url);
+      if (old.replacementId!==asset.replacementId || old.version!==asset.version
+          || old.mimeType!==asset.mimeType || old.gainDb!==(asset.gainDb??0)
+          || old.origin!==url.origin || old.path!==url.pathname) return false;
+      const abort=new this.environment.AbortController();this.authorizationAbort=abort;
+      const timer=this.environment.setTimeout(()=>abort.abort(),10000);
+      try {
+        const response=await this.environment.fetch(asset.url,{method:"GET",headers:{Range:"bytes=0-1023"},
+          credentials:"omit",cache:"no-store",redirect:"error",signal:abort.signal});
+        const last=Math.min(1023,old.total-1);
+        if(response.status!==206){await response.body?.cancel();throw Object.assign(new Error("remote-stream-http"),{streamDetail:{httpStatus:response.status}});}
+        if(response.headers.get("etag")!==old.etag
+          ||response.headers.get("content-range")!==`bytes 0-${last}/${old.total}`
+          ||(response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase()!==old.mimeType){
+          await response.body?.cancel();return false;
+        }
+        const reader=response.body.getReader();let received=0;
+        try {for(;;){const {done,value}=await reader.read();if(done)break;received+=value.byteLength;if(received>last+1)throw new Error("remote-stream-range");}}
+        finally{await reader.cancel();}
+        if(this.destroyed||abort.signal.aborted)throw new Error("Replacement cancelled");
+        if(received!==last+1)throw new Error("remote-stream-range");
+        return true;
+      } finally {this.environment.clearTimeout(timer);if(this.authorizationAbort===abort)this.authorizationAbort=null;}
+    }
+    async prepareIntroPosition(snapshot, refreshSnapshot) {
+      // Only the existing decoder seek is moved BEFORE muting the native
+      // original. No MSE live-join, source reload, rate chase or pump changes.
+      const {projectTime,targetTime,driftAt}=root.__CELIKOM_SYNC_ENGINE_V1__;
+      const audio=this.audio,target=targetTime(projectTime(snapshot.player,snapshot.observedAt,Date.now()),audio.duration,this.demoLoop);
+      this.audio.muted=true;
+      if(!audio.seeking && Math.abs(driftAt(audio.currentTime,target,audio.duration,this.demoLoop))>40) audio.currentTime=target;
+      if(audio.seeking || audio.readyState<3) await new Promise((resolve,reject)=>{
+        let timer;
+        const finish=error=>{this.environment.clearTimeout(timer);this.cancelIntroPosition=null;
+          for(const name of ["seeked","canplay"])audio.removeEventListener(name,ready);
+          audio.removeEventListener("error",failed);error?reject(error):resolve();};
+        const ready=()=>{if(!audio.seeking&&audio.readyState>=3)finish();};
+        const failed=()=>finish(new Error("replacement-load-timeout"));
+        this.cancelIntroPosition=()=>finish(new Error("Replacement cancelled"));
+        for(const name of ["seeked","canplay"])audio.addEventListener(name,ready);
+        audio.addEventListener("error",failed);timer=this.environment.setTimeout(failed,10000);ready();
+      });
+      if(this.destroyed)throw new Error("Replacement cancelled");
+      const fresh=await refreshSnapshot();
+      return !fresh.player.seeking && Math.abs(driftAt(audio.currentTime,
+        targetTime(projectTime(fresh.player,fresh.observedAt,Date.now()),audio.duration,this.demoLoop),audio.duration,this.demoLoop))<=80;
+    }
     async prepare(asset, options = {}) {
+      const startedAt=Date.now();
+      this.preparationTiming={nativeDownloadMs:null,sourceReadyMs:null,gainMs:null};
       this.demoLoop = asset.demoLoop === true;
       this.audio.loop = this.demoLoop;
       const parent = this.environment.document.documentElement;
@@ -259,6 +331,7 @@ function createGainChain(context, audio, db) {
         if (!this.audio.canPlayType(asset.mimeType === 'audio/mp4' ? 'audio/mp4; codecs="mp4a.40.2"' : asset.mimeType)) throw new Error("remote-format-unsupported");
         this.fetchAbort = new this.environment.AbortController();
         const blob = await this.fetchNativeAsset(asset);
+        this.preparationTiming.nativeDownloadMs=Date.now()-startedAt;
         if (this.destroyed) throw new Error("Replacement cancelled");
         this.blobUrl = this.environment.URL.createObjectURL(blob);
         sourceUrl = this.blobUrl;
@@ -286,6 +359,7 @@ function createGainChain(context, audio, db) {
         } finally { this.environment.clearTimeout(fetchTimer); this.fetchAbort = null; }
       }
       if (this.destroyed) throw new Error("Replacement cancelled");
+      const sourceStartedAt=Date.now();
       let rejectReady;
       const ready = new Promise((resolve, reject) => {
         let timer = null;
@@ -328,6 +402,7 @@ function createGainChain(context, audio, db) {
         });
       }
       await ready;
+      const readyAt=Date.now();this.preparationTiming.sourceReadyMs=readyAt-sourceStartedAt;
       if (!this.demoLoop && !this.mediaSource && Math.abs(this.audio.duration*1000-asset.durationMs)>1500) throw new Error("duration-mismatch");
       const gainDb=asset.gainDb??0;
       if(!Number.isFinite(gainDb)||gainDb< -12||gainDb>12)throw new Error("invalid_audio_gain");
@@ -340,6 +415,7 @@ function createGainChain(context, audio, db) {
         finally{this.environment.clearTimeout(timeout);}
         if(this.gainContext.state!=="running")throw new Error("audio_gain_blocked");
       }
+      this.preparationTiming.gainMs=Date.now()-readyAt;
       if (this.destroyed) throw new Error("Replacement cancelled");
     }
     diagnostics() {
@@ -352,6 +428,7 @@ function createGainChain(context, audio, db) {
         paused:audio.paused, seeking:Boolean(audio.seeking), readyState:audio.readyState,
         networkState:audio.networkState, muted:audio.muted, volume:audio.volume,
         playPending:this.playPending, wantPlay:this.wantPlay, buffered,
+        authorizationRevalidationReady:this.canRevalidateAuthorization(),
         gainContext:this.gainContext?.state || null, stream:{...this.streamState} };
     }
     async prepareCompleteJoin(snapshot, refreshSnapshot) {
@@ -396,7 +473,10 @@ function createGainChain(context, audio, db) {
     }
     play() {
       this.wantPlay = true;
-      if (this.destroyed || this.playPending || !this.audio.paused) return;
+      if (this.destroyed) return;
+      if (this.playPending) { this.playRequestedWhilePending = true; return; }
+      if (!this.audio.paused) return;
+      this.playRequestedWhilePending = false;
       this.playPending = true;
       const revision = this.playRevision;
       Promise.resolve().then(async()=>{
@@ -409,13 +489,21 @@ function createGainChain(context, audio, db) {
         // MAIN may pause synchronously on seek/track change before its snapshot
         // reaches this world. A cancelled play is not an autoplay rejection.
         if (!this.destroyed && this.wantPlay && revision === this.playRevision && error?.name !== "AbortError") this.onFatal("replacement-play-blocked");
-      }).finally(() => { this.playPending = false; });
+      }).finally(() => {
+        this.playPending = false;
+        // A rapid pause/resume can supersede an unresolved play/context resume.
+        // Fulfil that newer intent immediately instead of waiting for a poll.
+        if (!this.destroyed && this.wantPlay && this.audio.paused
+            && (revision !== this.playRevision || this.playRequestedWhilePending)) this.play();
+      });
     }
     pause() { ++this.playRevision; this.wantPlay = false; this.audio.pause(); }
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
       this.fetchAbort?.abort();
+      this.authorizationAbort?.abort();
+      this.cancelIntroPosition?.();
       this.cancelLoad?.();
       this.cancelCompleteJoin?.();
       this.streamTask = null;

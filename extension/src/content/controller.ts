@@ -210,6 +210,7 @@
         phase: this.getPhase(),
         startupError: this.startupError,
         settings: { enabled: this.enabled, testTrackId: this.testTrackId, driftThresholdMs: 350 },
+        authorizationRefreshCount: this.engine.authorizationRefreshCount,
         active: this.engine.operation ? { generation: this.engine.operation.generation, trackId: this.engine.operation.trackId, mediaId: this.engine.operation.mediaId } : null,
         manualBypass: this.engine.manualBypass,
         replacementError: this.engine.lastError,

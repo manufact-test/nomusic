@@ -77,6 +77,56 @@ try{
  streaming.applyState({volume:1,muted:false,playbackRate:1});streaming.play();for(let i=0;i<40&&(streaming.audio.paused||streaming.audio.currentTime<=0);i++)await new Promise(r=>setTimeout(r,50));
  check(streaming.audio.currentTime>0&&!streaming.audio.paused,'actual MP3 MSE plays');streaming.destroy();
 
+ document.body.dataset.gainStep='paused native cache authorization and rapid resume';
+ const renewalTag='"'+'e'.repeat(64)+'-1"';let renewalReads=0;
+ const renewalEnv={...m4aEnvironment,fetch:async(url,options)=>{
+  renewalReads++;const match=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);
+  const from=Number(match[1]),last=Math.min(Number(match[2]),m4aBytes.length-1);
+  return new Response(m4aBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mp4','content-range':'bytes '+from+'-'+last+'/'+m4aBytes.length,'etag':renewalTag}});
+ }};
+ const renewal=new ReplacementPlayer(renewalEnv,r=>fatal.push(r)),renewalAsset={url:'https://private.example/renewal?token=old',replacementId:901,version:1,mimeType:'audio/mp4',durationMs:3023,gainDb:6};
+ await renewal.prepare(renewalAsset);check(renewalReads===1,'cold native file has one bounded HTTP request');
+ const renewalSeek=new Promise(r=>renewal.audio.addEventListener('seeked',r,{once:true}));renewal.audio.currentTime=1;await renewalSeek;
+ const renewalAudio=renewal.audio,renewalContext=renewal.gainContext,renewalPosition=renewal.audio.currentTime;
+ check(await renewal.revalidateAuthorization({...renewalAsset,url:'https://private.example/renewal?token=fresh'}),'new signed grant checked against loaded bytes');
+ check(renewalReads===2&&renewal.audio===renewalAudio&&renewal.gainContext===renewalContext&&renewal.audio.currentTime===renewalPosition,'authorization renewal preserves decoder, gain graph and paused position');
+ await renewalContext.suspend();let unblockResume;const resumeGate=new Promise(r=>unblockResume=r),realResume=renewalContext.resume.bind(renewalContext);
+ renewalContext.resume=async()=>{await resumeGate;return realResume();};
+ renewal.play();await Promise.resolve();renewal.pause();renewal.play();unblockResume();
+ for(let i=0;i<30&&renewal.audio.paused;i++)await new Promise(r=>setTimeout(r,10));
+ check(!renewal.audio.paused,'rapid pause/resume starts actual native audio without a polling snapshot');renewal.destroy();
+
+ document.body.dataset.gainStep='late intro aligns decoded audio before native mute';
+ const introMaster=document.createElement('audio');document.body.append(introMaster);
+ const introMasterUrl=URL.createObjectURL(new Blob([mp3Bytes],{type:'audio/mpeg'}));
+ const introMasterLoaded=new Promise(r=>introMaster.addEventListener('loadeddata',r,{once:true}));introMaster.src=introMasterUrl;introMaster.load();await introMasterLoaded;
+ const introMasterSeek=new Promise(r=>introMaster.addEventListener('seeked',r,{once:true}));introMaster.currentTime=.1;await introMasterSeek;await introMaster.play();
+ const lateGuard=new __CELIKOM_ORIGINAL_GUARD_V1__.OriginalAudioGuard();let lateGuardCount=0;
+ const lateSnapshot=()=>({observedAt:Date.now(),track:{id:'902',confidence:260,ambiguous:false,metadata:{durationMs:3030}},
+  player:{mediaId:'intro-master',currentTime:introMaster.currentTime,duration:introMaster.duration,paused:introMaster.paused,seeking:introMaster.seeking,ended:introMaster.ended,readyState:introMaster.readyState,volume:1,muted:false,playbackRate:1}});
+ const lateEnvironment={...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
+  await new Promise(r=>setTimeout(r,450));const match=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);
+  const from=Number(match[1]),last=Math.min(Number(match[2]),mp3Bytes.length-1);
+  return new Response(mp3Bytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+mp3Bytes.length}});
+ }};
+ const lateBridge={sessionId:'native-late-intro',isHealthy:()=>true,getSnapshot:async()=>lateSnapshot(),post(){},request:async(type,payload)=>{
+  if(type==='GUARD_ENGAGE'){
+   const audio=lateEngine.operation.player.audio;
+   check(!audio.seeking&&audio.readyState>=3,'original cannot be muted while intro decoder is seeking');
+   check(Math.abs(audio.currentTime-introMaster.currentTime)<.1,'intro position is ready before native mute');
+   lateGuardCount++;lateGuard.engage(introMaster,'intro-master',payload.token);return {snapshot:lateSnapshot()};
+  }
+  if(type==='GUARD_RELEASE')return lateGuard.release(payload.token);return {};
+ }};
+ const lateEngine=new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(lateBridge,lateEnvironment,{resolveAsset:async()=>({found:true,url:'https://private.example/late-intro',mimeType:'audio/mpeg',durationMs:3030,expiresAt:Date.now()+600000})});
+ let lateTick;
+ try{
+  lateEngine.configure(true,'');lateEngine.update(lateSnapshot());lateTick=setInterval(()=>lateEngine.update(lateSnapshot()),20);
+  for(let i=0;i<100&&lateEngine.phase!=='REPLACEMENT_ACTIVE';i++)await new Promise(r=>setTimeout(r,20));
+  check(lateEngine.phase==='REPLACEMENT_ACTIVE'&&lateGuardCount===1,'delayed ordinary MP3 intro adopts once after priming');
+  await new Promise(r=>setTimeout(r,100));check(!lateEngine.operation.player.audio.paused&&!lateEngine.operation.player.audio.seeking,'primed intro continues without a second decoder seek');
+ }finally{clearInterval(lateTick);lateEngine.destroy();lateGuard.release();introMaster.pause();introMaster.remove();URL.revokeObjectURL(introMasterUrl);}
+
  document.body.dataset.gainStep='eleven-second first MP3 headers';
  let slowCalls=0;const slowStart=performance.now();
  const slow=new ReplacementPlayer({...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
@@ -140,7 +190,7 @@ try{
  const liveEnvironment={...m4aEnvironment,MediaSource,fetch:async(url,options)=>{
   const range=/^bytes=(\\d+)-(\\d+)$/.exec(options.headers.Range);const from=Number(range[1]),last=Math.min(Number(range[2]),seekBytes.length-1);
   if(from===0)liveReads++;
-  if(from>0&&!liveDelayed){liveDelayed=true;await liveTail;}
+  if(last>=524288&&!liveDelayed){liveDelayed=true;await liveTail;}
   return new Response(seekBytes.slice(from,last+1),{status:206,headers:{'content-type':'audio/mpeg','content-range':'bytes '+from+'-'+last+'/'+seekBytes.length}});
  }};
  const liveEngine=new __CELIKOM_REPLACEMENT_CONTROLLER_V1__.ReplacementController(liveBridge,liveEnvironment,{resolveAsset:async()=>liveApproved?({found:true,url:'https://private.example/just-approved',mimeType:'audio/mpeg',durationMs:60030,expiresAt:Date.now()+60000}):({found:false}),

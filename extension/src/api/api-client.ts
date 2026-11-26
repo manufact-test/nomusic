@@ -68,8 +68,9 @@ export class ApiClient {
       try{this.onNetwork({endpoint:path.split("?")[0].replace("/api/v1/",""),method:options.method||"GET",httpStatus,result:outcome,elapsedMs:Math.max(0,this.now()-started),at:this.now()});}catch{/* diagnostics never block playback */}
     }
   }
-  config() {
-    if (this.configCache?.until > this.now()) return Promise.resolve(this.configCache.value);
+  config(options = {}) {
+    const ahead = Math.max(0, Math.min(15000, options.refreshAheadMs || 0));
+    if (this.configCache?.until > this.now() + ahead) return Promise.resolve(this.configCache.value);
     if (this.configPending) return this.configPending;
     const epoch = this.transportEpoch;
     const pending = this.loadConfig(epoch).finally(() => {

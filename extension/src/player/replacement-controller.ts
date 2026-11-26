@@ -46,6 +46,7 @@
       this.restoreCount = 0;
       this.lastRestore = null;
       this.restoreHistory = [];
+      this.authorizationRefreshCount = 0;
     }
     publishPolicy(reset = false) {
       this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,holdIntro:true,reset:reset===true,
@@ -88,6 +89,7 @@
       if (this.snapshot && snapshot.observedAt < this.snapshot.observedAt) return;
       const previousId = this.snapshot?.track?.id;
       this.snapshot = snapshot;
+      if(this.operation && (eventType === "SEEK" || snapshot.player?.seeking)) this.operation.userSought=true;
       const id = snapshot.track?.id;
       const player = snapshot.player;
       if (!this.masterClock || this.masterClock.id !== id || this.masterClock.mediaId !== player?.mediaId
@@ -170,13 +172,17 @@
         void this.activate(operation);
       }
       if (this.phase === "REPLACEMENT_ACTIVE") {
+        if (!operation.asset.demoLoop && operation.asset.expiresAt<=Date.now()) {
+          if(this.snapshot.player.paused){operation.player.pause();return;}
+          this.abort("audio-token-expired",true);return;
+        }
         try { this.driftMs = operation.sync.sync(operation.player, this.snapshot, forceSync); }
         catch (error) { this.abort(error.message, true); }
       }
     }
     async prepare() {
       const snapshot = this.snapshot;
-      const operation = { startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
+      const operation = { initialMasterTime:snapshot.player.currentTime,startedAt:Date.now(),stage:"resolving",generation: ++this.generation, token: `${this.bridge.sessionId}:${this.generation}`, trackId: snapshot.track.id, mediaId: snapshot.player.mediaId, sync: new this.SyncEngine(), player: null };
       operation.wasUnavailable = this.negativeResolution?.trackId === operation.trackId;
       this.operation = operation;
       this.phase = "PREPARING";
@@ -263,6 +269,20 @@
           if(this.snapshot.player.seeking||Math.abs(driftAt(audio.currentTime,target,audio.duration,false))>100)return;
           operation.joinAligned=true;
         }
+        if (!operation.completeJoin && operation.initialMasterTime<=0.25
+            && this.snapshot.player.currentTime>0.25 && this.snapshot.player.currentTime<=5
+            && !operation.userSought && !operation.joinAligned
+            && typeof operation.player.prepareIntroPosition === "function") {
+          operation.stage="aligning-start";
+          const aligned=await operation.player.prepareIntroPosition(this.snapshot,async()=>{
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            this.update(await this.bridge.getSnapshot());
+            if(!this.current(operation))throw new Error("Replacement cancelled");
+            return this.snapshot;
+          });
+          if(!this.current(operation)||!this.eligible()||!aligned)return;
+          operation.joinAligned=true;
+        }
         operation.stage="guarding";
         const guard = await this.bridge.request("GUARD_ENGAGE", { token: operation.token, trackId: operation.trackId, mediaId: operation.mediaId });
         if (!this.current(operation)) { this.bridge.post("RELEASE_NOW", { token: operation.token }); return; }
@@ -276,7 +296,9 @@
           prepareMs:Date.now()-operation.startedAt, warmLeadMs:operation.warmLeadMs || 0,
           resolveMs:operation.resolvedAt-operation.startedAt,
           loadMs:operation.loadedAt-operation.resolvedAt,
-          masterTimeMs:Math.round(this.snapshot.player.currentTime*1000)});
+          masterTimeMs:Math.round(this.snapshot.player.currentTime*1000),
+          alignmentMs:Math.max(0,Date.now()-operation.loadedAt),
+          audioPreparation:operation.player.preparationTiming||null});
         if(this.startupHistory.length>12)this.startupHistory.shift();
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
@@ -342,13 +364,44 @@
       this.blockedTrackId=null;this.retryBlock=null;this.lastError=null;this.networkRetries=0;this.freshResolve=true;
       this.publishPolicy();this.reconcile();
     }
+    renewPausedAuthorization() {
+      const operation=this.operation;
+      if (!operation || this.phase!=="REPLACEMENT_ACTIVE" || operation.renewing
+          || operation.renewAfter>Date.now() || operation.asset.demoLoop
+          || operation.asset.expiresAt>Date.now()+90000 || !this.snapshot?.player?.paused
+          || !this.eligible() || !operation.player.canRevalidateAuthorization?.()) return;
+      operation.renewing=true;
+      void (async()=>{
+        const asset=await this.resolveAsset(operation.trackId,{fresh:true});
+        if(!this.current(operation))return;
+        if(asset?.found===false){
+          this.negativeResolution={trackId:operation.trackId,until:Date.now()+Math.min(60000,Math.max(5000,asset.retryAfterMs||15000))};
+          this.publishPolicy();this.abort("replacement-no-longer-available");return;
+        }
+        if(!asset?.found || asset.expiresAt<=Date.now()+1000
+          ||Math.abs(asset.durationMs-this.snapshot.track.metadata.durationMs)>1500)
+          throw new Error("replacement_duration_or_token_invalid");
+        const same=await operation.player.revalidateAuthorization(asset);
+        if(!this.current(operation))return;
+        if(!same){this.abort("paused-asset-changed");return;}
+        operation.asset=asset;this.authorizationRefreshCount++;
+        this.log(`PAUSED_ASSET_REVALIDATED · ${operation.trackId}`);
+      })().catch(error=>{
+        if(!this.current(operation))return;
+        operation.renewAfter=Date.now()+5000;
+        if(["api_forbidden","api_access_denied","api_access_missing"].includes(error.message) || [401,403,404].includes(error.streamDetail?.httpStatus)
+            ||operation.asset.expiresAt<=Date.now())this.abort(error.message,true,error.streamDetail||null);
+      }).finally(()=>{operation.renewing=false;});
+    }
     tick() {
       if (this.operation && this.masterClock && !this.snapshot.player.paused && !this.snapshot.player.seeking
         && this.snapshot.player.readyState >= 3 && !this.environment.document.hidden && Date.now() - this.masterClock.advancedAt > 4000) {
         this.abort("master-clock-stalled", true); return;
       }
       if (!this.bridge.isHealthy() && this.operation) { this.abort("bridge-unhealthy", true); return; }
-      if (this.operation?.asset && !this.operation.asset.demoLoop && this.operation.asset.expiresAt <= Date.now()) { this.abort("audio-token-expired", true); return; }
+      this.renewPausedAuthorization();
+      if (this.operation?.asset && !this.operation.asset.demoLoop && this.operation.asset.expiresAt <= Date.now()
+          && (!this.snapshot.player.paused || !this.operation.renewing)) { this.abort("audio-token-expired", true); return; }
       if (this.operation && this.snapshot.player.readyState >= 3 && !this.snapshot.player.paused && !this.snapshot.player.seeking
         && Date.now() - this.snapshot.observedAt > 3000 && !this.environment.document.hidden) {
         this.abort("snapshot-stale", true); return;
