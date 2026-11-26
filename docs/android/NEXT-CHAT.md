@@ -1,39 +1,24 @@
-# CURRENT HANDOFF — 26.11.2026 (BETA19 delivered; читать в первую очередь)
+# CURRENT HANDOFF — 26.11.2026 (BETA20 delivered, awaiting Honor 50 audio check)
 
-**Актуальная задача: проверить BETA19 на Honor 50 и разобрать TXT-диагностику. Новую APK пока не собирать.**
+**Актуальная задача:** получить TXT-диагностику после установки BETA20 на Honor 50, проверить реальное воспроизведение альтернативного аудио. **Никакой новой сборки до результатов телефона.**
 
-## Текущее состояние
+## Подтверждённое состояние
 
-- **BETA19 собрана и доставлена владельцу через FlokiNET.** APK: `CELIKOM-A1-RAMIL-AU-BETA19-HONOR50-20261126.apk`; размер: `71589868` байт; SHA-256: `7b31fdb5d5d796902bb1e5c9bc9639ffba27e226b57cdbb49ed2742ef8964e62`.
-- Источник: run `45843465862`, attempt `1`, branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Доставка: workflow run `45851044503`, job `140017164274`, runner `celikom-floki-ci02`, **success**. Root receipt совпал по run/attempt/name/size/SHA, `https_verified=true`; workflow проверил owner URL в unpublished draft и успешный readback.
-- Release draft ID: `459566917`, остаётся unpublished. В нём хранится owner capability URL. **Не копировать URL в Git, документацию, Actions logs/summaries или публичные сообщения.** Ссылка уже выдана владельцу в чате.
-- Важное различие: старый SSH workflow run `45851044496` завершился `skipped` из-за `if: false`. Это ожидаемо и не является доставкой. Правильный spool workflow `45851044503` завершился успешно.
-- Publisher-first ARM13 75-second gate и JVM issuer/proxy gate прошли. Native gate: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`. **Фактическая слышимая подмена звука всё ещё не доказана.**
-- Следующий тест: установить BETA19 поверх текущей CELIKOM A1 на Honor 50; проверить Рамиля `144530503`, альбом `38902809`, фрагмент 00:43–00:54; вернуть TXT-диагностику. Не считать установку/прослушивание выполненными до подтверждения владельца.
+- Android A1 BETA19 на реальном Honor 50 **не дала слышимой подмены**. Последний пользовательский диагностический TXT **остаётся только в чате, не публиковать**. Сводка: `OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `DATASOURCE_ARMED=ONE`, `AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`, `TRACK_FACTORY_SOURCE_LINK=FEW`; `AUDIO_EXO_FACTORY_NESTED_LINK=EXACT_BOUND` наблюдалась. Это доказательство alternate encoded-byte read на выбранном native DataSource, **не доказательство слышимого PCM/активного декодера**. `AUDIO_STAGE_B_STATUS=NOT_CONNECTED` в данном модуле статически прописано, не диагностическое свидетельство. `LOG_TRIMMED=KEEP_LAST_32KB` ограничивает полноту истории.
+- В BETA19 обнаружен реальный дефект привязки отложенного допуска к **первому созданному** фабрикой DataSource, который не обязательно станет первым реально открытым. Минимальный fix `de786609ea256c43edda3f4992adb46f6da09651` на экспериментальной ветке сохраняет отдельные identity-рождения фабричных источников и передаёт deferred arm **только непосредственно перед первым фактическим `RetryingBalancingDataSource.if(UC2)` open** выбранного экземпляра. Другой затронутый sibling запрещает переключение, чтобы не смешать оригинальные/альтернативные байты. Добавлен JVM-тест двух factory products / late real open / wrong object / touched sibling. **Это кандидат на исправление, реальный звук не подтверждён.**
+- BETA20 package/export commit `661d5a428e0ed90c3744affefd799d6443af5fe0` в `experiment/android-a1-metrica-init-state-observer-arm13-20261112`. Исходная сборка: run `45854781668`, attempt `1`, JVM + native ARM13 jobs **success**. Owner APK `CELIKOM-A1-RAMIL-AU-BETA20-HONOR50-20261126.apk`, размер `71593964` байта; SHA-256 `313bac3833177a25fa164277537d3520a36a2f371293e3af549df518b683fc89`.
+- **Подтверждённая доставка через FlokiNET:** trusted-main workflow `.github/workflows/android-a1-owner-floki-spool.yml`, run `45857047886`, job `140038049838`, `success`; root receipt matched run, attempt, filename, size, SHA and `https_verified=true`; unpublished owner draft readback подтвердил URL. Draft release ID `459645155`, остаётся unpublished. **Owner capability URL НЕ копировать в Git, Actions logs/summaries или документы** — ссылка уже передана владельцу в чате.
+- Запрос доставки в `.github/deploy/a1-owner-download-request.json`: `{"run_id":45854781668,"attempt":1,"release_id":459645155}`. Legacy direct-SSH workflow отключён `if: false`, его `skipped` — штатно.
+- **Акустика отдельно:** `acoustic_replacement_proven=false`. Успешный JVM/Android13 smoke, подпись, HTTPS, DataSource open/read **не равны** реальному звучанию на Honor 50.
 
-## Как теперь работаем и доставляем APK
+## Что делать следующим
 
-- Репозиторий: `manufact-test/nomusic`, основная ветка `main`. Репозиторий PUBLIC; Git и обычные Actions logs/summaries считать публичными. Никаких секретов, signing keys, приватных диагностик и owner capability URLs в коммитах.
-- Единственный рабочий маршрут доставки: `.github/workflows/android-a1-owner-floki-spool.yml` → изолированный runner `celikom-ci-smoke-only` → data-only spool → root-owned verifier на FlokiNET → restricted receiver → HTTPS verification → root receipt → owner URL в unpublished draft.
-- Старый прямой SSH workflow `.github/workflows/android-a1-owner-floki-download.yml` отключён через `if: false`. Не включать и не использовать. APK по SSH не отправлять.
-- `.github/deploy/a1-owner-download-request.json` сейчас указывает на BETA19: run `45843465862`, attempt `1`, release `459566917`. Для будущей доставки менять его только после успешной сборки и проверки точного unpublished draft.
-- Runner spool: `/home/runner/celikom-a1-signed-spool`; host spool: `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool`.
-- Root consumer installed: `/usr/local/lib/celikom-a1-signed-owner/consumer.py`; trusted source: `.github/scripts/floki-a1-root-signed-spool-consumer.py`.
-- Root receipt: `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool/receipts/a1-<RUN_ID>-<ATTEMPT>.json`. В нём находится capability URL — не выводить его в публичные логи.
-- Systemd: `celikom-a1-signed-owner.service` и `celikom-a1-signed-owner.timer`. Receiver: `/usr/local/sbin/celikom-a1-apk-receive`. Storage: `/srv/celikom-a1-downloads/files` и `/srv/celikom-a1-downloads/receipts`.
-- Основные скрипты: `.github/scripts/floki-a1-signed-spool.py` (data staging), `.github/scripts/floki-a1-root-signed-spool-consumer.py` (root verification), `.github/scripts/tests/floki-a1-signed-spool.test.py` (security/contract tests), `.github/scripts/floki-a1-signed-spool-bootstrap.sh` (one-time bootstrap; повторно не запускать).
-- Полная инструкция: [CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md](CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md).
+1. Получить TXT от владельца после установки **BETA20 поверх BETA19 без очистки данных**, воспроизведения 10AGE/Рамиль «Ау», publisher track `144530503`, альбом `38902809`, отрезок 00:43–00:54.
+2. Проверить `DIAGNOSTIC_BETA_BUILD=A1_TRACKID_BETA20_FIRST_REAL_EXO_OPEN_20261126`, `AUDIO_EXO_FIRST_OPEN_ARM`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ`, identity selected MediaPeriod/source и реальный audio renderer / focus / route. Если есть alternate bytes, но нет звучания, **не повторять посторонние правки фабрики**, исследовать связь с выбранным декодером и аудиовыходом. Отличать runtime факты от догадок.
+3. Не трогать stable Android/Windows, API, Nginx, root consumer, signer или FlokiNET infrastructure без доказанной причины. Новые APK создавать только после доказанного fix и обязательных регрессий, доставлять через Floki spool + root receipt + HTTPS/hash + unpublished draft readback.
+4. Не выкладывать приватную диагностику, capability-ссылки, аудиобайты и токены в публичный GitHub.
 
-## Первые действия в новом чате
-
-1. Получить TXT-диагностику после теста BETA19 и разобрать фактические события/таймлайн.
-2. Отделить доказанные сбои от предположений: source resolution/catalogue match, Media3/controller, audio open/read, audio focus/routing, audible output.
-3. Не пересобирать APK наугад и не трогать stable Android/Windows, backend, Nginx, receiver или root service без доказанной причины.
-4. Если диагностика показывает конкретный дефект — подготовить исправление на изолированной A1 experimental branch, затем один проверенный build.
-5. Если понадобится новая APK: только через spool workflow. Доставка считается успешной лишь после matching root receipt + HTTPS size/SHA + unpublished draft readback. Реальная подмена звука принимается отдельно по диагностике телефона и прослушиванию.
-
-**Главное:** BETA19 уже выдана через celikom.com. Следующий шаг — тест на телефоне и диагностика, а не ещё одна сборка.
+**Floki delivery reference:** `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md`. Исторические записи ниже сохраняются.
 
 ---
 
