@@ -14,7 +14,7 @@ if (!header?.files || typeof header.files !== "object") throw new Error("W183_AS
 const sha256 = value => crypto.createHash("sha256").update(value).digest("hex");
 
 function moduleFactories(source) {
-  const pattern = /(?:^|[,{])\\s*["']?([0-9]{1,6})["']?\\s*:\\s*(?:function\\b|\\([^)]*\\)\\s*=>|[A-Za-z_$][\\w$]*\\s*=>)/g;
+  const pattern = /(?:^|[,{])\s*["']?([0-9]{1,6})["']?\s*:\s*(?:function\b|\([^)]*\)\s*=>|[A-Za-z_$][\w$]*\s*=>)/g;
   return [...source.matchAll(pattern)].map(match => ({
     id: match[1], start: match.index, end: pattern.lastIndex
   }));
@@ -41,13 +41,13 @@ function methodShapes(source, name) {
     const body = source.slice(match.index + match[0].length, match.index + match[0].length + 3000);
     result.push({
       parameterCount: params.length,
-      readsId: /\\.id\\b/.test(body),
-      readsTrackId: /\\.trackId\\b/.test(body),
-      readsEntity: /\\.entity\\b/.test(body),
-      callsGetFileInfo: /\\.getFileInfo\\s*\\(/.test(body),
-      callsGetMediaSource: /\\.getMediaSource\\s*\\(/.test(body),
-      returnsFileInfo: /\\.fileInfo\\b/.test(body),
-      returnsDownloadInfo: /\\.downloadInfo\\b/.test(body)
+      readsId: /\.id\b/.test(body),
+      readsTrackId: /\.trackId\b/.test(body),
+      readsEntity: /\.entity\b/.test(body),
+      callsGetFileInfo: /\.getFileInfo\s*\(/.test(body),
+      callsGetMediaSource: /\.getMediaSource\s*\(/.test(body),
+      returnsFileInfo: /\.fileInfo\b/.test(body),
+      returnsDownloadInfo: /\.downloadInfo\b/.test(body)
     });
     if (result.length >= 5) return result;
   }
@@ -55,10 +55,10 @@ function methodShapes(source, name) {
 }
 function exportKeys(source) {
   const keys = new Set();
-  for (const match of source.matchAll(/[A-Za-z_$][\\w$]*\\.d\\(\\s*[A-Za-z_$][\\w$]*\\s*,\\s*\\{([^}]{0,4000})\\}\\s*\\)/g)) {
-    for (const item of match[1].matchAll(/(?:^|,)\\s*([A-Za-z_$][\\w$]*)\\s*:/g)) keys.add(item[1]);
+  for (const match of source.matchAll(/[A-Za-z_$][\w$]*\.d\(\s*[A-Za-z_$][\w$]*\s*,\s*\{([^}]{0,4000})\}\s*\)/g)) {
+    for (const item of match[1].matchAll(/(?:^|,)\s*([A-Za-z_$][\w$]*)\s*:/g)) keys.add(item[1]);
   }
-  for (const match of source.matchAll(/\\bexports\\.([A-Za-z_$][\\w$]*)\\s*=/g)) keys.add(match[1]);
+  for (const match of source.matchAll(/\bexports\.([A-Za-z_$][\w$]*)\s*=/g)) keys.add(match[1]);
   return [...keys].slice(0, 40);
 }
 function summarizeModule(path, id, source) {
@@ -71,7 +71,7 @@ function summarizeModule(path, id, source) {
       getMediaSource: (source.match(/getMediaSource/g) || []).length,
       reloadEntity: (source.match(/reloadEntity/g) || []).length
     },
-    hasStateGetter: /get\\s+state\\s*\\(/.test(source),
+    hasStateGetter: /get\s+state\s*\(/.test(source),
     hasReloadEntity: has("reloadEntity"),
     hasGetFileInfo: has("getFileInfo"),
     hasGetMediaSource: has("getMediaSource"),
@@ -89,7 +89,7 @@ function walk(files, prefix = "") {
     const path = prefix ? prefix + "/" + name : name;
     if (!node || typeof node !== "object") continue;
     if (node.files && typeof node.files === "object") { walk(node.files, path); continue; }
-    if (node.unpacked || !/\\.(?:js|cjs|mjs)$/i.test(path)) continue;
+    if (node.unpacked || !/\.(?:js|cjs|mjs)$/i.test(path)) continue;
     const size = Number(node.size), offset = Number(node.offset);
     if (!Number.isSafeInteger(size) || size < 0 || size > 32*1024*1024 ||
         !Number.isSafeInteger(offset) || offset < 0 || dataStart+offset+size > bytes.length) continue;
