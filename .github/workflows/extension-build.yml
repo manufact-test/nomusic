@@ -87,11 +87,46 @@ jobs:
           if ldd "$browser_bin" | grep -q 'not found'; then
             command -v apt-get >/dev/null 2>&1 || { echo "APT_GET_UNAVAILABLE_FOR_UNPRIVILEGED_CHROME_LIBS"; exit 1; }
             command -v dpkg-deb >/dev/null 2>&1 || { echo "DPKG_DEB_UNAVAILABLE_FOR_UNPRIVILEGED_CHROME_LIBS"; exit 1; }
+            echo "Floki runner distribution and package sources:"
+            cat /etc/os-release
+            find /etc/apt/sources.list.d -maxdepth 1 -type f -printf '%f\n' 2>/dev/null || true
             libs_dir="$browser_tmp/chrome-libs"
-            mkdir -p "$libs_dir/debs" "$libs_dir/root"
+            apt_tmp="$browser_tmp/private-apt"
+            mkdir -p "$libs_dir/debs" "$libs_dir/root" "$apt_tmp/lists/partial" "$apt_tmp/cache/archives/partial"
+            apt_opts=(
+              -o "Dir::State::lists=$apt_tmp/lists"
+              -o "Dir::Cache::archives=$apt_tmp/cache/archives"
+              -o "Debug::NoLocking=true"
+            )
+            apt-get "${apt_opts[@]}" update
+            apt_choice() {
+              local choice
+              for choice in "$@"; do
+                if apt-cache "${apt_opts[@]}" show "$choice" >/dev/null 2>&1; then
+                  printf '%s\n' "$choice"
+                  return 0
+                fi
+              done
+              echo "CHROME_RUNTIME_PACKAGE_MISSING: $*" >&2
+              return 1
+            }
+            packages=(
+              libnspr4 libnss3
+              "$(apt_choice libatk1.0-0t64 libatk1.0-0)"
+              "$(apt_choice libatk-bridge2.0-0t64 libatk-bridge2.0-0)"
+              "$(apt_choice libcups2t64 libcups2)"
+              libxkbcommon0
+              "$(apt_choice libasound2t64 libasound2)"
+              libgbm1 libcairo2 libpango-1.0-0
+              libxcomposite1 libxdamage1 libxfixes3 libxrandr2
+              "$(apt_choice libatspi2.0-0t64 libatspi2.0-0)"
+              libdrm2 libpangoft2-1.0-0 libcairo-gobject2
+              libharfbuzz0b libfontconfig1 libfreetype6
+              libpixman-1-0 libxrender1 libxshmfence1
+            )
             (
               cd "$libs_dir/debs"
-              apt-get download libnspr4 libnss3
+              apt-get "${apt_opts[@]}" download "${packages[@]}"
               for deb in ./*.deb; do dpkg-deb -x "$deb" "$libs_dir/root"; done
             )
             lib_paths="$(find "$libs_dir/root" -type f -name '*.so*' -printf '%h\n' | sort -u | paste -sd: -)"
