@@ -1,50 +1,20 @@
-# CURRENT HANDOFF — 26 November 2026 (BETA19 delivered; supersedes earlier pending states)
+# CURRENT HANDOFF — 26 November 2026 (BETA20 delivered, awaiting acoustic acceptance)
 
-## Where we are
+## Verified owner delivery
 
-**BETA19 has been delivered to the owner through FlokiNET. The next step is the Honor 50 phone test and its TXT diagnostic, not another speculative build.**
+- Owner-only Android A1 BETA20 built from source commit `661d5a428e0ed90c3744affefd799d6443af5fe0` on `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; source workflow `45854781668`, attempt `1`, JVM/native ARM13 jobs **success**. APK `CELIKOM-A1-RAMIL-AU-BETA20-HONOR50-20261126.apk`, `71593964` bytes, SHA-256 `313bac3833177a25fa164277537d3520a36a2f371293e3af549df518b683fc89`.
+- Source unpublished owner draft release `459645155` contains APK, SHA256SUMS, build provenance and README. It is not a public customer release. **Never copy the owner capability URL to Git, public Actions logs/summaries, docs, screenshots, or commits.** Owner received the Floki URL directly in chat.
+- Trusted-main **data-only** Floki spool workflow `.github/workflows/android-a1-owner-floki-spool.yml` run `45857047886`, job `140038049838`, **success**: validated source run, original APK certificate/package, source provenance and size/SHA; staged signed APK as untrusted runner data; matched independent root receipt with `https_verified=true`; wrote owner URL to unpublished draft and read it back successfully. Publication verified; GitHub is not download endpoint.
+- Manual trigger `.github/deploy/a1-owner-download-request.json`: `run_id=45854781668`, `attempt=1`, `release_id=459645155`. Legacy direct SSH workflow `.github/workflows/android-a1-owner-floki-download.yml` remains disabled `if: false`; never re-enable.
+- Existing isolated runner `celikom-ci-smoke-only`; host spool `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool`; runner view `/home/runner/celikom-a1-signed-spool`. Root-only consumer `/usr/local/lib/celikom-a1-signed-owner/consumer.py`, root timer/service `celikom-a1-signed-owner.timer` / `celikom-a1-signed-owner.service`, restricted receiver `/usr/local/sbin/celikom-a1-apk-receive`. Root receipt path `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool/receipts/a1-45854781668-1.json`. Contains capability URL — confidential.
+- No changes to stable Android/Windows, Nginx, API, root consumer or server security were necessary for BETA20 delivery.
 
-- Source workflow run: `45843465862`, attempt `1`; branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- APK: `CELIKOM-A1-RAMIL-AU-BETA19-HONOR50-20261126.apk`; size `71589868` bytes; SHA-256 `7b31fdb5d5d796902bb1e5c9bc9639ffba27e226b57cdbb49ed2742ef8964e62`.
-- Owner release draft ID: `459566917`; it remains unpublished and contains the owner capability URL. **Never copy the capability URL into Git, docs, public Actions logs/summaries, screenshots, or public messages.** The owner has already received the URL in chat.
-- Delivery workflow: run `45851044503`, job `140017164274`, runner `celikom-floki-ci02`, completed `success`. The workflow verified the exact source run, provenance, APK size/SHA, original signer and package; staged the APK as data-only; matched the root receipt including `https_verified=true`; then wrote the owner URL into the unpublished draft and read it back successfully.
-- Do not confuse the legacy direct-SSH workflow run `45851044496` (`skipped`, expected because its job has `if: false`) with delivery. The supported spool workflow is `45851044503` and it succeeded.
-- ARM13 publisher-first 75-second and JVM issuer/proxy gates passed. Native gate `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`. **Audible replacement is not yet proven.**
-- Next phone check: install BETA19 over the current CELIKOM A1 installation on Honor 50; test Ramil `144530503`, album `38902809`, 00:43–00:54; send the resulting TXT diagnostic. Do not assume installation/listening occurred until the owner confirms it.
+## Why this beta was built; next step
 
-## How delivery works now — the supported route
-
-The GitHub repository is currently public. Treat every committed file and ordinary Actions log/summary as public. Never commit secrets, credentials, signing keys, owner capability URLs, private user data, or diagnostic files containing such data.
-
-1. A trusted Android source workflow creates an unpublished owner draft with the already-signed APK and provenance. The source branch is `experiment/android-a1-metrica-init-state-observer-arm13-20261112`; delivery validates the exact source run and required gates.
-2. The trusted-main workflow `.github/workflows/android-a1-owner-floki-spool.yml` runs on isolated self-hosted label `celikom-ci-smoke-only`. It independently checks APK package/signature/provenance/digest and stages the bytes as **untrusted data only**. It does not execute Android-branch code or upload the APK by SSH.
-3. Runner staging code: `.github/scripts/floki-a1-signed-spool.py`. Runner-visible spool: `/home/runner/celikom-a1-signed-spool`; host spool: `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool`.
-4. A separate root-owned Floki service consumes the data. Installed verifier: `/usr/local/lib/celikom-a1-signed-owner/consumer.py`; trusted source: `.github/scripts/floki-a1-root-signed-spool-consumer.py`. It verifies run metadata/provenance, owner certificate and package ID, file size/SHA, then uses the existing restricted receiver `/usr/local/sbin/celikom-a1-apk-receive`. It verifies external HTTPS response status, content type, size and SHA before writing the root receipt.
-5. Root receipt directory: `/srv/celikom/ci-runner/runner/celikom-a1-signed-spool/receipts/`; filename `a1-<RUN_ID>-<ATTEMPT>.json`. Runner-visible equivalent: `/home/runner/celikom-a1-signed-spool/receipts/`. The receipt contains the owner capability URL; treat it as secret.
-6. Existing root units: `celikom-a1-signed-owner.service` and `celikom-a1-signed-owner.timer`. Do not replace or weaken them, the restricted receiver, or capability-only Nginx route.
-7. Only after a matching root receipt exists does the workflow write the owner URL into the **unpublished draft** and read it back. GitHub is not the APK download endpoint; Floki HTTPS is.
-
-## Exact repository paths and their roles
-
-- `.github/workflows/android-a1-owner-floki-spool.yml` — **only supported owner APK delivery workflow**.
-- `.github/workflows/android-a1-owner-floki-download.yml` — legacy direct SSH route, disabled with `if: false`; never re-enable or use.
-- `.github/deploy/a1-owner-download-request.json` — current request points to BETA19: run `45843465862`, attempt `1`, release `459566917`. For a future build, change it only after that build and exact draft are verified. Updating this file on main triggers the spool workflow.
-- `.github/scripts/floki-a1-signed-spool.py` — data-only stage from isolated runner.
-- `.github/scripts/floki-a1-root-signed-spool-consumer.py` — trusted root-side verification and promotion logic; installed copy is separately root-owned.
-- `.github/scripts/floki-a1-signed-spool-bootstrap.sh` — one-time root bootstrap only. **Do not rerun it on an already provisioned host.**
-- `.github/scripts/floki-a1-receiver-diagnostic-install.sh` — historical surgical root repair pinned to an old consumer state/receipt; not a generic update script and not for routine delivery.
-- `.github/scripts/tests/floki-a1-signed-spool.test.py` — offline contract/security tests run before staging.
-- Existing receiver storage: `/srv/celikom-a1-downloads/files` and `/srv/celikom-a1-downloads/receipts`. Do not edit storage or Nginx by guess.
-
-## Operating rules for the next chat
-
-- First inspect the owner's BETA19 TXT diagnostic and compare it with expected behavior. Extract actual failure point and timestamps; distinguish source resolution, catalogue match, Media3/controller state, audio open/read, audio focus/routing, and audible output. Do not infer success from UI state or startup gate.
-- Do not rebuild BETA19, repeat its upload, or change stable Android/Windows releases just to "try something". First determine what the diagnostic proves and what it does not.
-- Make the smallest evidence-backed source fix on the existing isolated A1 experimental line. Preserve owner signing identity and package/update compatibility.
-- If a new APK is justified, build once after the fix; require source workflow success, both native/JVM gates, exact provenance, package ID and original signer verification before staging.
-- For a new delivery, update `.github/deploy/a1-owner-download-request.json` with that exact successful source run, attempt and draft release ID, then let `.github/workflows/android-a1-owner-floki-spool.yml` perform the data-only stage and root receipt flow. Never send the APK with direct SSH.
-- Delivery is complete only after: successful spool workflow; matching root receipt; `https_verified=true`; matching size/SHA; successful unpublished-draft URL write/readback. Audio acceptance is a separate phone diagnostic and listening step.
-- If delivery itself fails, inspect the exact workflow step and the existing `celikom-a1-signed-owner.service` journal/timer first. Do not edit the root consumer, systemd units, receiver permissions, Nginx, API, or runner configuration by guess.
+- BETA19 Honor50 user diagnostic reported approved signed grant and alternate DataSource open/read, but the owner **did not hear the alternate audio**. `AUDIO_STAGE_B_STATUS=NOT_CONNECTED` is a permanently literal legacy status and is not the reason. No real current decoder/PCM proof.
+- BETA20 fixes evidence-backed **first constructed factory instance vs first actual open() instance** mismatch. Fix commit `de786609ea256c43edda3f4992adb46f6da09651`: object identity and immutable creator/factory provenance are preserved and grant is armed on first real source open; touched sibling hard-rejects mixing. JVM regression checks two factory-created instances, wrong object, touched sibling. **Still not acoustic proof.**
+- Owner installs BETA20 *over* BETA19 (no data removal), listens to Ramil «Ау» track `144530503`, album `38902809`, at 00:43–00:54, then returns TXT. Require real audible confirmation in addition to `AUDIO_EXO_FIRST_OPEN_ARM`, `DATASOURCE_ARMED`, `AUDIO_OPEN` and `AUDIO_READ`.
+- If a future version is needed, prove root cause in diagnostics, fix experimental Android only, run native/JVM and signer/provenance checks, update manual request to the exact successful source run and draft release, and deliver **only** via signed Floki spool and independent root receipt. Never use hosted-runner direct SSH or raw GitHub download URLs.
 
 ---
 
