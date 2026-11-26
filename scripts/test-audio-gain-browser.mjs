@@ -352,7 +352,10 @@ try{
  const headlessArgs=usePipe?[]:['--headless=new'];
  const debugArgs=usePipe?['--remote-debugging-pipe']:['--remote-debugging-port=0'];
  const stdio=usePipe?['pipe','pipe','pipe','pipe','pipe']:['ignore','ignore','pipe'];
- const browser=spawn(binary,[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-vulkan','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600',...debugArgs,'--user-data-dir='+join(directory,'profile'),pathToFileURL(file).href,...extraBrowserArgs],{stdio,detached:process.platform!=='win32'});
+ const browserArgs=[...headlessArgs,'--no-sandbox','--disable-gpu','--disable-vulkan','--disable-dev-shm-usage','--autoplay-policy=no-user-gesture-required','--window-size=420,600',...debugArgs,'--user-data-dir='+join(directory,'profile')];
+ if(!usePipe)browserArgs.push(pathToFileURL(file).href);
+ browserArgs.push(...extraBrowserArgs);
+ const browser=spawn(binary,browserArgs,{stdio,detached:process.platform!=='win32'});
  /* Keep bounded synthetic-fixture launch diagnostics when Chrome cannot start. */
  let launchError='';browser.stderr.on('data',chunk=>{launchError=(launchError+chunk.toString()).slice(-3000);});
  const exited=new Promise(resolve=>browser.once('exit',resolve));
@@ -389,16 +392,10 @@ try{
     const message={id:seq,method,params};if(sessionId)message.sessionId=sessionId;
     pipeWrite.write(JSON.stringify(message)+'\\0',error=>{if(error){clearTimeout(timer);pending.delete(seq);reject(error);}});
    });
-   let target;
-   for(let i=0;i<100&&!target;i++){
-    if(browser.exitCode!==null)break;
-    try{const result=await send('Target.getTargets');target=result.targetInfos?.find(item=>item.type==='page');}
-    catch(error){if(browser.exitCode!==null)throw error;}
-    if(!target)await pause(50);
-   }
-   if(!target)throw Error('Chromium pipe did not expose a page target; exit='+browser.exitCode+'; stderr: '+launchError);
-   const attached=await send('Target.attachToTarget',{targetId:target.targetId,flatten:true});
-   if(!attached.sessionId)throw Error('Chromium could not attach to its page target');
+   const created=await send('Target.createTarget',{url:pathToFileURL(file).href});
+   if(!created.targetId)throw Error('Chromium did not create the audio fixture page');
+   const attached=await send('Target.attachToTarget',{targetId:created.targetId,flatten:true});
+   if(!attached.sessionId)throw Error('Chromium could not attach to its fixture page');
    const sessionId=attached.sessionId;
    call=(method,params={})=>send(method,params,sessionId);
    console.log('Chromium DevTools pipe connected');
