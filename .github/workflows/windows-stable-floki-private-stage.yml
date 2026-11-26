@@ -78,19 +78,18 @@ jobs:
           bash -n .github/scripts/floki-windows-owner-download-bootstrap.sh
           bash -n .github/scripts/floki-windows-root-consumer-install.sh
           node --test .github/scripts/tests/windows-stable-private-import.test.mjs
-      - name: Download exact P-256 signed draft and persist in isolated Floki runner spool
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download exact signed transfer artifact from calling release workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-${{ inputs.version }}-${{ inputs.source_commit }}
+          path: ${{ runner.temp }}/celikom-windows-private-stage
+      - name: Persist verified signed transfer in isolated Floki runner spool
         shell: bash
         run: |
           set -Eeuo pipefail
           umask 077
-          mkdir -m 700 "$RUNNER_TEMP/celikom-windows-private-stage"
-          trap 'rm -rf -- "$RUNNER_TEMP/celikom-windows-private-stage"' EXIT
-          bundle="$RUNNER_TEMP/celikom-windows-private-stage/transfer.zip"
-          python3 .github/scripts/windows-stable-floki-draft-source.py --version "$RELEASE_VERSION" \
-            --sequence "$RELEASE_SEQUENCE" --commit "$RELEASE_COMMIT" --output "$bundle"
-          unset GH_TOKEN
+          bundle="$RUNNER_TEMP/celikom-windows-private-stage/CELIKOM-Windows-P256-transfer.zip"
+          test -f "$bundle" && test ! -L "$bundle"
           python3 .github/scripts/floki-windows-signed-spool.py --bundle "$bundle" \
             --version "$RELEASE_VERSION" --sequence "$RELEASE_SEQUENCE"
-          echo CELIKOM_WINDOWS_IMMUTABLE_SIGNED_DATA_STAGED_NO_SSH_NO_PUBLICATION
+          echo CELIKOM_WINDOWS_IMMUTABLE_SIGNED_DATA_STAGED_NO_GITHUB_RELEASE_NO_SSH_NO_PUBLICATION
