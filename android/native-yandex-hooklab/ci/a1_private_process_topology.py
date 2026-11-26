@@ -48,7 +48,7 @@ def summarize(found):
         return bool(p and (p.startswith(':') or
                      (default and p!=default) or
                      p.rsplit(':',1)[-1] in ('player','playback','audio','media','music')))
-    media=[x for x in services if MEDIA.search(x['name'])]
+    media=[x for x in services if MEDIA.search(x['name'].rsplit('.',1)[-1])]
     return dict(
         services=len(services),
         service_explicit_process=sum(x['process'] is not None for x in services),
@@ -68,7 +68,7 @@ def summarize_xml(root):
         return bool(p and (p.startswith(':') or
                      (default and p!=default) or
                      p.rsplit(':',1)[-1] in ('player','playback','audio','media','music')))
-    media=[x for x in services if MEDIA.search(x.get(ANDROID+'name',''))]
+    media=[x for x in services if MEDIA.search(x.get(ANDROID+'name','').rsplit('.',1)[-1])]
     return dict(
         services=len(services),
         service_explicit_process=sum(x.get(ANDROID+'process') is not None for x in services),
@@ -76,6 +76,12 @@ def summarize_xml(root):
         media_named_services=len(media),
         media_named_separate_process=sum(separate(x) for x in media),
         media_named_main_process=sum(not separate(x) for x in media),
+        secondary_explicit_player_process=sum(
+            separate(x) and any(k in (x.get(ANDROID+'process') or '').lower()
+                for k in ('player','playback','audio','media')) for x in services),
+        secondary_explicit_passport_process=sum(
+            separate(x) and 'passport' in (x.get(ANDROID+'process') or '').lower()
+            for x in services),
         application_explicit_process=bool(default))
 
 def inspect(xapk,editor):
