@@ -46,3 +46,9 @@ Changes are in `main`, from the extension fix PR #68 and subsequent CI-only adju
 - Windows, Android, server, API, subscription, payment, VPN credentials, and Floki deployment pipelines belong to other streams. Keep changes strictly scoped to extension and necessary extension test/release code.
 - **Do not force-push or overwrite `main`**; compare HEAD immediately before commits. Other project chats work concurrently.
 - Give the owner a usable, tested candidate through the existing CELIKOM site release channel only after safety checks. State honestly what was verified, what still fails, and exactly how to reproduce it.
+
+## Work continuation — 0.4.91 candidate, 26 November 2026
+
+Work's cloud browser blocked chrome://extensions under its security policy. No unpacked installation or Yandex listening test was completed. The local synthetic decoder check also could not launch because the Chromium binary is absent; browser setup was not pursued.
+
+Three controller regressions were reproduced and fixed: false stalled-clock resets during missing metadata, Stop ignored during that interval, and first-five-seconds user seeks skipping pre-guard alignment. Candidate **0.4.91** passes **440 tests**, ZIP build, manifest validation and security gate. Owner promotion remains unmodified. Read `CELIKOM-EXTENSION-091-WORK-VALIDATION-20261126.md` for precise evidence and remaining validation/delivery steps.

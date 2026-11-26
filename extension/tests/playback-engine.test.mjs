@@ -910,3 +910,35 @@ test('paused audio with a confirmed removed replacement releases immediately rat
  f.engine.operation.player.canRevalidateAuthorization=()=>true;f.engine.operation.asset.expiresAt=Date.now()+9000;
  f.engine.tick();await settle();assert.equal(f.engine.operation,null);assert.equal(f.engine.negativeResolution.trackId,'2');assert.equal(calls,2);
 });
+
+test('metadata refresh keeps advancing the watchdog clock but still detects a real stall',async()=>{
+ const f=fixture();f.update(snapshot());await settle();const operation=f.engine.operation;
+ const missing=snapshot(null);missing.track.ambiguous=true;missing.track.evidence='awaiting-track-refresh';
+ f.engine.masterClock.advancedAt=Date.now()-5000;
+ missing.player.currentTime=12;f.update(missing);f.engine.tick();await settle();
+ assert.equal(f.engine.operation,operation,'advancing native audio must survive a metadata gap longer than four seconds');
+ assert.equal(f.engine.restoreCount,0);
+ f.engine.masterClock.advancedAt=Date.now()-5000;
+ f.update({...missing,observedAt:Date.now()});f.engine.tick();await settle();
+ assert.equal(f.engine.operation,null,'an unchanged native clock must still fail open');
+ assert.equal(f.engine.lastError,'master-clock-stalled');
+});
+
+test('Stop during missing metadata disposes the replacement and releases its guard',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ const missing=snapshot(null);missing.track.ambiguous=true;missing.track.evidence='awaiting-track-refresh';
+ f.update(missing);f.engine.configure(false,'2');await settle();
+ assert.equal(f.engine.operation,null);
+ assert.equal(f.players[0].destroyed,true);
+ assert.equal(f.requests.some(r=>r.type==='GUARD_RELEASE'&&r.token==='session-123:1'),true);
+});
+
+test('seek near the beginning during initial loading waits for decoder alignment before muting',async()=>{
+ const loadGate=deferred(),joinGate=deferred(),f=fixture({loadGate,joinGate});
+ const intro=snapshot();intro.player.currentTime=.1;f.update(intro);await settle();
+ const sought=snapshot();sought.player.currentTime=2;f.update(sought,'SEEK');
+ loadGate.resolve();await settle();
+ assert.equal(f.players[0].alignmentStarted,true);
+ assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
+ joinGate.resolve();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+});
