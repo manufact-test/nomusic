@@ -26,51 +26,66 @@ final class NativeExoFactoryProductWitness {
 
     private NativeExoFactoryProductWitness() { }
 
-    static Resolution resolve(Object factory, Class<?> sourceType) {
+    static Resolution resolve(Object factory, Class<?> sourceType,
+            Class<?>... sourceContracts) {
         if (factory == null || sourceType == null)
             return new Resolution(null, 0);
         Map<String, Method> candidates = new LinkedHashMap<>();
         for (Class<?> type = factory.getClass(); type != null && type != Object.class;
                 type = type.getSuperclass()) {
             for (Method method : type.getDeclaredMethods())
-                addCandidate(candidates, method, sourceType);
+                addCandidate(candidates, method, sourceType, sourceContracts);
         }
         collectDefaultInterfaceMethods(factory.getClass(), sourceType,
-            candidates, new HashSet<Class<?>>());
+            sourceContracts, candidates, new HashSet<Class<?>>());
         if (candidates.size() != 1)
             return new Resolution(null, candidates.size());
         return new Resolution(candidates.values().iterator().next(), 1);
     }
 
     private static void collectDefaultInterfaceMethods(Class<?> type,
-            Class<?> sourceType, Map<String, Method> candidates,
-            Set<Class<?>> visited) {
+            Class<?> sourceType, Class<?>[] sourceContracts,
+            Map<String, Method> candidates, Set<Class<?>> visited) {
         if (type == null) return;
         for (Class<?> iface : type.getInterfaces()) {
             if (!visited.add(iface)) continue;
             for (Method method : iface.getDeclaredMethods()) {
                 if (!Modifier.isAbstract(method.getModifiers()))
-                    addCandidate(candidates, method, sourceType);
+                    addCandidate(candidates, method, sourceType, sourceContracts);
             }
-            collectDefaultInterfaceMethods(iface, sourceType, candidates, visited);
+            collectDefaultInterfaceMethods(iface, sourceType, sourceContracts,
+                candidates, visited);
         }
         collectDefaultInterfaceMethods(type.getSuperclass(), sourceType,
-            candidates, visited);
+            sourceContracts, candidates, visited);
     }
 
     private static void addCandidate(Map<String, Method> candidates,
-            Method method, Class<?> sourceType) {
+            Method method, Class<?> sourceType, Class<?>[] sourceContracts) {
         int modifiers = method.getModifiers();
         if (method.getParameterTypes().length != 0
                 || Modifier.isStatic(modifiers)
                 || Modifier.isAbstract(modifiers)
                 || method.isBridge() || method.isSynthetic()
-                || !sourceType.isAssignableFrom(method.getReturnType()))
+                || !isAllowedSourceReturn(method.getReturnType(), sourceType,
+                    sourceContracts))
             return;
         String key = method.getName() + "()";
         Method prior = candidates.get(key);
         if (prior == null || prior.getDeclaringClass()
                 .isAssignableFrom(method.getDeclaringClass()))
             candidates.put(key, method);
+    }
+
+    private static boolean isAllowedSourceReturn(Class<?> returnType,
+            Class<?> sourceType, Class<?>[] sourceContracts) {
+        if (sourceType.isAssignableFrom(returnType)) return true;
+        if (returnType == Object.class || !returnType.isAssignableFrom(sourceType))
+            return false;
+        for (Class<?> contract : sourceContracts) {
+            if (contract != null && contract.isAssignableFrom(returnType))
+                return true;
+        }
+        return false;
     }
 }
