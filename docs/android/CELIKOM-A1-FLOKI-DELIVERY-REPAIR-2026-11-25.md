@@ -1,4 +1,5 @@
-> **LATEST — BETA29 delivered and root-verified (27.11.2026):** owner/export run `46061697450` SUCCESS; Floki manual run `46064236455` / job `140727455245` SUCCESS. Independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact 71,602,156-byte size and SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`, and unpublished draft readback all passed (`A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`). APK `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`; draft release `461031098` remains unpublished. The actual owner URL was read from the draft and delivered privately; capability URL intentionally omitted from Git/docs/logs. **Current next step: owner installs BETA29 over BETA28 and sends a fresh phone TXT diagnostic.** Do not uninstall or clear app data. See `docs/android/NEXT-CHAT.md` for the current test and engineering handoff.
+> **LATEST — BETA30 owner draft created; trusted delivery pending (27.11.2026):** owner/export run `46070081916`, attempt `1` — SUCCESS. Fresh Android 13 ARM64 + ARMv7 native gate passed (`METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`); the targeted NAV51 Java regression passed in the owner JVM gate. Unpublished draft release `461085315`, tag `celikom-a1-owner-46070081916-1`. APK `CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk`, 71,602,156 bytes, SHA-256 `e33c3e31721d76ee82df7554f0eddb311202566328eafcb50f3f0958b7b53dfe`. Main delivery metadata commit `fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c` points the trusted Floki workflow at run `46070081916`/attempt `1` and includes the BETA30 workflow-run name. Floki push run `46070217462` is currently QUEUED. **No root receipt or live HTTPS readback yet; do not send any link.** See `docs/android/NEXT-CHAT.md` for runner status and next steps.
+
 
 ## Historical checkpoints — BETA28 and earlier
 
@@ -89,6 +90,19 @@ The exact direct owner URL was retrieved from the unpublished draft and sent pri
 - Never expose the capability URL/token in Git, documentation, Actions logs/summaries, public messages, or artifacts.
 - The legacy direct-SSH workflow is disabled. Do not re-enable it.
 - Do not bypass the root consumer, alter server permissions, weaken Floki security, or introduce a new delivery mechanism.
+
+## BETA30 NAV51 — owner draft ready, Floki delivery pending (27.11.2026)
+
+- Source/export workflow run `46070081916`, attempt `1` — SUCCESS.
+- Source branch commit: `aef40439586304fd57dabcbf20dfcce3af52a181`.
+- Unpublished owner draft: release `461085315`, tag `celikom-a1-owner-46070081916-1`.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk`, 71,602,156 bytes.
+- SHA-256: `e33c3e31721d76ee82df7554f0eddb311202566328eafcb50f3f0958b7b53dfe`.
+- The persistent owner signer, package verification, owner JVM regression and fresh Android 13 ARM64 + ARMv7 native gate passed. Verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- Main metadata commit `fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c` changed only the Floki workflow filter and trusted request JSON. It points to run `46070081916`, attempt `1`; no app source was merged to main.
+- Floki push run `46070217462` is QUEUED. The self-hosted `celikom-ci-smoke-only` runner may be occupied by JVM run `46068440633`, which is still reported in progress without step output. The same targeted Java regression passed in the BETA30 owner JVM gate.
+- Do not send a GitHub release URL. Delivery remains pending until the root-owned consumer verifies the exact source provenance, signer, package, size and SHA-256, writes the matching receipt, and live HTTPS readback returns HTTP 200 with the expected content type, exact byte count and hash. Only then read the real `A1_OWNER_DOWNLOAD_URL` from the unpublished draft and deliver privately.
+- If the queued Floki job fails before any step runs, retry the existing trusted Floki job without rebuilding or changing the APK. Do not bypass the root consumer or alter server permissions.
 
 ## BETA26 outcome and limitation (historical)
 
