@@ -1022,9 +1022,11 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             test = pathlib.Path(tmp) / "StageBAudioEvidenceTest.java"
             test.write_text(HARNESS, encoding="utf-8")
-            subprocess.run(["javac", "-d", tmp, str(GRANT_CONTRACT),
-                            str(BETA_POLICY), str(EVIDENCE), str(test)],
-                           check=True, capture_output=True, text=True)
+            compiled = subprocess.run(["javac", "-d", tmp, str(GRANT_CONTRACT),
+                                       str(BETA_POLICY), str(EVIDENCE), str(test)],
+                                      check=False, capture_output=True, text=True)
+            self.assertEqual(compiled.returncode, 0,
+                             compiled.stdout + "\\n" + compiled.stderr)
             done = subprocess.run(["java", "-cp", tmp,
                                    "pro.celikom.a1exitwitness.StageBAudioEvidenceTest"],
                                   check=False, capture_output=True, text=True)
