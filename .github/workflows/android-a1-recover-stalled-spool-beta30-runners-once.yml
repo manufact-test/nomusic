@@ -65,3 +65,7 @@ jobs:
           cancel_exact 46073960828 1 84aa896b0712fd813201e8b300c124cdf966457d \
             .github/workflows/android-a1-owner-floki-spool.yml \
             stage-verified-signed-apk celikom-floki-ci02
+          # The current BETA30 retry is also stuck before its first step on CI02.
+          cancel_exact 46070217462 3 fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c \
+            .github/workflows/android-a1-owner-floki-spool.yml \
+            stage-verified-signed-apk celikom-floki-ci02
