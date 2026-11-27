@@ -211,8 +211,14 @@ public final class NativeRamilTrackOnlyLineageTest {
         check(publisher!=null && ((Long)publisher[0])==1
             && publisher[1]==nativeSource,"EXACT_PLAYER_SOURCE_TO_EXO_DATA_SOURCE");
         stage.onExoSourceInstanceOpenAttempt(dataSource);
+        stage.onExoSourceInstanceOpen(dataSource);
+        stage.onExoSourceInstanceRead(dataSource,7);
         check(stage.exactFreshCreatorOrBetaForDataSource(dataSource)==null,
             "OPENED_ORIGINAL_SOURCE_CANNOT_BE_ARMED");
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "LIVE_RENDERER_RESOLVES_EXACT_BETA_DATASOURCE_AFTER_READ");
+        check(stage.linkedSourceInstanceForCreatorOrBeta(new Object())==null,
+            "LIVE_RENDERER_NEVER_GUESSES_ANOTHER_WRAPPER_DATASOURCE");
 
         StageBAudioEvidence wrongIssuer=fresh(ramil,new Object(),new Object(),
             true,false);
