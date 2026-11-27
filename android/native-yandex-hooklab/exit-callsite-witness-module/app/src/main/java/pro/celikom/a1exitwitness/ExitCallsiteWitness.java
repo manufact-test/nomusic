@@ -79,7 +79,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // BETA24: recover an evicted exact creator Track+Album wrapper link before Exo factory binding.
+    // BETA24 preserved per-wrapper lineage; BETA25 adds exact first-open rejection evidence.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     private static final String BETA_BUILD = "A1_TRACKID_BETA25_FIRST_OPEN_AND_DEFERRED_ARM_REASON_DIAGNOSTICS_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
@@ -4752,11 +4752,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                     open.setAccessible(true);
                     hook(open).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                         .intercept(chain -> {
-                            try {
-                                Object[] creator=STAGE_B_AUDIO
-                                    .exactFreshCreatorOrBetaAtFirstOpen(
-                                        chain.getThisObject());
-                                STAGE_B_AUDIO.onExoFirstOpenHookEnter();
+                            STAGE_B_AUDIO.onExoFirstOpenHookEnter();
                             try {
                                 Object[] creator=STAGE_B_AUDIO
                                     .exactFreshCreatorOrBetaAtFirstOpen(
