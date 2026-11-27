@@ -641,6 +641,9 @@ public sealed partial class MainWindow
         _start.Text = "Старт";
         var nativeStatus = playback.Status;
         var heartbeatFresh = playback.HeartbeatFresh;
+        var transientRendererGap = CompactPlaybackPresentation.IsTransientRendererUnavailable(
+            playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus,
+            playback.HeartbeatAt, DateTimeOffset.UtcNow);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.CanCompleteStartPresentation(
@@ -663,6 +666,9 @@ public sealed partial class MainWindow
         var id = playback.TrackId;
         var valid = GrantValidator.IsTrackId(id);
         var previousRenderedTrackId = _compactRenderedTrackId;
+        var previousRenderedTrackDurationMs = _compactRenderedTrackDurationMs;
+        var previousMetadataPendingTrackId = _compactMetadataPendingTrackId;
+        var previousMetadataPendingAt = _compactMetadataPendingAt;
         var previousTrackTitle = _compactTrack.Text;
         var previousTrackArtist = _compactTrackArtist.Text;
         _compactHoldingTrackTransition = false;
@@ -739,11 +745,13 @@ public sealed partial class MainWindow
                 _compactNoTrackSince = DateTimeOffset.UtcNow;
             var displayPlaybackState = !heartbeatFresh || _resumeAfterNetworkFailure
                 ? _networkRecoveryPlaybackState : playback.PlaybackState;
-            var trackText = CompactPlaybackPresentation.TrackPlaceholder(
-                playback.Enabled, heartbeatFresh,
-                displayPlaybackState,
-                _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
-                _api.IsLoggedIn, playback.PlayerUnavailable);
+            var trackText = transientRendererGap
+                ? CompactPlaybackPresentation.TransientRendererGapMessage
+                : CompactPlaybackPresentation.TrackPlaceholder(
+                    playback.Enabled, heartbeatFresh,
+                    displayPlaybackState,
+                    _resumeAfterNetworkFailure, _compactStarting || _autoReconnectBusy,
+                    _api.IsLoggedIn, playback.PlayerUnavailable);
             if (CompactPlaybackPresentation.ShouldShowIdleTrackPrompt(
                     playback.Enabled, heartbeatFresh, playback.PlayerUnavailable,
                     _compactStarting || _autoReconnectBusy, _compactSeenTrackSinceStart,
@@ -755,6 +763,21 @@ public sealed partial class MainWindow
                     _compactTrack.Text = trackText;
                 if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
             }
+        }
+
+        if (transientRendererGap)
+        {
+            // Preserve the last track identity and its 15-second presence cache
+            // while the same host replaces a destroyed renderer. Never present
+            // the transient UNAVAILABLE pulse as a disconnected Yandex app.
+            _compactHoldingTrackTransition = true;
+            _compactRenderedTrackId = previousRenderedTrackId;
+            _compactRenderedTrackDurationMs = previousRenderedTrackDurationMs;
+            _compactMetadataPendingTrackId = previousMetadataPendingTrackId;
+            _compactMetadataPendingAt = previousMetadataPendingAt;
+            _compactTrack.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
+            _compactTrackArtist.Text = "";
+            _compactVersionStatus.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
         }
 
         _compactTrack.ForeColor = Ink;
@@ -792,7 +815,7 @@ public sealed partial class MainWindow
             _nativeInstallState, _hostReport, _installedModule.MatchesApplication);
         var trackHealth = UserFacingPlaybackHealth.CurrentTrack(nativeStatus,
             playback.Enabled, _compactPresenceStatus, playback.Source,
-            playback.PlaybackState, playback.PlayerUnavailable);
+            playback.PlaybackState, playback.PlayerUnavailable && !transientRendererGap);
         var hostProblem = hostHealth.Level is UserFacingPlaybackHealth.Severity.Error or
             UserFacingPlaybackHealth.Severity.Warning;
         var hostNeedsStart = CompactPlaybackPresentation.ShouldShowModuleUpdateHint(
@@ -851,8 +874,10 @@ public sealed partial class MainWindow
                 versionStatusText, playback.Enabled, heartbeatFresh,
                 playback.PlayerUnavailable, valid && _compactPresenceStatus == "approved",
                 activelyReplacing) ? Accent : Secondary;
-        _compactUploadButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
-        _compactSuggestButton.Enabled = _api.IsLoggedIn && !_compactContributionBusy;
+        _compactUploadButton.Enabled = _api.IsLoggedIn &&
+            !_compactContributionBusy && !transientRendererGap;
+        _compactSuggestButton.Enabled = _api.IsLoggedIn &&
+            !_compactContributionBusy && !transientRendererGap;
         _compactSuggestSubmit.Enabled = _api.IsLoggedIn &&
             valid && !_compactContributionBusy && _compactSuggestView == "form";
         _compactUploadSubmit.Enabled = _compactUploadCancellation is not null ||

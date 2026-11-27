@@ -104,6 +104,51 @@ test("W175 unknown song or stopped bridge cannot force initial reload",async()=>
  r.handlers.beforeunload();
 });
 
+test("W175 Stop while initial grant is pending never reloads the stopped current song",async()=>{
+  const r=harness(),w=r.window;
+  r.clock.now+=4000;
+  w.__celikomBridgeNativeCheckDeferred();await tick();
+  const pending=w.__celikomBridgeNativeDrain();
+  assert.equal(pending.length,1);
+  assert.equal(pending[0].trackId,"123");
+  r.player.snapshot.playerState.status.value="stopped";
+  w.__celikomBridgeNativeReceive(pending[0].requestId,signedGrant("123"));
+  for(let i=0;i<8;i++){await tick();for(const p of w.__celikomBridgeNativeDrain())
+    w.__celikomBridgeNativeReceive(p.requestId,signedGrant("123"));}
+  assert.deepEqual(r.player.reasons,[],
+    "the source-only refresh must re-check Yandex playback state after the grant resolves");
+  const codes=w.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("NATIVE_INITIAL_SOURCE_RELOAD_DEFERRED"));
+  r.handlers.beforeunload();
+});
+
+test("W178 Stop while next-track grant is pending never reloads the stopped song",async()=>{
+  const r=harness(),w=r.window;
+  r.clock.now+=4000;
+  w.__celikomBridgeNativeCheckDeferred();await tick();
+  const initial=w.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  w.__celikomBridgeNativeReceive(initial[0].requestId,null);
+  await tick();
+  r.player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  r.clock.now+=100;
+  w.__celikomBridgeNativeCheckDeferred();await tick();
+  r.clock.now+=4000;
+  w.__celikomBridgeNativeCheckDeferred();await tick();
+  const pending=w.__celikomBridgeNativeDrain();
+  assert.equal(pending.length,1);
+  assert.equal(pending[0].trackId,"456");
+  r.player.snapshot.playerState.status.value="stopped";
+  w.__celikomBridgeNativeReceive(pending[0].requestId,signedGrant("456"));
+  for(let i=0;i<8;i++){await tick();for(const p of w.__celikomBridgeNativeDrain())
+    w.__celikomBridgeNativeReceive(p.requestId,signedGrant("456"));}
+  assert.deepEqual(r.player.reasons,[],
+    "W178 must not issue QUALITY_CHANGE after Yandex has stopped playback");
+  const codes=w.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]);
+  assert.ok(codes.includes("NATIVE_CURRENT_CATCHUP_RELOAD_DEFERRED"));
+  r.handlers.beforeunload();
+});
+
 test("W178: next current song with cached original gets exactly one approved source-only reload",async()=>{
  const r=harness(),w=r.window;
  r.clock.now+=4000;
