@@ -14,7 +14,7 @@ const makeGrant = (id="123") => ({
 function createRenderer({
   hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=false
 }={}) {
-  const logs=[],handlers={};
+  const logs=[],handlers={},intervals=[];
   class Resource {
     async getFileInfo(params) {
       return {
@@ -29,6 +29,7 @@ function createRenderer({
         {trackId:"456",key:"drm",url:"https://official.yandex.example/next"}
       ]};
     }
+    getMediaSource() { return Promise.resolve("Yandex source"); }
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
   }
@@ -37,16 +38,19 @@ function createRenderer({
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
+      this.currentMediaPlayer={mediaProvider:new Resource()};
+      this.firstMediaPlayer=this.currentMediaPlayer;
+      this.secondMediaPlayer=this.currentMediaPlayer;
       this.snapshot={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
         playerState:{status:{value:status},progress:{value:{position}}}
       };
     }
-    get state() {return this.snapshot;}
+    get state() { const value=this.snapshot; Promise.resolve().then(()=>intervals.forEach(fn=>fn())); return value; }
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
       const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await new Resource().getFileInfo({trackId:id});
+      const response=await this.currentMediaPlayer.mediaProvider.getFileInfo({trackId:id});
       this.mediaSources.push(response.downloadInfo.url);
       return response;
     }
@@ -66,7 +70,7 @@ function createRenderer({
   const context={
     window,console:{info:(...args)=>logs.push(args.join(" "))},
     URL,AbortController,fetch:undefined,
-    setInterval:()=>1,clearInterval:()=>{},
+    setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval:()=>{},
     setTimeout,clearTimeout
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
@@ -79,7 +83,7 @@ async function tick() {
 test("real bundled renderer integrates one approved source, keeps Yandex pause/seek",async()=>{
   const r=createRenderer();
   assert.equal(typeof r.window.__celikomBridgeNativeSetState,"function");
-  assert.ok(r.logs.some(s=>s.includes("Native file-info source connector attached")));
+  assert.ok(r.logs.some(s=>s.includes("Native endpoint fallback attached")));
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin
   });
