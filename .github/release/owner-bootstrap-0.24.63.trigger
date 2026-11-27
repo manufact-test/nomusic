@@ -1,0 +1,1 @@
+2026-11-28: build signed Windows 0.24.63, sequence 10, from main (W189/W192 repairs). Owner candidate artifact only. Do not stage to Floki spool or publish production stable. Public stable probe observed 0.24.55 sequence 2; production route and floor still require verification before promotion.
