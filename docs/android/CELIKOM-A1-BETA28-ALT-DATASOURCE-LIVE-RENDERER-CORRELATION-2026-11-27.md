@@ -1,18 +1,25 @@
-# BETA28 phone result — alternate DataSource to live renderer correlation
+# BETA29 NAV50 — alternate DataSource to live renderer correlation
 
 Date: 2026-11-27  
 Repository: `manufact-test/nomusic`  
 Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-## Current result
+## Current result — BETA29 delivered; phone diagnostic pending
 
-BETA28 was delivered through the trusted Floki/root route and installed over BETA27. The owner reports that audible replacement still does not occur.
+BETA29 NAV50 was built, signed and delivered through the existing trusted Floki/root route. The owner has the direct HTTPS link from `celikom.com`. The next step is to install BETA29 over BETA28, run the two documented track tests, and provide a fresh TXT diagnostic. No BETA29 phone diagnostic has been reviewed yet.
 
-Latest phone diagnostic:
-- `CELIKOM-A1-Diagnostics-1795806916651.txt`
-- Diagnostic build marker: `A1_TRACKID_BETA28_OWNER_SESSION_RECOVERY_20261127`
+- Owner/export run: `46061697450`, attempt 1 — SUCCESS.
+- Build source commit: `1afa88c78b5b3a3063fac5176f1152a95dcdf962`.
+- Floki manual run: `46064236455`, run 33 — SUCCESS; job `140727455245` — SUCCESS.
+- Independent root-owned receipt and live HTTPS readback were verified. The final workflow marker was `A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`.
+- Private draft release `461031098` remains unpublished.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
+- Size: `71,602,156` bytes.
+- SHA-256: `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
 
-Do not infer that the alternate audio asset is broken or in the wrong format. The phone diagnostic and the source code show that the limited BETA route returned positive alternate bytes through the original Exo DataSource read hook.
+The root consumer verifies HTTP 200, Android APK content type, exact byte count and SHA-256, the root-owned receipt, and the unpublished draft readback. The capability URL is deliberately not stored in this document or repository.
+
+BETA28 evidence below is retained as the baseline that motivated NAV50. It does not establish that the current BETA29 phone test has occurred, and it does not prove audible replacement.
 
 ## What BETA28 actually proves
 
@@ -99,47 +106,30 @@ Interpretation:
 - If the active period has a different DataSource, fix the selection-generation/prefetch binding. Do not change codecs or audio assets.
 - If the DataSource is unresolved, repair only the wrapper-to-factory-product identity witness.
 
-## CI status
+## CI and delivery status
 
-- Renderer observer JVM run `46060063393` — SUCCESS. It compiled and ran `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest`; NAV50 same-source/current-period and mismatch assertions passed.
+- Renderer observer JVM run `46060063393` — SUCCESS. `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest` passed, including NAV50 same-source/current-period and mismatch assertions.
 - Owner preflight run `46060063423` — SUCCESS. ARM13 native main 75s verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; persistent owner signer verified and update-existing mode confirmed. It remains a stability/signing gate only: `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`.
-- Clone-alone workflow `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only, not product/audio proof.
-- BETA29 export run `46061697450`, run 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — SUCCESS.
-- Private draft release: `461031098`, still unpublished, target `main`.
-- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`, 71,602,156 bytes, SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
-- Owner signer verified; install mode `UPDATE_EXISTING`; fresh clone install was not authorized.
-- Native verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`, `diagnostic_only_not_product_or_releasable=true`.
+- Clone-alone run `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only, not product/audio proof.
+- BETA29 owner export run `46061697450`, run 500, attempt 1 — SUCCESS.
+- BETA29 Floki manual delivery run `46064236455`, run 33 — SUCCESS; job `140727455245` — SUCCESS.
+- Duplicate push-triggered Floki run `46063409036` was cancelled by the concurrency group; it is not the successful delivery run.
+- Draft release `461031098` remains unpublished. Exact APK metadata and root-verified delivery are recorded above.
 
-Several intermediate export-trigger commits were made while changing the artifact name. They may have produced older-name private drafts. Do not deliver or reference them. Only BETA29 release `461031098` is the intended candidate.
+## Next action — inspect the BETA29 phone diagnostic
 
-## Next action — start the existing Floki root-verification workflow
+The owner installs BETA29 over BETA28 without uninstalling CELIKOM or clearing app data/cache, checks CELIKOM status, and if needed uses the long-press recovery menu and explicit `Войти` action. Then tests:
 
-The trusted-main request file `.github/deploy/a1-owner-download-request.json` has been updated to `run_id=46061697450`, `attempt=1`, `release_id=461031098`. A push made through the GitHub connection did not start Actions automatically. The main Floki workflow now has a manual `workflow_dispatch` fallback; this runs the same existing validation and root-owned spool path and does not publish the draft.
+1. Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
+2. The second song that previously had leading gaps.
+3. Exports a fresh TXT after both tests.
 
-1. Open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml).
-2. Select branch `main` and click **Run workflow**. No inputs are required; the trusted request file already points to BETA29 release `461031098`.
-3. Wait for the run to complete. Confirm independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact size/hash, and unpublished draft readback.
-4. Read the actual `A1_OWNER_DOWNLOAD_URL` from the draft. Send only that verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
-5. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
+When the TXT arrives, correlate all NAV50 counters per exact track and selection generation. Interpret the exact same-current-period non-EOS match as proof only that alternate bytes reached the active Exo source path, not proof of audible output. Choose the next engineering step from the observed boundary. Do not build another APK before this analysis.
 
 ## Guardrails
 
-- No second player.
-- No audio transcoding or codec changes without evidence.
-- No changes to server, catalogue, signed-grant authorization, Windows, stable Android or OTA.
-- Do not claim audible replacement from CI or from `AUDIO_READ` alone.
-
-## BETA29 delivery completed — 2026-11-27
-
-- Floki spool manual run: `46064236455`, run number 33, event `workflow_dispatch` — SUCCESS.
-- Job: `140727455245` (`stage-verified-signed-apk`) — SUCCESS.
-- Earlier push-triggered duplicate run `46063409036` was cancelled by the workflow concurrency group; it is not the delivery run.
-- Independent root-owned consumer verified owner signer/package, exact provenance, private spool receipt and live external HTTPS download. It requires HTTP 200, APK content type, exact 71,602,156-byte size and SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`; it completed with `A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`.
-- Private draft release `461031098` remains unpublished. Its actual `A1_OWNER_DOWNLOAD_URL` was read back and delivered directly to the owner in chat. Do not copy the capability URL into Git/docs/logs.
-- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`. Owner may install over BETA28; do not uninstall or clear data.
-- BETA29 is diagnostic-only. It does not claim audible replacement. Wait for the owner's phone test and fresh TXT before choosing the next engineering change.
-
-The phone test remains:
-1. Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
-2. The second song that previously had leading gaps.
-3. Export TXT after both tests and inspect the NAV50 live renderer counters.
+- No second player or new audio architecture.
+- No audio route, source-selection, codec, transcoding or asset changes without diagnostic evidence.
+- No changes to server, catalogue, signed-grant authorization, Windows, stable Android or OTA without direct evidence.
+- Do not infer audible replacement from CI, `AUDIO_READ`, or a NAV50 same-source counter alone.
+- Keep owner drafts unpublished. Any future owner APK must use the existing trusted Floki/root process; never fabricate or expose a capability URL.
