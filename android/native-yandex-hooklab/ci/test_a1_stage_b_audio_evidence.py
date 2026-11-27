@@ -443,14 +443,69 @@ public final class StageBAudioEvidenceTest {
         bucket(e.exportLines(),0,"ORIGINAL_CHILD_COROUTINE_SOURCE_SCOPE_REJECT","FEW");
     }
 
+    static StageBAudioEvidence exactTcaFactorySource(Object track,Object album,
+            Object wrapper,Object descriptor,Object factory,Object source) {
+        StageBAudioEvidence e=new StageBAudioEvidence();
+        e.onNativeTrackAlbumConstructed(track,album);
+        e.onNativeTrackFlowEmission(track);
+        e.enterNativeTcaCreatorOwner(new Object());
+        e.enterNativeTcaCreatorTrackScope(track,1);
+        e.onNativeTrackWrapperCreated(wrapper,NativeTrackIdBetaPolicy.RAMIL_AU);
+        e.exitNativeTcaCreatorTrackScope();
+        e.exitNativeTcaCreatorOwner();
+        e.enterNativeMainSourceRequest(wrapper,null);
+        e.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        e.exitNativeMainSourceRequest();
+        e.onExoFactoryCreated(descriptor,factory);
+        e.onExoSourceInstanceCreated(source,factory);
+        return e;
+    }
+
+    static void firstOpenReasonBucketsFixture() {
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        StageBAudioEvidence accepted=exactTcaFactorySource(
+            track,album,wrapper,descriptor,factory,source);
+        accepted.onExoFirstOpenHookEnter();
+        Object[] creator=accepted.exactFreshCreatorOrBetaAtFirstOpen(source);
+        check(creator!=null && creator[0]==wrapper && creator[1]==track
+                && creator[2]==album);
+        accepted.onExoFirstOpenSetterResult(true);
+        accepted.onExoFirstOpenDeferredArmCalled();
+        accepted.onExoFirstOpenDeferredArmResult(false);
+        bucket(accepted.exportLines(),0,"FIRST_OPEN_HOOK_ENTERED","ONE");
+        bucket(accepted.exportLines(),0,"FIRST_OPEN_CANDIDATE_ACCEPTED","ONE");
+        bucket(accepted.exportLines(),0,"FIRST_OPEN_SETTER_MATCH","ONE");
+        bucket(accepted.exportLines(),0,"FIRST_OPEN_DEFERRED_ARM_CALLED","ONE");
+        bucket(accepted.exportLines(),0,"FIRST_OPEN_DEFERRED_ARM_REJECTED","ONE");
+        String report=String.join("\n",accepted.exportLines());
+        check(!report.contains("144530503") && !report.contains("http"),
+            "FIRST_OPEN_REPORT_MUST_NOT_LEAK_PRIVATE_VALUES");
+
+        StageBAudioEvidence noBirth=new StageBAudioEvidence();
+        check(noBirth.exactFreshCreatorOrBetaAtFirstOpen(new Object())==null);
+        bucket(noBirth.exportLines(),0,"FIRST_OPEN_BIRTH_NOT_FOUND","ONE");
+        bucket(noBirth.exportLines(),0,"FIRST_OPEN_CANDIDATE_REJECTED","ONE");
+
+        Object tt=new Object(),ta=new Object(),tw=new Object(),td=new Object(),tf=new Object();
+        Object siblingOne=new Object(),siblingTwo=new Object();
+        StageBAudioEvidence sibling=exactTcaFactorySource(
+            tt,ta,tw,td,tf,siblingOne);
+        sibling.onExoSourceInstanceCreated(siblingTwo,tf);
+        sibling.onExoSourceInstanceOpenAttempt(siblingOne);
+        check(sibling.exactFreshCreatorOrBetaAtFirstOpen(siblingTwo)==null);
+        bucket(sibling.exportLines(),0,"FIRST_OPEN_SIBLING_TOUCHED","ONE");
+    }
+
     public static void main(String[] argv) {
         originalChildCoroutineCaptureFixture();
+        firstOpenReasonBucketsFixture();
         originalMediaItemSourceBridgeFixture();
         originalChildCallerContextFixture();
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 105);
+        check(initial.length == 142);
         for (int i=0;i<104;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 
@@ -1025,6 +1080,9 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceCreated( result,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenHookEnter()", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed)", code)
+        self.assertIn("NATIVE_EARLY_ADMISSION.exportLines()", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceClose(", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenFailure(", code)
         self.assertIn('source.getDeclaredMethod("close")', code)
