@@ -1,0 +1,178 @@
+name: CELIKOM Windows 0.24.63 approved stable promotion
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/windows-stable-promote-02463.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: celikom-windows-stable-production
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify exact original build artifact identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/46083334539" | jq -e '.conclusion=="success" and .head_sha=="9c6721fdb273fc0850213b79d339b0f47d3e83b0"' >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/15237633233" | jq -e '.expired==false and .digest=="sha256:9d7074fdd0610ebb7f4f00645f882271d595ac13efa05146141c6d2e8cc653b1" and .workflow_run.id==46083334539' >/dev/null
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-0.24.63-9c6721fdb273fc0850213b79d339b0f47d3e83b0
+          run-id: 46083334539
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/exact-windows-transfer
+      - name: Verify signed package, pinned key and public signed sequence floor
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          python3 - <<'PY'
+          import hashlib,importlib.util,json,os,zipfile
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'exact-windows-transfer'
+          b=p/'CELIKOM-Windows-P256-transfer.zip'
+          with zipfile.ZipFile(b) as z:
+              i=z.getinfo('manifest-public-key.der')
+              assert i.file_size==91
+              key=z.read(i)
+          assert hashlib.sha256(key).hexdigest()=='46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95'
+          pin=p/'pin.der';pin.write_bytes(key)
+          s=importlib.util.spec_from_file_location('verifier','.github/scripts/windows-stable-private-import.py')
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          m.unpack_verified(b,p/'verified','0.24.63',10,pin)
+          a=json.loads((p/'verified/latest.json').read_bytes())
+          assert a['sha256']=='3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f'
+          PY
+          p="$RUNNER_TEMP/exact-windows-transfer"
+          base=https://celikom.com/CELIKOM/Windows/Updates/stable
+          curl --proto '=https' -fsS --max-time 30 --max-filesize 16384 "$base/latest.json" -o "$p/public.json"
+          curl --proto '=https' -fsS --max-time 30 --max-filesize 80 "$base/latest.json.sig" -o "$p/public.sig"
+          export CELIKOM_STABLE_ORIGIN=https://celikom.com
+          export CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64="$(base64 -w0 "$p/pin.der")"
+          node .github/scripts/windows-stable-existing-latest.mjs "$p/public.json" "$p/public.sig"
+          jq -e '(.version=="0.24.55" and .sequence==2 and .sha256=="f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487") or (.version=="0.24.63" and .sequence==10 and .sha256=="3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f")' "$p/public.json" >/dev/null
+          echo 'Exact signed 0.24.63 sequence 10 verified; no publication performed.'
+  approval:
+    name: Approve 0.24.63 public stable OTA
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: windows-stable-production
+    timeout-minutes: 5
+    steps:
+      - name: Require actual recorded GitHub deployment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" |
+            jq -e 'any(.[]; .state=="approved" and any(.environments[]?; .name=="windows-stable-production"))' >/dev/null
+          echo W194_RECORDED_PRODUCTION_APPROVAL_VERIFIED
+  stage:
+    name: Transfer exact approved signed release using existing Floki spool
+    needs: approval
+    runs-on: celikom-ci-smoke-only
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-0.24.63-9c6721fdb273fc0850213b79d339b0f47d3e83b0
+          run-id: 46083334539
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/celikom-windows-private-stage
+      - name: Stage signed data only for existing root consumer
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          bundle="$RUNNER_TEMP/celikom-windows-private-stage/CELIKOM-Windows-P256-transfer.zip"
+          test -f "$bundle" && test ! -L "$bundle"
+          python3 .github/scripts/floki-windows-signed-spool.py --bundle "$bundle" --version 0.24.63 --sequence 10
+  publish:
+    name: Authorize exact existing customer stable feed and verify public OTA
+    needs: stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Record approved release for existing customer stable consumer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" |
+            jq -e 'any(.[]; .state=="approved" and any(.environments[]?; .name=="windows-stable-production"))' >/dev/null
+          p=.github/release/windows-customer-stable.json
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/contents/$p?ref=main" > "$tmp/current"
+          jq -r '.content' "$tmp/current" | base64 -d > "$tmp/old.json"
+          python3 - "$tmp/old.json" "$tmp/new.json" <<'PY'
+          import json,sys
+          a={'version':'0.24.63','sequence':10,'sha256':'3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f','owner_accepted':True}
+          old=json.load(open(sys.argv[1]))
+          assert old in ({'schema':1,'channel':'customer-stable','approved':None},{'schema':1,'channel':'customer-stable','approved':a}), 'APPROVAL_RECORD_CHANGED'
+          with open(sys.argv[2],'w') as f: json.dump({'schema':1,'channel':'customer-stable','approved':a},f,indent=2);f.write('\n')
+          PY
+          if ! jq -e '.approved.version=="0.24.63"' "$tmp/old.json" >/dev/null; then
+            sha=$(jq -er '.sha' "$tmp/current")
+            encoded=$(base64 -w0 "$tmp/new.json")
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$p" -f message="Windows: owner-approved stable 0.24.63 (Actions $GITHUB_RUN_ID)" -f branch=main -f sha="$sha" -f content="$encoded" --silent
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-0.24.63-9c6721fdb273fc0850213b79d339b0f47d3e83b0
+          run-id: 46083334539
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/exact-windows-transfer
+      - name: Verify public feed against exact signed bytes and full installer hash
+        run: |
+          set -Eeuo pipefail
+          p="$RUNNER_TEMP/exact-windows-transfer"
+          python3 - <<'PY'
+          import os,zipfile
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'exact-windows-transfer'
+          with zipfile.ZipFile(p/'CELIKOM-Windows-P256-transfer.zip') as z:
+              for n in ('latest.json','latest.json.sig'):
+                  assert z.getinfo(n).file_size<=16384
+                  (p/('expected-'+n)).write_bytes(z.read(n))
+          PY
+          base=https://celikom.com/CELIKOM/Windows/Updates/stable
+          # Existing mirror and customer timer each run periodically. Do not
+          # declare success until the new public bytes actually match.
+          for attempt in $(seq 1 36); do
+            if curl --proto '=https' -fsS --max-time 10 "$base/latest.json" -o "$p/latest.json" &&
+               curl --proto '=https' -fsS --max-time 10 "$base/latest.json.sig" -o "$p/latest.json.sig" &&
+               cmp -s "$p/latest.json" "$p/expected-latest.json" &&
+               cmp -s "$p/latest.json.sig" "$p/expected-latest.json.sig"; then
+              break
+            fi
+            sleep 15
+          done
+          cmp "$p/latest.json" "$p/expected-latest.json"
+          cmp "$p/latest.json.sig" "$p/expected-latest.json.sig"
+          curl --proto '=https' -fsS --max-time 30 "$base/0.24.63/manifest.json" -o "$p/manifest.json"
+          curl --proto '=https' -fsS --max-time 30 "$base/0.24.63/manifest.json.sig" -o "$p/manifest.json.sig"
+          cmp "$p/manifest.json" "$p/latest.json"
+          cmp "$p/manifest.json.sig" "$p/latest.json.sig"
+          curl --proto '=https' -fsS --max-time 180 --max-filesize 125000000 "$base/0.24.63/CELIKOM-Windows-0.24.63.exe" -o "$p/installer.exe"
+          printf '%s  %s\n' 3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f "$p/installer.exe" | sha256sum -c
+          echo 'W194_PUBLIC_STABLE_02463_EXACT_SIGNED_HTTPS_VERIFIED'
