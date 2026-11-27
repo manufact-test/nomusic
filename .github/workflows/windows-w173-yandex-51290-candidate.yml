@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'w174-yandex-51290-candidate.json'
-          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.129.0' -ValidateCandidate -ReportPath $report
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.129.0' -ValidateCandidate -RetainAsarPath (Join-Path $env:RUNNER_TEMP 'yandex-51290-app.asar') -ReportPath $report
           if ($LASTEXITCODE -notin @(0,$null)) { throw 'W174_YANDEX_51290_CANDIDATE_FAILED' }
           $data = Get-Content $report -Raw | ConvertFrom-Json
           if ($data.status -ne 'candidate_requires_runtime_review' -or
@@ -61,6 +61,16 @@ jobs:
           Write-Host "W174_YANDEX_51290_EXE_SHA256=$($data.exeSha256)"
           Write-Host "W174_YANDEX_51290_ASAR_SHA256=$($data.asarSha256)"
           Write-Host 'W174_YANDEX_51290_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
+      - name: Audit the official 5.129.0 ASAR against the unchanged W174 hook contract
+        if: always()
+        shell: pwsh
+        run: |
+          $asar = Join-Path $env:RUNNER_TEMP 'yandex-51290-app.asar'
+          if (-not (Test-Path $asar)) { throw 'W188_YANDEX_51290_ASAR_NOT_RETAINED' }
+          node windows-companion/w23/yandex-asar-hook-audit.mjs $asar (Join-Path $env:RUNNER_TEMP 'yandex-51290-hook-audit.json')
+          if ($LASTEXITCODE -ne 0) { throw 'W188_YANDEX_51290_HOOK_AUDIT_FAILED' }
+          node windows-companion/w23/yandex-asar-player-callgraph-audit.mjs $asar (Join-Path $env:RUNNER_TEMP 'yandex-51290-callgraph-audit.json')
+          if ($LASTEXITCODE -ne 0) { throw 'W188_YANDEX_51290_CALLGRAPH_AUDIT_FAILED' }
       - name: Run W174 native, recovery and companion contracts
         shell: pwsh
         run: |
@@ -76,6 +86,10 @@ jobs:
         if: always()
         with:
           name: CELIKOM-W174-YANDEX-51290-CANDIDATE-REPORT
-          path: ${{ runner.temp }}/w174-yandex-51290-candidate.json
+          path: |
+            ${{ runner.temp }}/w174-yandex-51290-candidate.json
+            ${{ runner.temp }}/yandex-51290-app.asar
+            ${{ runner.temp }}/yandex-51290-hook-audit.json
+            ${{ runner.temp }}/yandex-51290-callgraph-audit.json
           if-no-files-found: error
           retention-days: 14

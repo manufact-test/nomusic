@@ -105,13 +105,16 @@ if (File.Exists(verifiedFeedFile))
 {
   var feedBytes=File.ReadAllBytes(verifiedFeedFile);
   var entries=OfficialYandexCatalog.ParseVerifiedFeed(feedBytes);
-  Check(entries.Count==6 &&
+  Check(entries.Count==7 &&
     entries.TryGetValue(NativeIntegrationManager.Official51270Version,out var knownBuild) &&
     knownBuild.ExeSha256==NativeIntegrationManager.Official51270ExeSha256 &&
     entries.TryGetValue(NativeIntegrationManager.Official51280Version,out var newestBuild) &&
     newestBuild.ExeSha256==NativeIntegrationManager.Official51280ExeSha256 &&
-    newestBuild.AsarSha256==NativeIntegrationManager.Official51280AsarSha256,
-    "W172 signed 5.128 catalog builtin immutable pin accepted");
+    newestBuild.AsarSha256==NativeIntegrationManager.Official51280AsarSha256 &&
+    entries.TryGetValue("5.129.0.r22295238",out var y129) &&
+    y129.ExeSha256=="2134a2b8ec6b24b6cd6a6ec9facf9bf26c9bc650b1191027482c299726723118" &&
+    y129.AsarSha256=="4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1",
+    "W188 signed official 5.129.0 immutable pin accepted");
   var feedText=Encoding.UTF8.GetString(feedBytes);
   Reject(()=>OfficialYandexCatalog.ParseVerifiedFeed(Encoding.UTF8.GetBytes(
     feedText.Replace("\"verified\"","\"unverified\""))),
