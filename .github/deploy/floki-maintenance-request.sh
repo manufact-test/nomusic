@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 # Isolated, unprivileged build of exact extension source; existing container/config untouched.
 python3 <<'PY'
-import subprocess,json,posixpath,urllib.request,hashlib
+import subprocess,json,posixpath,urllib.request,hashlib,lzma
 source="0e28cba5221c0f345bb1e3502d186016a614f54b"
 git=["git","-c","safe.directory=/home/celikom-mirror/github-mirror.git","--git-dir=/home/celikom-mirror/github-mirror.git"]
 subprocess.run(git+["merge-base","--is-ancestor",source,"refs/heads/main"],check=True,capture_output=True,timeout=15)
@@ -23,7 +23,12 @@ if node is None:
  expected=next(line.split()[0] for line in checks.splitlines() if line.split()[-1]==name)
  with urllib.request.urlopen(origin+name,timeout=60) as response:binary=response.read(80*1024*1024+1)
  assert len(binary)<=80*1024*1024 and hashlib.sha256(binary).hexdigest()==expected
- subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xJf","-","-C",runtime,"--strip-components=1"],input=binary,capture_output=True,check=True,timeout=45)
+ plain=lzma.decompress(binary)
+ assert len(plain)<256*1024*1024
+ extraction=subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1"],input=plain,capture_output=True,timeout=45)
+ if extraction.returncode:print("EXTENSION_096_RUNTIME_EXTRACTION_ERROR",extraction.stderr.decode("utf-8","replace")[:1000])
+ assert extraction.returncode==0
+ del binary,plain
  node=runtime+"/bin/node"
  print("EXTENSION_096_TEMPORARY_PINNED_NODE_VERIFIED",expected)
 
