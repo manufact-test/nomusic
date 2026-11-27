@@ -10,22 +10,44 @@ Then read:
 
 - Repository: `manufact-test/nomusic`.
 - Branch: `recovery/windows-w174-02454-known-good-20261126`.
-- Fetch the live branch HEAD at the start of the next chat; documentation-only commits follow the tested code commit.
-- Product/test code commit used by the green candidate workflow and current FlokiNET run: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
-- Official Yandex 5.129.0 compatibility workflow [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251): **SUCCESS**; 32/32 Node tests, W24 20, W21 41, W15 477, GUI build 0 warnings/0 errors, official 5.129.0 signature/hash/native-image/byte-exact-restore and ASAR audits passed.
-- Exact Yandex version: `5.129.0.r22295238`; ASAR SHA256: `4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1`.
-- Validation artifact ID: `15182926152` (report + ASAR + audit JSON; **not an installer**).
-- Separate isolated FlokiNET/private handoff run [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job `140394244238`: **in progress at handoff**. Check it before doing anything else. No owner installer has been confirmed or delivered.
-- W174 audio baseline files remain unchanged; exact hashes and W188 changes are in the active handoff doc.
+- Pre-documentation branch HEAD: `e3563b0687a3a68d4ce0eb865c06feeaee59b8a8`; fetch live HEAD before further edits.
+- W188 product/test source baseline: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
+- Exact owner-package build commit: `0364309006bd3451778f01390398fe0f52e5a20c` (version/pipeline metadata only beyond the W188 source; no W174 audio-source replacement).
+- Owner candidate: CELIKOM Windows **0.24.62.0**, Update Supervisor **0.24.62.0**, native module **0.24.31**.
+- Exact official Yandex: `5.129.0.r22295238`; compatibility run [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251) SUCCESS and package-commit validation [45968594874](https://github.com/manufact-test/nomusic/actions/runs/45968594874) SUCCESS.
+- Compatibility evidence: 32 Node tests, W24 20, W21 41, W15 477, GUI warnings-as-errors build 0 warnings/0 errors, official 5.129.0 signature/hash/native-image/byte-exact-restore and ASAR audits passed.
+- Separate Floki cross-compile run [45968594921](https://github.com/manufact-test/nomusic/actions/runs/45968594921): SUCCESS.
+- W174 protected audio files remain byte-identical:
+  - `renderer-entry.mjs`: `203b098914d549bc8d21b682b62df6486025cefa`
+  - `native-resource-adapter.mjs`: `e3bfdc3ed579709c342c3ae87e2e83510e35826e`
+  - `current-source-refresh.mjs`: `a5814bee52a8698ab79f9f4861f1b1451d85ee09`
 
-## Immediate task for the next chat
+## Owner package — built, signed and delivered to private HTTPS
 
-Continue from the current branch and existing Actions runs. First check run `45965695138`; do not rerun green compatibility run `45965695251` or create a duplicate build. Determine whether the FlokiNET job produces a valid owner package or only stages an existing signed transfer. If a package is required, finish it through the approved path, verify the exact artifact and only then hand it to the owner.
+- Signed release workflow [45968594886](https://github.com/manufact-test/nomusic/actions/runs/45968594886): SUCCESS.
+- Prepare job `140403187036`: SUCCESS; private Floki stage job `140404252522`: SUCCESS; production publish job `140404253684`: **SKIPPED**.
+- Private Floki spool log: `CELIKOM_WINDOWS_SIGNED_RUNNER_SPOOL_READY 0.24.62 9 a5f4493d39dcff0d39d52621a7261790b2e0170553f9810084bb916663fe160c 85158804 private-staged`.
+- GitHub transfer artifact ID: `15183274884`; name `CELIKOM-Windows-P256-transfer-0.24.62-0364309006bd3451778f01390398fe0f52e5a20c`; outer artifact SHA256 `e12d850d96a23737301a069ced49e3926519dda745c36bc70662cc9d5333ca05`; transfer ZIP SHA256 `a5f4493d39dcff0d39d52621a7261790b2e0170553f9810084bb916663fe160c`.
+- Manifest identity: version `0.24.62`, sequence `9`, package size `85156133`, installer SHA256 `5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9`.
+- P-256 public-key SHA256: `46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95` (matches the root-pinned key). Both latest and immutable manifest signatures independently verified; both manifest files are byte-identical.
+- Owner HTTPS receipt workflow [45969140182](https://github.com/manufact-test/nomusic/actions/runs/45969140182): SUCCESS, with exact line `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 0.24.62 5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9`.
+- Private owner download: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.62.exe` (Basic Auth required). Root verified the exact HTTPS download size and SHA256. A direct GitHub artifact copy was also extracted and independently checked.
+- The EXE is **not Authenticode-signed**; its release manifest is P-256 signed and the package SHA256 is verified. Do not bypass Defender/SmartScreen. The P-256 manifest expiry is 2026-12-04T08:49:19.183Z.
+- The previous `0.24.61 / sequence 8` package (run `45894203030`) was successfully staged but predates the current W188 source by 23 commits. Do not deliver it.
 
-**Do not claim the problem is fixed yet:** the CI proves 5.129.0 compatibility and the W188 provider bridge contracts, not audible replacement on the owner's PC. Do not merge to main, add stable catalog pin, publish OTA, or touch Android/server/extension.
+## Immediate owner test
+
+Install **0.24.62 over the existing 0.24.61 in place**. Do not uninstall, delete `session.dpapi`, clear the Yandex profile, or change the official Yandex installation. First confirm Floki login; then separately test actual audible replacement in Yandex 5.129.0 and collect a fresh CELIKOM diagnostic if it still fails.
+
+**Do not claim playback is fixed yet.** CI, signatures and private HTTPS delivery are verified; audible replacement on the owner's PC is still unconfirmed. No merge to main, public stable-feed publication, customer OTA or mass update was performed.
+
+## Important clarification about the earlier Floki run
+
+Run [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job `140394244238`, ended FAILURE. It is `.github/workflows/celikom-win-crossbuild-floki.yml` (smoke cross-compile), not the signed owner-package workflow; it had no uploaded installer artifact and its log archive was unavailable. The actual signed private handoff is run `45968594886` above. Do not retry the smoke run as a substitute for the signed package.
 
 The historical W173/W170/W169 and earlier handoffs below are retained for context. Their old immediate tasks are superseded by this W188 handoff; do not execute them as current instructions.
 
+---
 ---
 
 # HISTORICAL WINDOWS W173 — make the latest working build canonical on main (21 November 2026)

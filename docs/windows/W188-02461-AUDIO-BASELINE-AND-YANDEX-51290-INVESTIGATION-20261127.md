@@ -20,3 +20,18 @@ On branch `recovery/windows-w174-02454-known-good-20261126`, product/test code c
 Official Yandex `5.129.0.r22295238` passed the isolated signature/hash, native image, byte-exact restore, ASAR hook/callgraph and compatibility contracts in workflow [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251). Exact hashes and test counts are in the active handoff document. Validation artifact ID: `15182926152`; this artifact is a candidate report/ASAR/audit bundle, not an installer.
 
 Separate FlokiNET/private handoff workflow [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job `140394244238`, was still in progress at the time of this documentation update. Check its live status before any duplicate build. No owner installer or owner runtime playback acceptance is claimed. Do not call the issue fixed until the owner confirms the replacement audio is actually audible.
+
+
+## Owner candidate package update — 27 November 2026
+
+W188 source was packaged as CELIKOM Windows **0.24.62.0** / Supervisor **0.24.62.0**, native module **0.24.31**, with signed sequence 9. The product source remains the W188 provider bridge around the unchanged W174 audio baseline.
+
+- Build/sign workflow [45968594886](https://github.com/manufact-test/nomusic/actions/runs/45968594886): SUCCESS.
+- Private Floki stage job `140404252522`: SUCCESS.
+- Owner HTTPS receipt [45969140182](https://github.com/manufact-test/nomusic/actions/runs/45969140182): SUCCESS.
+- Owner installer SHA256: `5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9`; size 85,156,133 bytes.
+- Owner-only URL: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.62.exe` (Basic Auth).
+- Production publish was skipped. No public OTA or mass update.
+- This package has verified P-256 manifest signatures but no Authenticode signature.
+- **No owner audible acceptance yet.** Install over 0.24.61 in place; do not uninstall or delete `session.dpapi`. Confirm login first, then test actual audible replacement.
+
