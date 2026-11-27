@@ -1,3 +1,27 @@
+# CURRENT HANDOFF — BETA28 owner session recovery (27.11.2026)
+
+BETA27 was delivered through verified Floki. Owner reported no audible replacement and the top CELIKOM TXT button changed to «ОШИБКА». Fresh file `CELIKOM-A1-Diagnostics-1795803734296.txt` confirmed BETA27, with both earlier successful and later failed owner auto-start events in the rolling log. The current process summary is decisive:
+
+- `BETA_OWNER_AUTO_START=FAILED`, `OWNER_ENABLED=NONE`, `OWNER_RESOLVE_REQUEST=NONE`, `GRANT_ADMITTED=NONE`.
+- `FIRST_OPEN_DESCRIPTOR_LOST=NONE`, `FIRST_OPEN_CANDIDATE_ACCEPTED=ONE`, `FIRST_OPEN_SETTER_MATCH=ONE`, `FIRST_OPEN_DEFERRED_ARM_CALLED=ONE`.
+- `DEFERRED_ARM_ENTER=ONE`, `DEFERRED_ARM_NO_PENDING_APPROVED=ONE`, `DEFERRED_ARM_ACCEPTED=NONE`, `DATASOURCE_ARMED/AUDIO_OPEN/AUDIO_READ=NONE`.
+- `ISSUER_VALUE_TARGET_ALLOWLISTED=NONE`; do not assert this accepted candidate is the intended «Ау» or combine aggregate counters across tracks/processes.
+- TXT export works; the status is from `autoStartOwnerIfSession`, not diagnostic export.
+
+The BETA27 first-open lifetime fix reached a later transition and is retained. The immediate blocker in the current process is CELIKOM owner activation, not an audio descriptor rejection. Existing `NativeOwnerControlPlane.action` collapsed config, token refresh, storage, and activation exceptions into `network_or_auth_error`, so the precise original reason is NOT established. No authenticated server/DB check was performed. Server source confirms HTTP 401 can represent invalid session and refresh tokens rotate; replay of the preceding token can revoke the session. Do not retry an uncertain refresh automatically within the same process, weaken entitlement, reset data, or bypass verification.
+
+BETA28 source `895306cee0934e245aeda7aaa0ce95f3b609eff2`:
+- Distinguish config, refresh/local-session and activation failure; HTTP 401 from refresh/activation or malformed saved token returns login_required. Fixed enum-only statuses, no secrets or exception strings in diagnostics.
+- Short press still exports TXT. Long press opens a recovery menu (check / explicit CELIKOM login). Login and activation are guarded against competing UI operations. On refresh failure/confirmed session rejection, require explicit re-login rather than auto-replaying the refresh on activity resume. This is a process-local guard, not a proof of the prior failure cause or a persisted guarantee across restart.
+- Do not change Yandex auth, server, catalogue, signed-grant authorization, original codecs, BETA27 audio identity guards, Windows, stable or OTA.
+- Source regression tests check recovery wiring and fixed failure categories; actual login and playback still need owner test.
+
+Owner source workflow `46049315766` attempt 1 started; clone-alone `46049315771` and renderer JVM `46049315695` started. No BETA28 APK/URL has yet been confirmed. BETA27 remains latest delivered. Expected APK `CELIKOM-A1-RAMIL-AU-BETA28-HONOR50-20261127.apk`. Complete required CI and trusted-main Floki delivery using exact new run/attempt/release. Do not give a GitHub download link or reuse an earlier celikom.com URL.
+
+After verified delivery install over BETA27 without clearing data. If not ВКЛ, long press CELIKOM TXT, choose «Войти» for session failure or «Проверить» for retry. Confirm ВКЛ before testing «Ау» and second track. Check owner activation/resolve/grant and first-open/deferred-arm chain; require actual audible confirmation.
+
+---
+
 > **Delivery update (27.11.2026):** BETA27 Floki spool run `46048173341` completed SUCCESS. Independent root-owned receipt and live HTTPS readback passed; unpublished owner draft readback contains exactly one verified `celikom.com` URL. Direct owner link has been delivered privately and is intentionally not stored in Git/docs. BETA27 is now the latest delivered APK. APK size/hash/signer are listed below. Acoustic replacement remains unproven until the owner tests and hears it.
 
 # CURRENT HANDOFF — 27.11.2026 (BETA27 CI passed; owner HTTPS delivery pending root receipt)
