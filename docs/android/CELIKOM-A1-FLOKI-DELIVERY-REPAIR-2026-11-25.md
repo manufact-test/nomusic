@@ -1,3 +1,57 @@
+# CURRENT HANDOFF — 27 November 2026 (BETA24 owner test + mandatory direct HTTPS delivery)
+
+## BETA24 source build currently with the owner
+
+- Android source branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Exact source commit: `901a421e461311de4b2fbba42c1c7ec78f55cb93`.
+- Owner source/export workflow run: `45969190985`, attempt 1 — **SUCCESS**.
+- Clone-alone differential ARM13: `45968602583` — **SUCCESS**.
+- Paired publisher-first native ARM13 run: `45968602446` — **SUCCESS**.
+- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk`.
+- Size: `71598060` bytes.
+- SHA-256: `e8208201d2c06c107a9a0c996b9bb7fd8f3b7a3ce7d1a240640d045bc9c84e4c`.
+- Internal unpublished owner draft release ID: `460365440`.
+- The owner has already downloaded this BETA24 file to his PC and will transfer it to his HONOR 50. This particular build was **not delivered through the Floki spool**; there is no verified `celikom.com` URL for this APK. Do not spend time re-delivering this same file unless the owner explicitly asks.
+
+## Non-negotiable owner download requirement
+
+The owner cannot download APKs from GitHub on his phone. For **every future APK** that needs phone testing, send a direct non-GitHub HTTPS link from `celikom.com`. GitHub release pages/assets, Actions artifacts, ChatGPT attachments and manual GitHub-phone workarounds are not acceptable download endpoints.
+
+Use only the existing trusted-main data-only workflow:
+
+1. Build/sign/export on the existing Android experiment branch and wait for the exact source run to pass all required JVM/native/clone/signature gates. Keep its unpublished draft release private.
+2. Update `.github/deploy/a1-owner-download-request.json` with that exact successful source `run_id`, `attempt`, and exact unpublished draft `release_id`.
+3. Commit/push the request JSON to trusted `main`. The `push.paths` trigger in `.github/workflows/android-a1-owner-floki-spool.yml` runs the isolated data-only stage.
+4. Wait for the independent root-owned Floki consumer and matching receipt. Verify exact run/attempt, filename, byte size, SHA-256, original signer certificate, package ID, and `https_verified=true`; ensure the external HTTPS response matches exact size and SHA.
+5. Confirm the trusted workflow writes the actual capability URL into the unpublished draft and reads it back. Retrieve that actual URL from the draft and send it **privately in chat**. Do not construct the URL from its pattern.
+6. Never place the capability URL/token, private owner diagnostics, secrets, or root receipts in Git, public Actions logs/summaries, or documentation.
+
+### Current trigger/request caveats — do not repeat the stale delivery
+
+- The current `.github/deploy/a1-owner-download-request.json` is stale: it points to source run `45959535273`, attempt `1`, draft release `460295768`. It must be replaced with the exact next successful build's IDs before triggering delivery.
+- The spool workflow's `workflow_run.workflows` filter still names an older BETA13 source-workflow display name, whereas the current Android source workflow display name is BETA24. Do not rely on that filter to trigger delivery. Use the explicit request JSON push to `main`, whose `push.paths` route is present.
+- The only accepted owner URL pattern is `https://celikom.com/downloads/a1/<48-hex-token>/<APK filename>`. This describes the format only; the 48-hex capability token must come from the verified root receipt/draft readback.
+- Legacy direct-SSH workflow `.github/workflows/android-a1-owner-floki-download.yml` remains disabled. **Never re-enable it.** Do not give the isolated runner host SSH, Docker, root, or production-network access.
+
+## BETA24 acoustic acceptance is still pending
+
+The CI verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`. The owner has not yet reported a phone test or supplied the new BETA24 TXT at the time of this handoff. Do not equate APK build, native launch, registered hooks, or byte reads with audible replacement.
+
+Owner's planned test: install BETA24 over the existing CELIKOM BETA23 without uninstalling or clearing app data/cache; in original Yandex Music play Ramil / 10AGE `Ау` directly from album `38902809`, original track ID `144530503`; listen at `00:43–00:54`; export a fresh diagnostic TXT from that same session.
+
+First inspect this chain and stop at its first missing link:
+`TRACK_WRAPPER_LINK_RESTORED` → `TRACK_DESCRIPTOR_FACTORY_LINK` → `TRACK_FACTORY_SOURCE_LINK` → `AUDIO_EXO_FIRST_OPEN_ARM` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+
+Also inspect:
+`TRACK_WRAPPER_SAME_TRACK_PARALLEL`,
+`TRACK_WRAPPER_SAME_IDENTITY_REFRESH`,
+`TRACK_WRAPPER_IDENTITY_CONFLICT`,
+`TRACK_WRAPPER_LINK_RESTORED_WITH_SAME_TRACK_SIBLING`.
+
+Do not ask the owner to use MyWave; the test track must be selected directly from the original album. Do not change server catalogue, signed grant, Range/HMAC, stable Android, Windows, OTA, or the Floki host based on guesswork. Diagnose the actual first missing evidence stage before patching.
+
+---
+
 # CURRENT HANDOFF — 27 November 2026 (BETA23 signed Floki delivery verified)
 
 - Native source `d598c0fc043aa4fedf5a27223b4797af474b8955`, run `45903557070` (attempt 1) **SUCCESS**, separate JVM `45903454018` and clone differential `45903409452` both **SUCCESS**. APK `CELIKOM-A1-RAMIL-AU-BETA23-HONOR50-20261127.apk` size `71593964`, sha256 `5b008cc092b1b24ad6b916efb474b096e8b1a4fc5a370ace1f24adaff747b439`, unpublished draft release `459959795`.
