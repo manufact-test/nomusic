@@ -4,7 +4,7 @@
 
 > **BETA27 delivery complete (27.11.2026):** Floki spool workflow `46048173341` completed SUCCESS. Independent root receipt, live HTTPS readback and unpublished draft link readback all passed. Direct `celikom.com` URL delivered privately; capability URL intentionally omitted from Git/docs/logs. BETA27 owner audio test is pending. This supersedes the earlier "delivery pending" checkpoint below.
 
-## Current delivery checkpoint — BETA27 (27.11.2026)
+## Historical delivery checkpoint — BETA27 (27.11.2026)
 
 BETA26 was previously delivered and verified. BETA27 source workflow `46028046471` passed JVM and fresh Android 13 native-launch checks. APK metadata:
 - `CELIKOM-A1-RAMIL-AU-BETA27-HONOR50-20261127.apk`
@@ -90,7 +90,7 @@ The exact direct owner URL was retrieved from the unpublished draft and sent pri
 - The legacy direct-SSH workflow is disabled. Do not re-enable it.
 - Do not bypass the root consumer, alter server permissions, weaken Floki security, or introduce a new delivery mechanism.
 
-## Current outcome and limitation
+## BETA26 outcome and limitation (historical)
 
 **BETA26 delivery is complete and verified.** The owner received the direct `celikom.com` link privately.
 
