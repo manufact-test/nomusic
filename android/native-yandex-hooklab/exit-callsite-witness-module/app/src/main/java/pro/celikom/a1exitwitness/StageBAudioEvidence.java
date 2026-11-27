@@ -1125,17 +1125,41 @@ final class StageBAudioEvidence {
                 else mark(tcaCreatorWrapperAlbumLink);
             }
         }
+        boolean wrapperBirthIdentityConflict=false;
         if(wrapper!=null) {
             int atBirth=track==null?11:!wasNativeTrackFlowItem(track)?12:
                 findTrackAlbum(track)==null?13:14;
-            if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
+            Object birthTrack=fromExactTcaCreator
+                && (atBirth==12 || atBirth==13 || atBirth==14)?track:null;
             Object birthAlbum=fromExactTcaCreator && (atBirth==12 || atBirth==14)
                 ?findTrackAlbum(track):null;
-            wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
-                fromExactTcaCreator && (atBirth==12 || atBirth==13 || atBirth==14)?track:null,
-                birthAlbum,
-                fromExactTcaCreator?numericOriginalId(originalConstructorArg):null,
-                issuerClock.getAsLong()));
+            String birthKey=fromExactTcaCreator
+                ?numericOriginalId(originalConstructorArg):null;
+            WrapperBirth prior=uniqueWrapperBirth(wrapper);
+            boolean wrapperSeen=false;
+            if(prior==null) {
+                for(WrapperBirth existing:wrapperBirths)
+                    if(existing.wrapper.get()==wrapper) {wrapperSeen=true;break;}
+            }
+            if(prior==null && !wrapperSeen) {
+                if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
+                wrapperBirths.add(new WrapperBirth(wrapper,atBirth,birthTrack,
+                    birthAlbum,birthKey,issuerClock.getAsLong()));
+            } else if(prior==null) {
+                wrapperBirthIdentityConflict=true;
+            } else {
+                Object priorTrack=prior.creatorTrack==null?null:prior.creatorTrack.get();
+                Object priorAlbum=prior.albumAtBirth==null?null:prior.albumAtBirth.get();
+                boolean sameKey=prior.originalConstructorKey==null
+                    ?birthKey==null:prior.originalConstructorKey.equals(birthKey);
+                if(prior.scopeAtBirth!=atBirth || priorTrack!=birthTrack
+                        || priorAlbum!=birthAlbum || !sameKey) {
+                    wrapperBirthIdentityConflict=true;
+                    if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
+                    wrapperBirths.add(new WrapperBirth(wrapper,atBirth,birthTrack,
+                        birthAlbum,birthKey,issuerClock.getAsLong()));
+                }
+            }
         }
         if (track==null || wrapper==null) return;
         // Warm a strictly allowlisted first-party constructor key even if
@@ -1169,9 +1193,9 @@ final class StageBAudioEvidence {
                 continue;
             }
             if(candidateWrapper==wrapper) {
-                if(candidateTrack!=track) {
-                    // The same wrapper object cannot safely change Track
-                    // identity. Invalidate its old chain and fail closed.
+                if(wrapperBirthIdentityConflict || candidateTrack!=track) {
+                    // The same wrapper object cannot safely change Track or
+                    // creator-birth identity. Invalidate its old chain.
                     candidate.track=null;
                     candidate.wrapper=null;
                     candidate.albumInstance=null;
@@ -1185,8 +1209,28 @@ final class StageBAudioEvidence {
                     mark(nativeTrackWrapperIdentityConflict);
                     return;
                 }
-                link=candidate;
-                break;
+                // A duplicate observation of the SAME wrapper is not a new
+                // lineage generation. Preserve its descriptor/factory/source
+                // and all touched/open state; never make it fresh again.
+                mark(nativeTrackWrapperSameIdentityRefresh);
+                Object album=findTrackAlbum(track);
+                Object priorAlbum=candidate.albumInstance==null
+                    ?null:candidate.albumInstance.get();
+                if(priorAlbum!=null && album!=null && priorAlbum!=album) {
+                    candidate.track=null;
+                    candidate.wrapper=null;
+                    candidate.albumInstance=null;
+                    candidate.descriptor=null;
+                    candidate.factoryResult=null;
+                    candidate.sourceInstance=null;
+                    candidate.sourceEverTouched=true;
+                    mark(nativeTrackWrapperIdentityConflict);
+                    return;
+                }
+                if(candidate.albumInstance==null && album!=null)
+                    candidate.albumInstance=new WeakReference<>(album);
+                if(album!=null)mark(trackWrapperAlbumLinks);
+                return;
             }
             if(candidateTrack==track)sameTrackSibling=true;
         }
@@ -1197,10 +1241,6 @@ final class StageBAudioEvidence {
             link.wrapper=new WeakReference<>(wrapper);
             nativeTrackSourceLinks.add(link);
             if(sameTrackSibling)mark(nativeTrackWrapperSameTrackParallel);
-        } else {
-            // Refresh only this exact wrapper instance. Never select a link
-            // merely because its Track reference happens to be the same.
-            mark(nativeTrackWrapperSameIdentityRefresh);
         }
         Object album=findTrackAlbum(track);
         link.albumInstance=album==null ? null : new WeakReference<>(album);

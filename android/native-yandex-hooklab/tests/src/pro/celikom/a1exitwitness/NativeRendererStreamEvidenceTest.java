@@ -2982,6 +2982,9 @@ public final class NativeRendererStreamEvidenceTest {
         stage.onExoFactoryCreated(descriptor,factory);
         stage.onExoSourceInstanceCreated(source,factory);
 
+        // A repeated callback for the exact same wrapper must not clear the
+        // existing source chain or reset its touched/open guard.
+        createNav49CreatorWrapper(stage,track,firstWrapper);
         Object secondWrapper=new Object();
         createNav49CreatorWrapper(stage,track,secondWrapper);
         Object[] fresh=stage.exactFreshCreatorOrBetaAtFirstOpen(source);
@@ -2991,6 +2994,9 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(stage.exportLines(),
                 "origin=TRACK_WRAPPER_SAME_TRACK_PARALLEL;error=ONE"),
             "NAV49_PARALLEL_SAME_TRACK_WRAPPER_IS_EXPLICIT");
+        check(contains(stage.exportLines(),
+                "origin=TRACK_WRAPPER_SAME_IDENTITY_REFRESH;error=ONE"),
+            "NAV49_SAME_WRAPPER_REFRESH_PRESERVES_EXISTING_LINEAGE");
         check(contains(stage.exportLines(),
                 "origin=TRACK_DESCRIPTOR_FACTORY_LINK;error=ONE"),
             "NAV49_FIRST_DESCRIPTOR_FACTORY_LINEAGE_SURVIVES");
