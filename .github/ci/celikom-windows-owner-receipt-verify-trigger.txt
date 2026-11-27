@@ -1,0 +1,4 @@
+version=0.24.62
+sha256=5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9
+source_commit=0364309006bd3451778f01390398fe0f52e5a20c
+purpose=verify private owner HTTPS download receipt only; no production publish
