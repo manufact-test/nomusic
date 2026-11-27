@@ -1,5 +1,7 @@
 # W191 — Windows repairs merged to main, protected stable promotion and Floki route audit
 
+> **W193 UPDATE (2026-11-28):** This is historical implementation evidence. The controlling current state is `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md`: 0.24.63 sequence 10 is already built and verified; public stable is stale despite local Floki 0.24.62. Production approval, route cutover and installed-device OTA are pending. Do not repeat W189 release preparation.
+
 Date: 28 November 2026
 
 ## Repository and merge status
