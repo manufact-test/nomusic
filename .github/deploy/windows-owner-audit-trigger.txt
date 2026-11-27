@@ -2,3 +2,4 @@
 2026-11-27: read-only audit of Floki root-consumer timer, signed spool, stable pointer, owner receipt, DNS, public HTTPS routes and Nginx mapping; no changes.
 
 2026-11-28 W193: retry read-only OTA route audit using hosted runner; no publication or server changes.
+W193 hosted audit isolated from stalled old concurrency group.
