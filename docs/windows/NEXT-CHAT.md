@@ -10,7 +10,7 @@ Then read:
 
 - Repository: `manufact-test/nomusic`.
 - Branch: `recovery/windows-w174-02454-known-good-20261126`.
-- Branch HEAD after the documentation update: `8900099c6c0e9546b8d6988067d7f8a8ccd6fab4`.
+- Fetch the live branch HEAD at the start of the next chat; documentation-only commits follow the tested code commit.
 - Product/test code commit used by the green candidate workflow and current FlokiNET run: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
 - Official Yandex 5.129.0 compatibility workflow [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251): **SUCCESS**; 32/32 Node tests, W24 20, W21 41, W15 477, GUI build 0 warnings/0 errors, official 5.129.0 signature/hash/native-image/byte-exact-restore and ASAR audits passed.
 - Exact Yandex version: `5.129.0.r22295238`; ASAR SHA256: `4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1`.
