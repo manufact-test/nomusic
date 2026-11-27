@@ -41,7 +41,17 @@ function createGainChain(context, audio, db) {
       this.sourceBuffer = null;
       this.streamTask = null;
       this.streamState={phase:"idle",offset:0,receivedBytes:0,httpStatus:null};
+      this.mediaEvents = [];
       this.audio = environment.document.createElement("audio");
+      for (const event of ["waiting", "stalled", "seeking", "seeked", "playing", "pause", "ended", "error"]) {
+        this.audio.addEventListener(event, () => {
+          if (this.destroyed) return;
+          const audio = this.audio;
+          this.mediaEvents.push({at:Date.now(),event,timeMs:Math.round(audio.currentTime*1000),
+            readyState:audio.readyState,seeking:Boolean(audio.seeking),paused:audio.paused});
+          if (this.mediaEvents.length > 64) this.mediaEvents.shift();
+        });
+      }
       this.audio.dataset.celikomReplacement = "true";
       this.audio.hidden = true;
       this.audio.preload = "auto";
@@ -143,22 +153,7 @@ function createGainChain(context, audio, db) {
             const from = Number(match[1]), last = Number(match[2]), length = Number(match[3]);
             if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
                 || from !== offset || last < from || last > lastRequested
-                || (total !== null && length !== total)) throw new Error("remote-stream-range");
-            if (total !== null && this.loadedIdentity && response.headers.get("etag") !== this.loadedIdentity.etag)
-              throw new Error("remote-stream-range");
-            if (total === null) this.rememberAssetIdentity(asset, response, length);
-            total = length;
-            this.streamState.phase="body";
-            bytes = await response.arrayBuffer();
-            if (bytes.byteLength !== last - from + 1 || bytes.byteLength > requestSize) {
-              throw new Error("remote-stream-range");
-            }
-            nextOffset = last + 1;
-            break;
-          } catch (error) {
-            if (this.destroyed || (abort.signal.aborted && this.streamState.phase!=="timeout")) return;
-            if (this.streamState.phase==="timeout") throw new Error("remote-stream-timeout");
-            const networkFailure = (error instanceof TypeError || error?.name==="TypeError" || error?.name==="AbortError")
+                || (total !== null && length !== total)) thr…233 tokens truncated…eof TypeError || error?.name==="TypeError" || error?.name==="AbortError")
               && ["headers","body"].includes(this.streamState.phase);
             const temporaryHttp = error?.message==="remote-stream-http"
               && [429,502,503,504].includes(error.streamDetail?.httpStatus);
@@ -502,7 +497,8 @@ function createGainChain(context, audio, db) {
       }
       return { currentTime:audio.currentTime, duration:Number.isFinite(audio.duration)?audio.duration:null,
         paused:audio.paused, seeking:Boolean(audio.seeking), readyState:audio.readyState,
-        networkState:audio.networkState, muted:audio.muted, volume:audio.volume,
+        networkState:audio.networkState, muted:audio.muted, volume:audio.volume, playbackRate:audio.playbackRate,
+        mediaEvents:this.mediaEvents.slice(),
         playPending:this.playPending, wantPlay:this.wantPlay, buffered,
         authorizationRevalidationReady:this.canRevalidateAuthorization(),
         gainContext:this.gainContext?.state || null, stream:{...this.streamState} };

@@ -814,11 +814,11 @@ test('ambiguous and duration-mismatched metadata never starts a warmup request',
  f.engine.destroy();await settle();
 });
 
-test('join timing history retains twelve recent activations without URLs or credentials',async()=>{
+test('join timing history retains 48 recent activations without URLs or credentials',async()=>{
  const f=fixture({resolveAsset:async()=>remoteAsset()});f.engine.configure(true,'');
- for(let i=1;i<=14;i++){f.update(snapshot(String(i)));await settle();}
- assert.equal(f.engine.startupHistory.length,12);assert.equal(f.engine.startupHistory[0].trackId,'3');
- assert.equal(f.engine.startupHistory.at(-1).trackId,'14');
+ for(let i=1;i<=50;i++){f.update(snapshot(String(i)));await settle();}
+ assert.equal(f.engine.startupHistory.length,48);assert.equal(f.engine.startupHistory[0].trackId,'3');
+ assert.equal(f.engine.startupHistory.at(-1).trackId,'50');
  for(const row of f.engine.startupHistory){assert(row.prepareMs>=0);assert(row.resolveMs>=0);assert(row.loadMs>=0);assert.equal(row.masterTimeMs,7000);}
  assert(!JSON.stringify(f.engine.startupHistory).includes('https:'));
  f.engine.destroy();await settle();
@@ -1012,4 +1012,33 @@ test('seek near the beginning during initial loading waits for decoder alignment
  assert.equal(f.players[0].alignmentStarted,true);
  assert.equal(f.requests.some(r=>r.type==='GUARD_ENGAGE'),false);
  joinGate.resolve();await settle();assert.equal(f.engine.phase,'REPLACEMENT_ACTIVE');
+});
+
+test('playback journal preserves pre-interruption decoder state after teardown and stays bounded',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.players[0].diagnostics=()=>({readyState:1,buffered:[[0,80]],mediaEvents:[{event:'waiting'}]});
+ f.engine.recordPlayback('connection:online');
+ f.engine.abort('remote-stream-network',true);await settle();
+ const incident=f.engine.incidents.at(-1);
+ assert.equal(incident.event,'restore:remote-stream-network');
+ assert.equal(incident.audio.mediaEvents[0].event,'waiting');
+ assert.ok(incident.context.some(x=>x.event==='connection:online'));
+ assert.equal(f.engine.restoreHistory.at(-1).classification,'interruption');
+ for(let i=0;i<230;i++)f.engine.recordPlayback('connection:online');
+ assert.equal(f.engine.playbackHistory.length,180);
+ assert.ok(incident.context.some(x=>x.replacement),'retained context survives the rolling timeline');
+});
+test('normal track transitions are classified separately from audible failure candidates',async()=>{
+ const f=fixture();f.update(snapshot());await settle();
+ f.update(snapshot('3'));await settle();
+ assert.equal(f.engine.restoreHistory.at(-1).classification,'track-change');
+ assert.equal(f.engine.incidents.length,0);
+});
+test('stable playback samples are throttled while state changes remain visible',async()=>{
+ const f=fixture();f.update(snapshot());await settle();f.engine.recordPlayback('sample');
+ const count=f.engine.playbackHistory.length;
+ for(let i=0;i<100;i++)f.engine.recordPlayback('sample');
+ assert.equal(f.engine.playbackHistory.length,count);
+ f.players[0].audio.readyState=1;f.engine.recordPlayback('sample');
+ assert.equal(f.engine.playbackHistory.length,count+1);
 });

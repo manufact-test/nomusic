@@ -47,6 +47,35 @@
       this.lastRestore = null;
       this.restoreHistory = [];
       this.authorizationRefreshCount = 0;
+      this.playbackHistory = [];
+      this.incidents = [];
+      this.lastPlaybackShape = null;
+      this.lastPlaybackSampleAt = 0;
+    }
+    recordPlayback(event, incident = false) {
+      const operation = this.operation, master = this.snapshot?.player, audio = operation?.player?.audio;
+      const sync = operation?.sync;
+      const shape = [this.phase,operation?.generation,this.snapshot?.track?.id,master?.mediaId,
+        master?.resourceRevision,master?.paused,master?.seeking,master?.readyState,
+        this.snapshot?.guard?.active,audio?.paused,audio?.seeking,audio?.readyState,sync?.mode,sync?.seekCount].join("|");
+      const at = Date.now();
+      if (event === "sample" && shape === this.lastPlaybackShape && at-this.lastPlaybackSampleAt < 5000) return;
+      this.lastPlaybackShape = shape; this.lastPlaybackSampleAt = at;
+      const entry = {at,event,phase:this.phase,generation:operation?.generation || null,
+        trackId:operation?.trackId || null,detectedTrackId:this.snapshot?.track?.id || null,
+        master:master ? {mediaId:master.mediaId,revision:master.resourceRevision,timeMs:Math.round(master.currentTime*1000),
+          paused:master.paused,seeking:master.seeking,readyState:master.readyState} : null,
+        guard:Boolean(this.snapshot?.guard?.active),
+        replacement:audio ? {timeMs:Math.round(audio.currentTime*1000),paused:audio.paused,seeking:Boolean(audio.seeking),
+          readyState:audio.readyState,rate:audio.playbackRate} : null,
+        synchronization:sync ? {mode:sync.mode,driftMs:sync.driftMs,seeks:sync.seekCount,lastCorrection:sync.lastCorrection} : null};
+      this.playbackHistory.push(entry);
+      if (this.playbackHistory.length > 180) this.playbackHistory.shift();
+      if (incident) {
+        this.incidents.push({at,event,context:this.playbackHistory.slice(-20),
+          audio:operation?.player?.diagnostics?.() || null});
+        if (this.incidents.length > 24) this.incidents.shift();
+      }
     }
     publishPolicy(reset = false) {
       this.bridge.post?.("POLICY_UPDATE", {revision:++this.policyRevision,enabled:this.enabled&&!this.suspended&&!this.destroyed,holdIntro:true,reset:reset===true,
@@ -123,6 +152,7 @@
       if (eventType === "ERROR") { this.abort("master-error", true); return; }
       this.warmPendingTrack();
       this.reconcile(eventType === "SEEK");
+      this.recordPlayback("sample");
     }
     warmPendingTrack() {
       // Resolve only the selected, confidently identified track while Yandex is
@@ -355,7 +385,7 @@
           masterTimeMs:Math.round(this.snapshot.player.currentTime*1000),
           alignmentMs:Math.max(0,Date.now()-operation.loadedAt),
           audioPreparation:operation.player.preparationTiming||null});
-        if(this.startupHistory.length>12)this.startupHistory.shift();
+        if(this.startupHistory.length>48)this.startupHistory.shift();
         if (!operation.asset.demoLoop) this.event("replacement_started", { service: "yandex" });
         this.lastError = null;
         this.log(`REPLACEMENT_ACTIVE · ${operation.trackId}`);
@@ -378,15 +408,21 @@
       const completed = reason === "master-ended" || detail?.reason === "master-ended";
       if (operation.asset && !operation.asset.demoLoop && completed) this.event("replacement_completed", { service: "yandex" });
       else if (operation.asset && !operation.asset.demoLoop && !["manual-original", "state-changed", "controller-destroyed", "explicit-retry"].includes(reason)) this.event("fail_open", { service: "yandex", error_code: reason === "api_unavailable" ? "api_unavailable" : reason.startsWith("guard-lost:") ? "binding_changed" : "unknown" });
+      const nearEnd = this.snapshot?.player && Number.isFinite(this.snapshot.player.duration)
+        && this.snapshot.player.duration-this.snapshot.player.currentTime <= 0.35;
+      const classification = completed || (reason === "replacement-ended" && nearEnd) ? "completion"
+        : reason === "state-changed" && operation.trackId !== this.snapshot?.track?.id ? "track-change"
+        : ["manual-original","controller-destroyed","explicit-retry","state-changed"].includes(reason) ? "control" : "interruption";
+      this.recordPlayback(`restore:${reason}`, classification === "interruption");
       this.restoreCount++;
       this.lastRestore = {
-        reason, detail, requestedAt: Date.now(), trackId: operation.trackId, mediaId: operation.mediaId,
+        reason, detail, classification, requestedAt: Date.now(), trackId: operation.trackId, mediaId: operation.mediaId,
         detectedTrackId: this.snapshot?.track?.id || null, detectedMediaId: this.snapshot?.player?.mediaId || null,
         readyState: this.snapshot?.player?.readyState ?? null, seeking: Boolean(this.snapshot?.player?.seeking),
         snapshotReason: this.snapshot?.reason || null
       };
       this.restoreHistory.push(this.lastRestore);
-      if (this.restoreHistory.length > 12) this.restoreHistory.shift();
+      if (this.restoreHistory.length > 48) this.restoreHistory.shift();
       ++this.generation;
       this.operation = null;
       this.phase = "RESTORING";

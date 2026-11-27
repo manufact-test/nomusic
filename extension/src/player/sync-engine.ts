@@ -20,7 +20,7 @@
     return Math.round(drift * 1000);
   }
   class SyncEngine {
-    constructor(thresholdMs = 350) { this.thresholdMs = thresholdMs; this.lastSeekAt = 0; this.lastSeekTarget = null; this.driftMs = null; }
+    constructor(thresholdMs = 350) { this.thresholdMs = thresholdMs; this.lastSeekAt = 0; this.lastSeekTarget = null; this.driftMs = null; this.mode = "aligned"; this.seekCount = 0; this.lastCorrection = null; }
     sync(replacement, snapshot, force = false, now = Date.now()) {
       const player = snapshot.player;
       replacement.applyState(player);
@@ -32,11 +32,29 @@
       const aligned = Math.abs(this.driftMs) <= (force ? 40 : this.thresholdMs);
       const newSeek = force && (this.lastSeekTarget === null
         || Math.abs(driftAt(this.lastSeekTarget, target, replacement.audio.duration, replacement.demoLoop)) > this.thresholdMs);
-      if (!aligned && (!replacement.audio.seeking || newSeek)
+      // Keep an already sounding decoder running for small clock errors. A
+      // decoder seek can itself remove current data and create an audible hole.
+      // Explicit user seeks and larger mismatches still reposition immediately.
+      const running = !player.paused && !player.ended && !player.seeking && player.readyState >= 3
+        && !replacement.audio.paused && !replacement.audio.seeking && replacement.audio.readyState >= 3;
+      const gentle = !force && !replacement.demoLoop && running && Math.abs(this.driftMs) <= 1200
+        && Math.abs(this.driftMs) > (this.mode === "rate" ? 80 : this.thresholdMs);
+      this.mode = gentle ? "rate" : "aligned";
+      if (gentle) {
+        const baseRate = player.playbackRate > 0 ? player.playbackRate : 1;
+        replacement.audio.playbackRate = baseRate * (this.driftMs < 0 ? 1.04 : 0.96);
+      }
+      const deferMinorSeek = !force && !replacement.demoLoop && !replacement.audio.paused
+        && Math.abs(this.driftMs) <= 1200 && (replacement.audio.readyState < 3 || player.readyState < 3);
+      if (deferMinorSeek) this.mode = "buffering";
+      if (!deferMinorSeek && !gentle && !aligned && (!replacement.audio.seeking || newSeek)
           && (force || now - this.lastSeekAt >= 800)) {
         replacement.audio.currentTime = target;
         this.lastSeekAt = now;
         this.lastSeekTarget = target;
+        this.seekCount++;
+        this.mode = "seek";
+        this.lastCorrection = { at:now, targetMs:Math.round(target*1000), driftMs:this.driftMs, explicit:force };
       }
       if (player.paused || player.ended || player.seeking || player.readyState < 3) replacement.pause();
       else replacement.play();

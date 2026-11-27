@@ -117,6 +117,10 @@
       this.bridge.start();
       this.connectionHint("document");
       this.onlineWake=()=>this.connectionHint("online");
+      this.offlineRecord=()=>this.engine.recordPlayback("connection:offline");
+      this.routeRecord=()=>this.engine.recordPlayback("connection:change");
+      root.addEventListener("offline",this.offlineRecord);
+      root.navigator?.connection?.addEventListener?.("change",this.routeRecord);
       this.visibleWake=()=>{if(!document.hidden)this.connectionHint("visible");};
       root.addEventListener("online",this.onlineWake);
       document.addEventListener("visibilitychange",this.visibleWake);
@@ -221,7 +225,7 @@
         preparation: this.engine.phase === "PREPARING" && this.engine.operation ? { stage:this.engine.operation.stage, completeFileJoin:this.engine.operation.completeJoin===true, elapsedMs:Math.max(0,Date.now()-this.engine.operation.startedAt), stream:this.engine.operation.player?.streamState || null } : null,
         availability: this.engine.negativeResolution?.trackId === this.snapshot?.track?.id ? "unavailable" : this.engine.operation?.asset?.found ? "available" : "unknown",
         replacementPlayer: this.engine.operation?.player?.diagnostics?.() || null,
-        playback: { startupHistory: this.engine.startupHistory, activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore, restoreHistory: this.engine.restoreHistory },
+        playback: { startupHistory: this.engine.startupHistory, activationCount: this.engine.activationCount, restoreCount: this.engine.restoreCount, lastRestore: this.engine.lastRestore, restoreHistory: this.engine.restoreHistory, historyScope:"current-document", timeline:this.engine.playbackHistory, incidents:this.engine.incidents },
         api: { configured: this.apiConfigured, mode: this.testTrackId ? "synthetic-demo" : "remote", replacementId: this.engine.operation?.asset?.replacementId || null },
         track: this.snapshot?.track || null,
         player: this.snapshot?.player || null,
@@ -243,6 +247,7 @@
 
     connectionHint(reason) {
       if(this.destroyed||!this.enabled||this.startupError)return;
+      this.engine.recordPlayback(`connection:${reason}`);
       if(reason!=="document")this.wake();
       if(this.recoveryHintPending)return;
       this.recoveryHintPending=true;
@@ -291,6 +296,8 @@
       if (this.destroyed) return;
       this.destroyed = true;
       root.removeEventListener("online",this.onlineWake);
+      root.removeEventListener("offline",this.offlineRecord);
+      root.navigator?.connection?.removeEventListener?.("change",this.routeRecord);
       document.removeEventListener("visibilitychange",this.visibleWake);
       // Never allow a dead Chrome extension context to interrupt fail-open.
       // Cleanup must continue even if chrome.runtime.* throws on disable.
