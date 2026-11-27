@@ -1,3 +1,36 @@
+# ACTIVE CELIKOM WINDOWS — W189 UI state, latency, playback recovery and production auto-update (27 November 2026)
+
+**Read this active work order first:** \`docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md\`.
+
+Then read:
+1. \`docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md\` — exact W188 source, 0.24.62 package, Yandex 5.129.0 compatibility and private delivery evidence.
+2. \`docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md\` — original 0.24.61 diagnostic and W174 baseline.
+3. \`docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md\` — historical owner-accepted W174 source baseline.
+
+## Current task
+
+The owner reports that admin song upload and the in-app «Предложить песню» flow both work. New defects are in current-song UI state, stale proposal status on window reopen, and general interface latency. The previous source audit also found W169/W175/W178 protections/revalidation/diagnostics missing from the W188 candidate. Restore these narrowly and preserve the W174 audio baseline and W188 Yandex 5.129 provider bridge.
+
+The owner explicitly requests that the next accepted version go through GitHub \`main\` and the production stable update path rather than stopping at a test/private package, so the existing installation's automatic update must be tested. The current workflow has a hard production-publish guard and a Hostinger/Floki deployment split; W189 documents the exact blockers. Do not bypass approval or publish globally without confirming rollout scope.
+
+## Exact starting point
+
+- Repository: \`manufact-test/nomusic\`.
+- Working branch: \`recovery/windows-w174-02454-known-good-20261126\`.
+- W188 product/test source: \`d0de9824c5e03422a9d6f928f17715de07bb76ba\`.
+- W188 signed owner package: **0.24.62.0**, sequence **9**, native module **0.24.31**; source/metadata commit \`0364309006bd3451778f01390398fe0f52e5a20c\`.
+- Official Yandex: \`5.129.0.r22295238\`.
+- Owner's current installed version must be confirmed from fresh diagnostics; do not assume the private package was installed just because it was staged.
+- W174 source hashes and all release evidence are recorded in W189/W188 handoff.
+
+## Important release fact
+
+\`.github/workflows/windows-stable-signed-release.yml\` currently rejects \`publish_to_production=true\` in its prepare job with \`FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED\`. The production job is separately protected by environment \`windows-stable-production\`. The production publisher still uses \`windows-stable-publish-hostinger.sh\` while the owner package is staged through FlokiNET. Repair and verify this path before promising auto-update. The user's approval must be requested through the protected deployment gate after all package and target checks pass.
+
+No runtime source, production feed, server, Android or browser-extension code was changed by the W189 documentation update. The previous W188 handoff is now technical history; follow W189 for the immediate task.
+
+---
+
 # ACTIVE CELIKOM WINDOWS — W188 audio recovery / Yandex 5.129.0 (27 November 2026)
 
 **Read this active handoff first:** `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md`.
