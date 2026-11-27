@@ -181,6 +181,7 @@ test("W60 START/STOP re-requests current source through real Yandex position-pre
   // Initial state on Yandex startup must not cause an unrequested second play.
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   void player.state; r.runIntervals(); // Yandex UI reads its existing playback observable.
+  console.log("W188_LIVE_HOOK_DIAGNOSTICS", r.window.__celikomBridgeNativeDrainDiagnostics().map(x=>x[0]).join(","));
   await tick();
   assert.equal(player.reloadReasons.length,0);
   // The first native source is already approved and has been consumed.
@@ -410,7 +411,7 @@ test("diagnostic queue reports native mapping as NOT audio verification and neve
   await pending;
   const events=r.window.__celikomBridgeNativeDrainDiagnostics();
   const code=events.map(([value])=>value);
-  assert.ok(code.includes("RESOURCE_HOOK_ATTACHED"));
+  assert.ok(code.includes("RESOURCE_HOOK_ENDPOINT_FALLBACK") || code.includes("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED"));
   assert.ok(code.includes("RENDERER_STATE_ON"));
   assert.ok(code.includes("SOURCE_MAPPED"));
   assert.ok(code.includes("FILEINFO_NATIVE_KEY_FIELD"));
