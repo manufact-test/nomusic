@@ -37,6 +37,7 @@ jobs:
           npm install --no-audit --no-fund --prefix windows-companion/w23
           if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_DEPENDENCIES_FAILED' }
           node windows-companion/w23/build.mjs
+          npm install --no-save --no-package-lock --no-audit --no-fund --prefix windows-companion/w23 acorn@8.15.0
           if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_BUILD_FAILED' }
       - name: Download official Yandex 5.129.0 and verify signatures, hashes, image and exact restore
         shell: pwsh
@@ -62,6 +63,7 @@ jobs:
           Write-Host "W174_YANDEX_51290_ASAR_SHA256=$($data.asarSha256)"
           Write-Host 'W174_YANDEX_51290_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
       - name: Audit the official 5.129.0 ASAR against the unchanged W174 hook contract
+        # The callgraph audit is a one-off static review tool; keep Acorn out of product dependencies.
         if: success()
         shell: pwsh
         run: |
