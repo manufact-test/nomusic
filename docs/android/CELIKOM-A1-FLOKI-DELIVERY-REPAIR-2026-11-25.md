@@ -1,3 +1,17 @@
+## Current delivery checkpoint — BETA27 (27.11.2026)
+
+BETA26 was previously delivered and verified. BETA27 source workflow `46028046471` passed JVM and fresh Android 13 native-launch checks. APK metadata:
+- `CELIKOM-A1-RAMIL-AU-BETA27-HONOR50-20261127.apk`
+- 71,598,060 bytes
+- SHA-256 `5939d5f9c8dc7661c5eac64f06391bf06f854b1da79158dfacc2f41f74f918c1`
+- persistent owner signer verified.
+
+The trusted main request JSON now targets run `46028046471`, attempt 1, private draft release `460809106`. Floki spool workflow `46048173341` verified provenance, digest and package signer and staged the APK. At the last checkpoint it was waiting for the independent root-owned HTTPS receipt. Do not treat staging as delivery. Do not send any link until the root receipt and live celikom.com HTTP 200 / content-type / exact size / SHA-256 checks pass and the unpublished draft readback confirms the same URL. No GitHub APK link may be sent to the owner.
+
+BETA27 CI verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`. The owner still must install and hear the alternate sound.
+
+Continuation: `docs/android/NEXT-CHAT.md` and `docs/android/CELIKOM-A1-BETA27-EXACT-DESCRIPTOR-FIRST-OPEN-2026-11-27.md`.
+
 # CELIKOM A1 — Floki verified owner APK delivery repair
 
 Date: 2026-11-27  
