@@ -1,3 +1,64 @@
+# CURRENT HANDOFF — 27.11.2026 (BETA27 CI passed; owner HTTPS delivery pending root receipt)
+
+## Current code and APK
+
+- Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- BETA27 source commit: `2b755397b577202de5879b81a71b1a51cce5e711`.
+- BETA27 code/JVM/native owner workflow: `46028046471` — SUCCESS.
+- Separate clone-alone ARM13 differential: `46028046465` — SUCCESS.
+- Owner APK: `CELIKOM-A1-RAMIL-AU-BETA27-HONOR50-20261127.apk`.
+- Size: `71,598,060` bytes.
+- SHA-256: `5939d5f9c8dc7661c5eac64f06391bf06f854b1da79158dfacc2f41f74f918c1`.
+- Persistent owner signer verified: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
+- Private draft release ID: `460809106`, tag `celikom-a1-owner-46028046471-1`. Draft stays unpublished; never expose its GitHub asset URL.
+- **Owner delivery is NOT complete yet. No celikom.com URL has been verified or sent.** BETA26 remains last delivered APK until root receipt + HTTPS verification completes.
+
+## BETA27 change
+
+BETA26 owner diagnostic: «Ау» played again; no audible replacement. `ISSUER_CODEC_MP3_REQUESTED=NONE`; server resolve/signed audio/range and exact descriptor→factory→source witness existed, but first-open candidate rejection included `FIRST_OPEN_DESCRIPTOR_LOST=ONE`. CELIKOM DataSource was not armed/opened/read.
+
+BETA27 change is limited to the exact already-verified descriptor lifetime:
+- Pin the descriptor strongly only after exact descriptor→factory identity handoff, within the existing bounded lineage table.
+- Release on first touch of the source or a sibling, descriptor rebind, or touched/saturated source birth.
+- Existing Track/Album/creator/setter/generation/permission/fresh-source and fail-closed gates remain unchanged.
+- Original Yandex codec request remains untouched; no server/catalogue/Range/HMAC/Windows/stable/OTA change.
+
+The JVM Stage B regression test verified the pin is retained through candidate inspection, rejected for unrelated source, released on source OPEN / sibling close / descriptor rebind. JVM issuer/proxy, owner export, codec passthrough and Exo factory product identity checks all passed.
+
+## Android 13 native gate — passed, but NOT audio proof
+
+Workflow `46028046471` result:
+- Original publisher-first and clone-second on fresh Android 13 ARM64/ARMv7 guest.
+- Original publisher stable for 75 seconds before clone; original remained installed; both packages installed concurrently.
+- `native_clone_main_75s=true`, native launch accepted, no fatal suppression.
+- Persistent owner signer verified; export mode `UPDATE_EXISTING`.
+- Exact verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- Report explicitly says `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`; MediaDataSource readAt candidates absent. Hook registration/clone launch is not proof of audio replacement.
+- `acoustic_replacement_proven=false`. Do not claim CELIKOM replacement works until owner hears it.
+
+## Delivery state — finish this before asking owner to install
+
+Main request JSON was updated by commit `d99b85bd2c3d10134a08885ff309d9e8e11df383`:
+`run_id=46028046471`, `attempt=1`, `release_id=460809106`.
+
+Trusted main Floki spool workflow `46048173341` is processing:
+- local main contracts passed;
+- source run/release/provenance/hash verified;
+- APK signature/package independently verified;
+- immutable APK successfully staged as untrusted runner data;
+- currently waiting for independent root-owned receipt.
+
+Continue polling `46048173341`. It must finish root receipt verification and update/read back the unpublished draft with `A1_OWNER_DOWNLOAD_URL`. Then independently verify live celikom.com HTTPS response (HTTP 200, APK content type, exact 71,598,060 bytes and SHA-256 above). Only then send the direct celikom.com URL. No GitHub download link; never synthesize or guess a URL. If root receipt times out/fails, stop and investigate the existing Floki path—do not bypass it.
+
+## Owner test after verified delivery
+
+Install BETA27 over BETA26; do not uninstall or clear data. Test:
+1. Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
+2. The second song that previously had leading gaps.
+3. Export one fresh TXT after both, without restarting Yandex between the two tests if possible.
+
+Inspect `FIRST_OPEN_DESCRIPTOR_LOST` and the complete first-open → deferred arm → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ` chain. Separate tracks and selection generations; no aggregate cross-track conclusions. Require owner listening confirmation for real replacement.
+
 # CURRENT HANDOFF — 27.11.2026 (BETA27 code committed, CI pending, not yet delivered)
 
 ## Current checkpoint
