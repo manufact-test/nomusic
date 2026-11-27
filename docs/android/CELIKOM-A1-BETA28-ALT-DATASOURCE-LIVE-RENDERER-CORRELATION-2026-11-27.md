@@ -106,10 +106,10 @@ Interpretation:
   - `NativeExoAlternateByteRouteTest`
   - `NativeRamilTrackOnlyLineageTest`
   - The new NAV50 same-source/current-period and mismatch assertions passed.
-- Owner workflow `46060063423`:
-  - `jvm-issuer-proxy-contract` job `140711877640` — SUCCESS.
-  - Private Android 13 ARM13 owner build/native test was still running at the last checkpoint.
+- Owner preflight run `46060063423` — SUCCESS. ARM13 native main 75s verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; persistent owner signer verified and update-existing mode confirmed. It remains a stability/signing gate only: `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`.
+- BETA29 export run `46061697450`, run 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — IN_PROGRESS at the last checkpoint. This is the only intended BETA29 export candidate.
 - Clone-alone workflow `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. This is a stability gate only, not product/audio proof.
+- Several intermediate export-trigger commits were made during the BETA29 filename migration. They may create older-name private drafts; do not deliver any of them. Only use run `46061697450` if its final draft contains exactly the BETA29 artifact name.
 
 Wait for the owner ARM13 and clone-alone workflows to finish before exporting a new owner APK.
 
