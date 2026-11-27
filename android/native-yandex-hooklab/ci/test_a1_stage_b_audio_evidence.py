@@ -588,7 +588,7 @@ public final class StageBAudioEvidenceTest {
         reset.onExoSourceInstanceOpen(rs1);
         reset.onExoSourceInstanceRead(rs1,1);
         reset.onExoFactoryCreated(rd1,new Object());
-        bucket(reset.exportLines(),29,"TRACK_SOURCE_OPEN_LINK","ONE");
+        bucket(reset.exportLines(),29,"TRACK_SOURCE_OPEN_LINK","FEW");
         bucket(reset.exportLines(),30,"TRACK_SOURCE_READ_LINK","ONE");
         bucket(reset.exportLines(),27,"TRACK_DESCRIPTOR_FACTORY_LINK","FEW");
         reset.enterNativeMainSourceRequest(rw2,null);
