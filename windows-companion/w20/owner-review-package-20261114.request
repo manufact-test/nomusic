@@ -24,3 +24,6 @@ Package policy:
 - Customer stable remains unapproved; no production publish, public feed promotion or mass OTA.
 - Owner installs in place over 0.24.54. Never uninstall or delete session.dpapi.
 - First acceptance gate is Floki login; audio is tested separately only after login succeeds.
+
+
+W188: owner requests an isolated Windows compatibility candidate for the newly offered official Yandex Music 5.129.0. Preserve W174 audio files exactly. Verify official signed installer, inner EXE publisher/version, hashes, native image build and byte-exact install/restore in disposable CI only. Do not modify the owner's Yandex installation, do not add 5.129.0 to the trusted catalog before the full candidate passes, and do not publish customer stable.

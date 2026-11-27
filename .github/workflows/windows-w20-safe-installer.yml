@@ -15,6 +15,7 @@ on:
       - experiment/windows-w172-yandex-51280-compat-20261121
     paths:
       - windows-companion/w20/owner-review-package-20261114.request
+      - .github/workflows/windows-w20-safe-installer.yml
   workflow_dispatch:
 
 permissions:
@@ -63,6 +64,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'W21_RECOVERY_CONTRACT_FAILED' }
       - name: Test native image construction and crash recovery
         run: dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+      - name: Verify exact official Yandex 5.129.0 and W174 native install/restore
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'w174-yandex-51290-candidate.json'
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.129.0' -ValidateCandidate -ReportPath $report
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W174_YANDEX_51290_CANDIDATE_FAILED' }
+          $data = Get-Content $report -Raw | ConvertFrom-Json
+          if ($data.status -ne 'candidate_requires_runtime_review' -or
+              $data.vendorVersion -ne '5.129.0' -or
+              $data.exeVersion -notmatch '^5\.129\.0\.' -or
+              $data.installerSha256 -notmatch '^[0-9a-f]{64}$' -or
+              $data.exeSha256 -notmatch '^[0-9a-f]{64}$' -or
+              $data.asarSha256 -notmatch '^[0-9a-f]{64}$') {
+            throw 'W174_YANDEX_51290_PROVENANCE_OR_IMAGE_INVALID'
+          }
+          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-install-and-byte-exact-restore-sandbox')) {
+            if ($data.checks -notcontains $required) { throw "W174_MISSING_CHECK_$required" }
+          }
+          Write-Host "W174_OFFICIAL_YANDEX_51290_VERIFIED exeVersion=$($data.exeVersion)"
+          Write-Host "W174_YANDEX_51290_INSTALLER_SHA256=$($data.installerSha256)"
+          Write-Host "W174_YANDEX_51290_ASAR_SHA256=$($data.asarSha256)"
+          Write-Host 'W174_YANDEX_51290_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
       - name: Verify stage-only distribution policy
         shell: pwsh
         run: |
