@@ -285,21 +285,6 @@ public sealed partial class MainWindow
         _compactAccess.ForeColor = Accent;
         _compactAccess.Font = new Font("Segoe UI", 9F);
         _compactAccess.Text = _api.IsLoggedIn ? "Проверяем доступ…" : "Войдите в аккаунт, чтобы начать";
-        if (transientRendererGap)
-        {
-            // Preserve the last track identity and its 15-second presence cache
-            // while the same host replaces a destroyed renderer. Never present
-            // the transient UNAVAILABLE pulse as a disconnected Yandex app.
-            _compactHoldingTrackTransition = true;
-            _compactRenderedTrackId = previousRenderedTrackId;
-            _compactRenderedTrackDurationMs = previousRenderedTrackDurationMs;
-            _compactMetadataPendingTrackId = previousMetadataPendingTrackId;
-            _compactMetadataPendingAt = previousMetadataPendingAt;
-            _compactTrack.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
-            _compactTrackArtist.Text = "";
-            _compactVersionStatus.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
-        }
-
         _compactTrack.ForeColor = Ink;
         _compactTrack.Font = new Font("Segoe UI", 9F);
         _compactTrack.BackColor = Paper;
@@ -778,6 +763,21 @@ public sealed partial class MainWindow
                     _compactTrack.Text = trackText;
                 if (_compactTrackArtist.Text.Length > 0) _compactTrackArtist.Text = "";
             }
+        }
+
+        if (transientRendererGap)
+        {
+            // Preserve the last track identity and its 15-second presence cache
+            // while the same host replaces a destroyed renderer. Never present
+            // the transient UNAVAILABLE pulse as a disconnected Yandex app.
+            _compactHoldingTrackTransition = true;
+            _compactRenderedTrackId = previousRenderedTrackId;
+            _compactRenderedTrackDurationMs = previousRenderedTrackDurationMs;
+            _compactMetadataPendingTrackId = previousMetadataPendingTrackId;
+            _compactMetadataPendingAt = previousMetadataPendingAt;
+            _compactTrack.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
+            _compactTrackArtist.Text = "";
+            _compactVersionStatus.Text = CompactPlaybackPresentation.TransientRendererGapMessage;
         }
 
         _compactTrack.ForeColor = Ink;
