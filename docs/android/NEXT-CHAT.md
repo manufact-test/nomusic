@@ -89,7 +89,7 @@ Interpretation:
 - Owner workflow `46060063423`:
   - `jvm-issuer-proxy-contract` job `140711877640` — SUCCESS.
   - Private Android 13 ARM13 owner build/native test was still in progress at the last checkpoint.
-- Clone-alone workflow `46060063402` was still in progress at the last checkpoint.
+- Clone-alone workflow `46060063402` — SUCCESS, but verdict is `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only, not audio/product proof.
 
 Before exporting BETA29, recheck both run conclusions and all jobs. Do not assume the owner ARM13 native gate passed just because the JVM job passed.
 
@@ -97,7 +97,7 @@ Before exporting BETA29, recheck both run conclusions and all jobs. Do not assum
 
 If owner ARM13 and clone-alone both finish SUCCESS:
 
-1. Dispatch the existing owner workflow with its diagnostic APK export opt-in to build BETA29. Do not create a new architecture or change audio behavior.
+1. After both current CI runs finish successfully, create a small docs-only commit on this branch with `[export-beta-audio]` in the commit message. The owner workflow's push trigger explicitly uses that marker to export BETA29 as a private diagnostic APK. Do not authorize fresh clone installation or change audio behavior.
 2. Keep the owner draft unpublished.
 3. Follow the existing trusted Floki/root delivery process:
    - owner signer/provenance checks;
