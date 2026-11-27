@@ -29,7 +29,17 @@ BETA24 пока не является доказательством звука.
 
 Затем отдельно сопоставить `CODEC_CONFIG_MPEG/AAC`, `ISSUER_CODEC_MP3_REQUESTED` и реальный слуховой результат. Не менять серверный каталог, Range/HMAC, оригинальный Yandex APK, Windows, stable Android или OTA без отдельного подтверждения.
 
-**Статус CI/экспорта:** ожидает завершения после коммита BETA24. До PASS не устанавливать и не объявлять исправленным.
+**Статус CI/экспорта: PASS.** Финальный исходный коммит: `77ad155b81d150a450d08e855b3f019250ef1809`.
+
+- JVM exact renderer/source regressions: [45959535319 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535319).
+- ARM13 clone-alone differential: [45959535329 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535329).
+- Owner publisher-first side-by-side native launch: [45959535273 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535273), verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- Private owner-only draft release: ID `460295768`, tag `celikom-a1-owner-45959535273-1`. Draft only; not published.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk`, 71,593,964 bytes.
+- APK SHA-256: `8e51f3a920cb647f91f451ffb58b44e8d91c748619475cc0f0319e949a80a732`.
+- The build receipt explicitly records `acoustic_replacement_proven=false`. Native launch PASS is not audible-substitution proof. Stage A remains NO-GO.
+
+Предыдущие промежуточные коммиты `38f8953d` и `804c0a26` имеют failed CI и не являются сборкой для установки. Использовать только APK из draft release `460295768` (финальный source commit `77ad155b`).
 
 ---
 
