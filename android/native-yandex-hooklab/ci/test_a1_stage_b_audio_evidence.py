@@ -562,7 +562,7 @@ public final class StageBAudioEvidenceTest {
         beta9CrossThreadFixture();
         StageBAudioEvidence e = new StageBAudioEvidence();
         String[] initial = e.exportLines();
-        check(initial.length == 142);
+        check(initial.length == 154);
         for (int i=0;i<104;i++) check(initial[i].contains(";error=NONE;"));
         check(contains(initial,"CELIKOM_REPLACEMENT;error=NOT_CONNECTED"));
 

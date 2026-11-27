@@ -119,6 +119,11 @@ final class StageBAudioEvidence {
         boolean sourceEverTouched;
         boolean sourceReadAfterOpen;
         boolean sourceAlbumReadAfterOpen;
+        // Durable, value-free proof that sourceInstance was linked through the
+        // exact descriptor -> factory identity chain. Vendor descriptor/factory
+        // objects may be collected after first OPEN; this bit remains bound to
+        // the current weak sourceInstance and resets on every lineage rebind.
+        boolean factorySourceIdentityBound;
     }
     private static final class TrackAlbumLink {
         WeakReference<Object> track;
@@ -717,6 +722,18 @@ final class StageBAudioEvidence {
     private final AtomicLong trackSourceReadInspectionBudget = new AtomicLong();
     private final AtomicLong trackSourceInspectionExhausted = new AtomicLong();
     private final AtomicLong linkedSourceCloseCalls = new AtomicLong();
+    private final AtomicLong liveLinkedSourceLookups = new AtomicLong();
+    private final AtomicLong liveLinkedSourceCreatorMatched = new AtomicLong();
+    private final AtomicLong liveLinkedSourceCreatorMissing = new AtomicLong();
+    private final AtomicLong liveLinkedSourceWrapperLinkMissing = new AtomicLong();
+    private final AtomicLong liveLinkedSourceLinkMismatch = new AtomicLong();
+    private final AtomicLong liveLinkedSourceFactorySourceUnbound = new AtomicLong();
+    private final AtomicLong liveLinkedSourceInstanceNotLinked = new AtomicLong();
+    private final AtomicLong liveLinkedSourceInstanceWeakLost = new AtomicLong();
+    private final AtomicLong liveLinkedSourceReverseLinkMismatch = new AtomicLong();
+    private final AtomicLong liveLinkedSourceBetaRecheckFailed = new AtomicLong();
+    private final AtomicLong liveLinkedSourceAlbumMismatch = new AtomicLong();
+    private final AtomicLong liveLinkedSourceResolved = new AtomicLong();
     private volatile boolean hasTrackSourceLink;
 
     // Bounded without storing URLs, media bytes, offsets or returned sizes.
@@ -1306,7 +1323,8 @@ final class StageBAudioEvidence {
         link.descriptor=null;
         link.firstOpenDescriptorPin=null;
         link.factoryResult=null;
-        link.sourceInstance=null;
+link.sourceInstance=null;
+link.factorySourceIdentityBound=false;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
@@ -1695,7 +1713,8 @@ final class StageBAudioEvidence {
             link.descriptor=new WeakReference<>(descriptor);
             link.firstOpenDescriptorPin=null;
             link.factoryResult=null;
-            link.sourceInstance=null;
+link.sourceInstance=null;
+link.factorySourceIdentityBound=false;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
@@ -1791,23 +1810,57 @@ final class StageBAudioEvidence {
      * remain separate, exact identity paths.
      */
     synchronized Object linkedSourceInstanceForCreatorOrBeta(Object wrapper) {
+        mark(liveLinkedSourceLookups);
         Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
         if(creator==null || creator.length!=2
-                || creator[0]==null || creator[1]==null)return null;
+                || creator[0]==null || creator[1]==null) {
+            mark(liveLinkedSourceCreatorMissing);
+            return null;
+        }
+        mark(liveLinkedSourceCreatorMatched);
         NativeTrackSourceLink link=findByWrapper(wrapper);
-        if(link==null || link.wrapper==null || link.wrapper.get()!=wrapper
-                || link.track==null || link.track.get()!=creator[0]
-                || link.descriptor==null || link.descriptor.get()==null
-                || link.factoryResult==null || link.factoryResult.get()==null
-                || link.sourceInstance==null)return null;
+        if(link==null) {
+            mark(liveLinkedSourceWrapperLinkMissing);
+            return null;
+        }
+        if(link.wrapper==null || link.wrapper.get()!=wrapper
+                || link.track==null || link.track.get()!=creator[0]) {
+            mark(liveLinkedSourceLinkMismatch);
+            return null;
+        }
+        // Do not require the vendor descriptor/factory weak references to stay
+        // alive after OPEN. Their exact identity chain was already verified
+        // when this very sourceInstance was attached to the link.
+        if(!link.factorySourceIdentityBound) {
+            mark(liveLinkedSourceFactorySourceUnbound);
+            return null;
+        }
+        if(link.sourceInstance==null) {
+            mark(liveLinkedSourceInstanceNotLinked);
+            return null;
+        }
         Object instance=link.sourceInstance.get();
-        if(instance==null || findBySource(instance)!=link)return null;
+        if(instance==null) {
+            mark(liveLinkedSourceInstanceWeakLost);
+            return null;
+        }
+        if(findBySource(instance)!=link) {
+            mark(liveLinkedSourceReverseLinkMismatch);
+            return null;
+        }
         if(creator[1]==wrapper) {
             Object[] beta=exactBetaCreatorWithoutAlbum(wrapper);
             if(beta==null || beta.length!=2
-                    || beta[0]!=creator[0] || beta[1]!=wrapper)return null;
+                    || beta[0]!=creator[0] || beta[1]!=wrapper) {
+                mark(liveLinkedSourceBetaRecheckFailed);
+                return null;
+            }
         } else if(link.albumInstance==null
-                || link.albumInstance.get()!=creator[1])return null;
+                || link.albumInstance.get()!=creator[1]) {
+            mark(liveLinkedSourceAlbumMismatch);
+            return null;
+        }
+        mark(liveLinkedSourceResolved);
         return instance;
     }
 
@@ -1935,7 +1988,8 @@ final class StageBAudioEvidence {
             // It is bounded by the existing lineage/birth tables.
             link.firstOpenDescriptorPin=link.sourceEverTouched?null:descriptor;
             link.factoryResult=new WeakReference<>(factoryResult);
-            link.sourceInstance=null;
+link.sourceInstance=null;
+link.factorySourceIdentityBound=false;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
@@ -1988,7 +2042,8 @@ final class StageBAudioEvidence {
                 else exactFactorySourceBirths.add(
                     new ExactFactorySourceBirth(source,factoryObject,link));
             }
-            link.sourceInstance=new WeakReference<>(source);
+link.sourceInstance=new WeakReference<>(source);
+link.factorySourceIdentityBound=true;
             link.sourceOpened=false;
             link.sourceEverTouched=wasSourceTouched(source);
             if(link.sourceEverTouched || exactFactoryBirthsSaturated)
@@ -2178,7 +2233,8 @@ final class StageBAudioEvidence {
         // The birth above proves that THIS source came from THIS exact
         // signed factory. Rebind the historical observation to the one
         // actually about to open (without ever rewinding a touched source).
-        link.sourceInstance=new WeakReference<>(source);
+link.sourceInstance=new WeakReference<>(source);
+link.factorySourceIdentityBound=true;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
@@ -2506,7 +2562,19 @@ final class StageBAudioEvidence {
             event("FIRST_OPEN_DEFERRED_ARM_CALLED",firstOpenDeferredArmCalled),
             event("FIRST_OPEN_DEFERRED_ARM_ACCEPTED",firstOpenDeferredArmAccepted),
             event("FIRST_OPEN_DEFERRED_ARM_REJECTED",firstOpenDeferredArmRejected),
-            event("FIRST_OPEN_ARM_EXCEPTION",firstOpenArmExceptions)
+            event("FIRST_OPEN_ARM_EXCEPTION",firstOpenArmExceptions),
+            event("LIVE_PERIOD_SOURCE_LOOKUP_CALL",liveLinkedSourceLookups),
+            event("LIVE_PERIOD_SOURCE_CREATOR_MATCH",liveLinkedSourceCreatorMatched),
+            event("LIVE_PERIOD_SOURCE_CREATOR_MISSING",liveLinkedSourceCreatorMissing),
+            event("LIVE_PERIOD_SOURCE_WRAPPER_LINK_MISSING",liveLinkedSourceWrapperLinkMissing),
+            event("LIVE_PERIOD_SOURCE_LINK_MISMATCH",liveLinkedSourceLinkMismatch),
+            event("LIVE_PERIOD_SOURCE_FACTORY_LINK_UNBOUND",liveLinkedSourceFactorySourceUnbound),
+            event("LIVE_PERIOD_SOURCE_INSTANCE_NOT_LINKED",liveLinkedSourceInstanceNotLinked),
+            event("LIVE_PERIOD_SOURCE_INSTANCE_WEAK_LOST",liveLinkedSourceInstanceWeakLost),
+            event("LIVE_PERIOD_SOURCE_REVERSE_LINK_MISMATCH",liveLinkedSourceReverseLinkMismatch),
+            event("LIVE_PERIOD_SOURCE_BETA_RECHECK_FAILED",liveLinkedSourceBetaRecheckFailed),
+            event("LIVE_PERIOD_SOURCE_ALBUM_MISMATCH",liveLinkedSourceAlbumMismatch),
+            event("LIVE_PERIOD_SOURCE_LOOKUP_RESOLVED",liveLinkedSourceResolved)
         };
     }
 }

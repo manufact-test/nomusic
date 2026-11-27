@@ -2,6 +2,7 @@ package pro.celikom.a1exitwitness;
 
 import pro.celikom.yandex.nativehooklab.NativeSourceGate;
 import java.lang.reflect.Field;
+import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -135,6 +136,34 @@ public final class NativeRamilTrackOnlyLineageTest {
         return requests.get();
     }
 
+    private static void clearWeakFactoryWitnesses(StageBAudioEvidence evidence,
+            Object wrapper) {
+        try {
+            Field linksField=StageBAudioEvidence.class
+                .getDeclaredField("nativeTrackSourceLinks");
+            linksField.setAccessible(true);
+            java.util.List<?> links=(java.util.List<?>)linksField.get(evidence);
+            Object found=null;
+            for(Object candidate:links) {
+                Field wrapperField=candidate.getClass().getDeclaredField("wrapper");
+                wrapperField.setAccessible(true);
+                WeakReference<?> ref=(WeakReference<?>)wrapperField.get(candidate);
+                if(ref!=null && ref.get()==wrapper) {
+                    if(found!=null)throw new AssertionError("DUPLICATE_WRAPPER_LINK");
+                    found=candidate;
+                }
+            }
+            check(found!=null,"EXACT_WRAPPER_LINK_PRESENT");
+            for(String name:new String[]{"descriptor","factoryResult"}) {
+                Field field=found.getClass().getDeclaredField(name);
+                field.setAccessible(true);
+                field.set(found,new WeakReference<Object>(null));
+            }
+        } catch(ReflectiveOperationException failure) {
+            throw new AssertionError("WEAK_FACTORY_WITNESS_FIXTURE",failure);
+        }
+    }
+
     private static void pause(long millis) {
         try {Thread.sleep(millis);}
         catch(InterruptedException interrupted) {
@@ -201,7 +230,11 @@ public final class NativeRamilTrackOnlyLineageTest {
         stage.enterNativePlayerSourceSelection(wrapper);
         stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
         stage.exitNativePlayerSourceSelection();
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==null,
+            "DESCRIPTOR_WITHOUT_FACTORY_PRODUCT_CANNOT_RESOLVE");
         stage.onExoFactoryCreated(descriptor,factory);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==null,
+            "FACTORY_WITHOUT_DATASOURCE_CANNOT_RESOLVE");
         stage.onExoSourceInstanceCreated(dataSource,factory);
         Object[] link=stage.exactFreshCreatorOrBetaForDataSource(dataSource);
         check(link!=null && link[0]==wrapper && link[1]==track
@@ -217,6 +250,25 @@ public final class NativeRamilTrackOnlyLineageTest {
             "OPENED_ORIGINAL_SOURCE_CANNOT_BE_ARMED");
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "LIVE_RENDERER_RESOLVES_EXACT_BETA_DATASOURCE_AFTER_READ");
+        clearWeakFactoryWitnesses(stage,wrapper);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "LIVE_RENDERER_SOURCE_IDENTITY_SURVIVES_WEAK_DESCRIPTOR_FACTORY_LOSS");
+        Object replacementDescriptor=new Object(),replacementFactory=new Object();
+        Object replacementDataSource=new Object();
+        stage.enterNativePlayerSourceSelection(wrapper);
+        stage.onNativeExoDescriptorBuiltForCurrentWrapper(replacementDescriptor);
+        stage.exitNativePlayerSourceSelection();
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==null,
+            "DESCRIPTOR_REBIND_INVALIDATES_OLD_SOURCE_IDENTITY");
+        stage.onExoFactoryCreated(replacementDescriptor,replacementFactory);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==null,
+            "REBOUND_FACTORY_WITHOUT_PRODUCT_REMAINS_UNRESOLVED");
+        stage.onExoSourceInstanceCreated(replacementDataSource,replacementFactory);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==replacementDataSource,
+            "REBOUND_EXACT_FACTORY_SOURCE_RESOLVES");
+        check(String.join("\n",stage.exportLines()).contains(
+            "origin=LIVE_PERIOD_SOURCE_LOOKUP_RESOLVED;error=FEW"),
+            "LIVE_SOURCE_LOOKUP_RESOLUTION_COUNTER");
         check(stage.linkedSourceInstanceForCreatorOrBeta(new Object())==null,
             "LIVE_RENDERER_NEVER_GUESSES_ANOTHER_WRAPPER_DATASOURCE");
 
