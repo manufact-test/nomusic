@@ -3,10 +3,14 @@ set -Eeuo pipefail
 # Isolated, unprivileged build of exact extension source; existing container/config untouched.
 python3 <<'PY'
 import subprocess,json,posixpath,urllib.request,hashlib,lzma,shutil
+from pathlib import Path
 source="0e28cba5221c0f345bb1e3502d186016a614f54b"
 git=["git","-c","safe.directory=/home/celikom-mirror/github-mirror.git","--git-dir=/home/celikom-mirror/github-mirror.git"]
 subprocess.run(git+["merge-base","--is-ancestor",source,"refs/heads/main"],check=True,capture_output=True,timeout=15)
-base=["docker","exec","--user","1000","celikom-floki-ci01"]
+runner_uid=str(Path("/srv/celikom/ci-runner/runner/celikom-build-spool").stat().st_uid)
+assert runner_uid!="0"
+print("EXTENSION_096_ACTUAL_SPOOL_OWNER_UID",runner_uid)
+base=["docker","exec","--user",runner_uid,"celikom-floki-ci01"]
 r=subprocess.run(base+["bash","-c","find /home/runner /opt /actions-runner /runner -maxdepth 10 -type f -name node 2>/dev/null | head -30"],capture_output=True,text=True,timeout=30)
 cleanup=subprocess.run(base+["bash","-c",'for p in /tmp/celikom-extension96-node.*; do if [ -d "$p" ] && [ ! -L "$p" ]; then chmod -R u+rwX -- "$p"; rm -rf -- "$p"; fi; done'],capture_output=True,text=True,timeout=30)
 print("EXTENSION_096_OWN_TEMP_CLEANUP",cleanup.returncode,cleanup.stderr[:500])
@@ -28,7 +32,7 @@ if node is None:
  assert len(binary)<=80*1024*1024 and hashlib.sha256(binary).hexdigest()==expected
  plain=lzma.decompress(binary)
  assert len(plain)<256*1024*1024
- extraction=subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1","node-v24.22.3-linux-x64/bin/node"],input=plain,capture_output=True,timeout=45)
+ extraction=subprocess.run(["docker","exec","-i","--user",runner_uid,"celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1","node-v24.22.3-linux-x64/bin/node"],input=plain,capture_output=True,timeout=45)
  if extraction.returncode:print("EXTENSION_096_RUNTIME_EXTRACTION_ERROR",extraction.stderr.decode("utf-8","replace")[:1000])
  assert extraction.returncode==0
  del binary,plain
@@ -40,7 +44,7 @@ directory=r.stdout.strip()
 assert directory.startswith("/home/runner/celikom-build-spool/.work-extension96-owner.") and directory.count("/")==4
 archive=subprocess.run(git+["archive",source,"extension","scripts","package.json","package-lock.json","server/composer.json",".github/scripts/floki-private-build-spool.mjs"],capture_output=True,check=True,timeout=60).stdout
 assert len(archive)<64*1024*1024
-subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",directory],input=archive,check=True,capture_output=True,timeout=30)
+subprocess.run(["docker","exec","-i","--user",runner_uid,"celikom-floki-ci01","tar","-xf","-","-C",directory],input=archive,check=True,capture_output=True,timeout=30)
 js=r"""
 import {spawnSync} from 'node:child_process';
 import {readdirSync,readFileSync,writeFileSync,mkdirSync} from 'node:fs';
@@ -67,7 +71,7 @@ if(zip.length!==2506160||sha!=='2503ea6f3a2326394dbd3e67859064a051db30125a035f44
 writeFileSync('private-owner-build-verified.json',JSON.stringify({source:'0e28cba5221c0f345bb1e3502d186016a614f54b',tests:471,size:zip.length,sha256:sha}));
 console.log('EXTENSION_096_ISOLATED_BUILD_CHECKS_PASS',sha,zip.length);
 """
-r=subprocess.run(["docker","exec","-i","--user","1000","--workdir",directory,"celikom-floki-ci01",node,"--input-type=module","-"],input=js,capture_output=True,text=True,timeout=600)
+r=subprocess.run(["docker","exec","-i","--user",runner_uid,"--workdir",directory,"celikom-floki-ci01",node,"--input-type=module","-"],input=js,capture_output=True,text=True,timeout=600)
 print(r.stdout[-12000:],end="")
 assert r.returncode==0,"UNPRIVILEGED_EXTENSION_BUILD_FAILED"
 print("EXTENSION_096_ISOLATED_BUILD_LOCATION",json.dumps({"directory":directory,"node":node,"source":source}))
