@@ -1,45 +1,68 @@
-# CURRENT HANDOFF — 27.11.2026, BETA24 exact creator-birth source-link recovery
+# CURRENT HANDOFF — CELIKOM A1 BETA24 per-wrapper source-lineage repair — 2026-11-27
 
-## Последняя диагностика владельца: BETA23 — подмена не работает
+## Current status
 
-Файл: `CELIKOM-A1-Diagnostics-1795763662873.txt`.
+The latest owner diagnostic from the BETA24 phone build still showed no audible substitution. The server-side signed-audio path was succeeding, but the original player DataSource was never armed or opened:
 
-- CELIKOM grant path положительный: `OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `OWNER_AUDIO_RANGE_VALID=ONE`, `GRANT_ADMITTED=ONE`, `DECISION_ALTERNATE=ONE`.
-- До оригинального Exo DataSource подмена не дошла: `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN=NONE`, `AUDIO_READ=NONE`.
-- Связь descriptor→factory и factory→source отсутствовала: `TRACK_DESCRIPTOR_FACTORY_LINK=NONE`, `TRACK_FACTORY_SOURCE_LINK=NONE`.
-- Одновременно активный оригинальный MediaPeriod совпадал с Player source setter: `LIVE_PERIOD_DIRECT_LO96=FEW`, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=FEW`.
-- Конкретный отказ Stage B: `LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT=FEW` и `LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_LINK_MISSING=FEW`. Creator birth остался, но TrackWrapper link отсутствовал.
-- `ISSUER_VALUE_TARGET_ALLOWLISTED=NONE` и `ISSUER_CODEC_MP3_REQUESTED=NONE`: прежнее изменение FileInfoApi codecs=mp3 в этой сессии не запускалось. Не заявлять, что BETA23 действительно запросила MP3.
+- Owner resolve / signed audio ready / alternate decision / grant admitted: present.
+- `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ`: absent.
+- `AUDIO_STAGE_B_STATUS=NOT_CONNECTED`.
+- `TRACK_DESCRIPTOR_FACTORY_LINK` and `TRACK_FACTORY_SOURCE_LINK`: absent.
+- `ORIGINAL_CHILD_WRAPPER_LINK_MISSING`: present.
 
-## BETA24 — функциональное исправление
+## Root cause found
 
-Ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+`StageBAudioEvidence.onNativeTrackWrapperCreated()` reused a bounded `NativeTrackSourceLink` by **Track identity**, then rebound its `wrapper` to the latest wrapper and cleared descriptor/factory/source state. Yandex can create several live `tCa` wrappers for the same Track. A later wrapper therefore erased the exact wrapper lineage needed by an already-created original source anchor.
 
-- WrapperBirth теперь удерживает weak ссылки на исходные Track и Album также для tCa creator scope 14 (Track уже был в Flow при создании wrapper).
-- При потере короткой 16-элементной таблицы `NativeTrackSourceLink` связь может быть восстановлена только из уникального tCa creator birth с теми же живыми Track/Album, тем же Flow и без другой wrapper-связи для Track.
-- Неоднозначное рождение, конфликт Album, другой wrapper, слабые/утраченные ссылки остаются fail-closed.
-- Добавлена диагностическая метка `TRACK_WRAPPER_LINK_RESTORED` и отдельная категория live-period `LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_SAME`.
-- Добавлены Java regressions: вытеснение 16 записей, восстановление descriptor→factory→DataSource и сверка того же source setter с активным MediaPeriod.
+The earlier BETA24 repair addressed 16-entry eviction but still rejected restoration when a sibling wrapper for the same Track remained in the table. That left the real per-wrapper overwrite unresolved.
 
-## Границы и следующий критерий
+## Implemented repair
 
-BETA24 пока не является доказательством звука. После CI и выдачи владельческой сборки проверять именно эту цепочку:
+Current branch:
+`experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-`TRACK_WRAPPER_LINK_RESTORED` → `TRACK_DESCRIPTOR_FACTORY_LINK` → `TRACK_FACTORY_SOURCE_LINK` → `AUDIO_EXO_FIRST_OPEN_ARM` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+Current head:
+`901a421e461311de4b2fbba42c1c7ec78f55cb93`
 
-Затем отдельно сопоставить `CODEC_CONFIG_MPEG/AAC`, `ISSUER_CODEC_MP3_REQUESTED` и реальный слуховой результат. Не менять серверный каталог, Range/HMAC, оригинальный Yandex APK, Windows, stable Android или OTA без отдельного подтверждения.
+Changes in `StageBAudioEvidence.java`:
 
-**Статус CI/экспорта: PASS.** Финальный исходный коммит: `77ad155b81d150a450d08e855b3f019250ef1809`.
+- Maintain a separate source-lineage record for each exact wrapper object; never rebind by Track alone.
+- Allow a lost wrapper link to be restored from its exact creator birth even when sibling wrappers for the same Track are present.
+- Treat a repeated callback for the same wrapper/Track/Album as idempotent; preserve descriptor, factory, source, and touched/open state.
+- Keep conflicting reuse of the same wrapper identity fail-closed. Conflicting wrapper records remain ambiguous rather than authorizing the wrong Track.
+- Added diagnostic counters:
+  - `TRACK_WRAPPER_SAME_TRACK_PARALLEL`
+  - `TRACK_WRAPPER_SAME_IDENTITY_REFRESH`
+  - `TRACK_WRAPPER_IDENTITY_CONFLICT`
+  - `TRACK_WRAPPER_LINK_RESTORED_WITH_SAME_TRACK_SIBLING`
 
-- JVM exact renderer/source regressions: [45959535319 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535319).
-- ARM13 clone-alone differential: [45959535329 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535329).
-- Owner publisher-first side-by-side native launch: [45959535273 PASS](https://github.com/manufact-test/nomusic/actions/runs/45959535273), verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
-- Private owner-only draft release: ID `460295768`, tag `celikom-a1-owner-45959535273-1`. Draft only; not published.
-- APK: `CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk`, 71,593,964 bytes.
-- APK SHA-256: `8e51f3a920cb647f91f451ffb58b44e8d91c748619475cc0f0319e949a80a732`.
-- The build receipt explicitly records `acoustic_replacement_proven=false`. Native launch PASS is not audible-substitution proof. Stage A remains NO-GO.
+Regression coverage includes independent same-Track wrappers, idempotent same-wrapper observations, eviction/restoration with same-Track siblings, and conflicting wrapper identity. Historical Stage B fixture expectations were updated to the new per-wrapper semantics.
 
-Предыдущие промежуточные коммиты `38f8953d` и `804c0a26` имеют failed CI и не являются сборкой для установки. Использовать только APK из draft release `460295768` (финальный source commit `77ad155b`).
+## Validation
+
+- Java/JVM regression workflow: PASS — run `45968602445`.
+- Clone-alone differential ARM13 workflow: PASS — run `45968602583`.
+- Owner-side issuer/proxy contract: PASS — run `45969190985`.
+- Real original-Yandex + CELIKOM Android 13 publisher-first side-by-side 75-second test: **still running** in run `45968602446`.
+- Owner APK export run with `[export-beta-audio]`: **still running** in run `45969190985`.
+
+Do not treat the APK as delivered until the owner Android 13 job succeeds and the draft release contains the new APK plus README. No audible substitution has yet been confirmed on the physical HONOR 50.
+
+## Next action
+
+When run `45969190985` completes:
+
+1. If the owner Android 13 job passes, inspect the generated owner-only draft release and record the exact APK URL and SHA-256 here.
+2. If it fails, inspect the failed step/logs before creating another APK. Do not send the previous BETA24 release as a substitute.
+3. Once the new APK is available, install it **over** the existing CELIKOM app without uninstalling or clearing data.
+4. Test `Ау` (10AGE & Ramil), then export a fresh diagnostic. Confirm that Stage B descriptor/factory/source links and `DATASOURCE_ARMED` / `AUDIO_OPEN` / `AUDIO_READ` appear. Only the phone test can confirm audible substitution.
+
+## Working rules
+
+- Keep working in the existing repository and branch above; do not create a replacement project or branch.
+- Read this file before changing code and update it after each accepted milestone.
+- Do not claim audible replacement from JVM, ARM13 launch, or CI checks alone.
+- Do not disable original Yandex protections or bypass owner-signature checks.
 
 ---
 
