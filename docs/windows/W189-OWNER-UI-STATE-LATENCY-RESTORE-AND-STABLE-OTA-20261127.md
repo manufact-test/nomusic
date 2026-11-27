@@ -11,17 +11,17 @@ This document records tasks and evidence only. No runtime source, API, productio
 
 ## Exact project baseline
 
-- Repository: \`manufact-test/nomusic\`.
-- Active working branch: \`recovery/windows-w174-02454-known-good-20261126\`.
-- W188 product/test source: \`d0de9824c5e03422a9d6f928f17715de07bb76ba\`.
-- W188 signed owner-package source/metadata commit: \`0364309006bd3451778f01390398fe0f52e5a20c\`.
+- Repository: `manufact-test/nomusic`.
+- Active working branch: `recovery/windows-w174-02454-known-good-20261126`.
+- W188 product/test source: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
+- W188 signed owner-package source/metadata commit: `0364309006bd3451778f01390398fe0f52e5a20c`.
 - Last generated owner candidate: CELIKOM Windows **0.24.62.0**, Update Supervisor **0.24.62.0**, native module **0.24.31**, signed sequence **9**.
-- Exact Yandex version audited: \`5.129.0.r22295238\`.
+- Exact Yandex version audited: `5.129.0.r22295238`.
 - W174 accepted audio baseline files must remain unchanged unless a narrowly justified, tested integration requires otherwise:
-  - \`windows-companion/w23/renderer-entry.mjs\`: \`203b098914d549bc8d21b682b62df6486025cefa\`
-  - \`windows-companion/w22/native-resource-adapter.mjs\`: \`e3bfdc3ed579709c342c3ae87e2e83510e35826e\`
-  - \`windows-companion/w60/current-source-refresh.mjs\`: \`a5814bee52a8698ab79f9f4861f1b1451d85ee09\`
-- W188's Yandex 5.129 provider bridge lives in \`live-media-provider-hook.mjs\` and \`renderer-entry-w188.mjs\`; do not replace it with the speculative W182/W183/W185 Sonata/player hook experiments.
+  - `windows-companion/w23/renderer-entry.mjs`: `203b098914d549bc8d21b682b62df6486025cefa`
+  - `windows-companion/w22/native-resource-adapter.mjs`: `e3bfdc3ed579709c342c3ae87e2e83510e35826e`
+  - `windows-companion/w60/current-source-refresh.mjs`: `a5814bee52a8698ab79f9f4861f1b1451d85ee09`
+- W188's Yandex 5.129 provider bridge lives in `live-media-provider-hook.mjs` and `renderer-entry-w188.mjs`; do not replace it with the speculative W182/W183/W185 Sonata/player hook experiments.
 
 ## Owner observations — 27 November 2026
 
@@ -85,8 +85,8 @@ The previous source audit found these specific W169/W175/W178 changes missing fr
 
 ### W169 — guard Electron main-process callbacks
 
-- Restore the guarded scheduler for asynchronous native relay pulses: rejected \`tick(view)\` promises must be caught and recorded as \`NATIVE_RELAY_TICK_EXCEPTION\`, not bubble into Electron's main process.
-- Restore exception protection around passive CDP event callbacks; on unexpected payload, fail closed for the passive decoder witness and record \`NATIVE_CDP_EVENT_EXCEPTION\`.
+- Restore the guarded scheduler for asynchronous native relay pulses: rejected `tick(view)` promises must be caught and recorded as `NATIVE_RELAY_TICK_EXCEPTION`, not bubble into Electron's main process.
+- Restore exception protection around passive CDP event callbacks; on unexpected payload, fail closed for the passive decoder witness and record `NATIVE_CDP_EVENT_EXCEPTION`.
 - Restore the W169 regression test proving all pulse entry points use the guarded scheduler and CDP callbacks cannot throw out of Electron.
 - Do not blindly change the native module version marker. Preserve W174's accepted module/source baseline where possible; determine whether any version bump is required by the actual binary contract.
 
@@ -104,15 +104,15 @@ The previous source audit found these specific W169/W175/W178 changes missing fr
 - This is not the same as W77 deferred prefetch recovery. W77 handles a deferred prefetched request; W178 revalidates the exact newly current PLAYING/PAUSED track.
 - Only a confirmed grant may trigger the existing source-only reload. No grant means preserve Yandex original; no reload loops or duplicate QUALITY_CHANGE.
 - Restore privacy-safe diagnostic distinctions:
-  - \`RESOLVE_LOCAL_SESSION_MISSING\`
-  - \`RESOLVE_LOCAL_ORIGIN_INVALID\`
-  - \`RESOLVE_SESSION_REFRESH_FAILED\`
-  - \`RESOLVE_SESSION_CHANGED\`
-  - \`RESOLVE_SERVER_NO_GRANT\`
-  - \`RESOLVE_GRANT_REJECTED\`
-  - \`RESOLVE_GRANT_VALID\`
-  - \`RESOLVE_QUEUED\`, \`RESOLVE_DEQUEUED\`, \`RESOLVE_REPLY_RECEIVED\`
-  - the bounded \`NATIVE_CURRENT_CATCHUP_*\` / initial-source outcomes used by the W175/W178 implementation.
+  - `RESOLVE_LOCAL_SESSION_MISSING`
+  - `RESOLVE_LOCAL_ORIGIN_INVALID`
+  - `RESOLVE_SESSION_REFRESH_FAILED`
+  - `RESOLVE_SESSION_CHANGED`
+  - `RESOLVE_SERVER_NO_GRANT`
+  - `RESOLVE_GRANT_REJECTED`
+  - `RESOLVE_GRANT_VALID`
+  - `RESOLVE_QUEUED`, `RESOLVE_DEQUEUED`, `RESOLVE_REPLY_RECEIVED`
+  - the bounded `NATIVE_CURRENT_CATCHUP_*` / initial-source outcomes used by the W175/W178 implementation.
 - Do not log signed audio URLs, access/refresh tokens, credentials, response bodies, or grant contents.
 
 ### Preserve existing behavior
@@ -136,7 +136,7 @@ The previous source audit found these specific W169/W175/W178 changes missing fr
 
 ### Playback tests
 
-- Test known mapped song «Ау» (track ID \`144530503\`) and at least one other mapped song.
+- Test known mapped song «Ау» (track ID `144530503`) and at least one other mapped song.
 - Test an unmapped/original song; it must remain the original.
 - Test initial attach while a song is already playing, Next to a new current track, Play/Pause/resume, Stop, and a delayed/failed resolve.
 - Verify no duplicate reload, no queue/position/pause corruption, and no retry storm.
@@ -144,35 +144,35 @@ The previous source audit found these specific W169/W175/W178 changes missing fr
 
 ## Next release: owner explicitly requests main / production auto-update test
 
-The owner does not want the next candidate merely uploaded to the test/private channel. After the fixes and acceptance gates, the requested path is to put the next version on GitHub \`main\`, then use the production stable update path and verify that the owner's existing installation discovers and installs it automatically.
+The owner does not want the next candidate merely uploaded to the test/private channel. After the fixes and acceptance gates, the requested path is to put the next version on GitHub `main`, then use the production stable update path and verify that the owner's existing installation discovers and installs it automatically.
 
 Important distinction:
-- Merging source to GitHub \`main\` is a code integration step.
-- Publishing the signed \`stable\` feed is a separate production deployment that can affect every installation following that feed.
+- Merging source to GitHub `main` is a code integration step.
+- Publishing the signed `stable` feed is a separate production deployment that can affect every installation following that feed.
 - The private Floki spool/owner download used for 0.24.62 is not itself the public stable update feed and does not prove in-app auto-update works.
 
 ### Current release-path blockers discovered on 27 November
 
-- \`.github/workflows/windows-stable-signed-release.yml\` is main-only for its release jobs.
-- \`prepare\` builds/signs the P-256 package; \`private_stage\` stages a data-only transfer to the Floki spool.
-- The \`publish\` job requires \`inputs.publish_to_production == true\` and the protected GitHub environment \`windows-stable-production\`.
-- However, the current \`prepare\` step explicitly throws \`FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED\` whenever \`publish_to_production=true\`; the input description also says production publishing is disabled during migration. Therefore the production approval job cannot currently be reached by simply selecting the input.
-- The production publisher script is still \`.github/scripts/windows-stable-publish-hostinger.sh\`, uses the \`HOSTINGER_SSH_KEY\`, and targets the Hostinger filesystem path for \`celikom.com/CELIKOM/Windows/Updates/stable\`. The private owner staging path is FlokiNET. Reconcile this split against the actual live production feed/hosting before enabling any publish. Do not assume a Floki private-stage success means the stable feed has been updated.
-- \`StableUpdateTrustConfiguration.cs\` contains empty source constants by design; the signed release workflow embeds the public production origin/key during build. Verify the generated executable contains the exact expected production trust pin; do not add a private key or hand-edit a secret into source.
-- The production publisher verifies the current signed \`latest.json\` pair, enforces a strictly increasing sequence, stages immutable files before promoting \`latest.json\`, and compares the published HTTPS bytes. Preserve these safety checks.
+- `.github/workflows/windows-stable-signed-release.yml` is main-only for its release jobs.
+- `prepare` builds/signs the P-256 package; `private_stage` stages a data-only transfer to the Floki spool.
+- The `publish` job requires `inputs.publish_to_production == true` and the protected GitHub environment `windows-stable-production`.
+- However, the current `prepare` step explicitly throws `FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED` whenever `publish_to_production=true`; the input description also says production publishing is disabled during migration. Therefore the production approval job cannot currently be reached by simply selecting the input.
+- The production publisher script is still `.github/scripts/windows-stable-publish-hostinger.sh`, uses the `HOSTINGER_SSH_KEY`, and targets the Hostinger filesystem path for `celikom.com/CELIKOM/Windows/Updates/stable`. The private owner staging path is FlokiNET. Reconcile this split against the actual live production feed/hosting before enabling any publish. Do not assume a Floki private-stage success means the stable feed has been updated.
+- `StableUpdateTrustConfiguration.cs` contains empty source constants by design; the signed release workflow embeds the public production origin/key during build. Verify the generated executable contains the exact expected production trust pin; do not add a private key or hand-edit a secret into source.
+- The production publisher verifies the current signed `latest.json` pair, enforces a strictly increasing sequence, stages immutable files before promoting `latest.json`, and compares the published HTTPS bytes. Preserve these safety checks.
 
 ### Required release execution
 
 1. Finish W189 code fixes and tests on the recovery branch; do not merge an untested candidate.
 2. Verify the owner's current installed version from fresh diagnostics. The last generated private candidate is 0.24.62 / sequence 9; choose the next version and sequence only after checking the live signed feed and monotonic floor.
-3. Review the complete recovery-branch diff against current \`main\`; only intended Windows runtime, tests, release metadata and docs may be included. Do not merge unrelated Android, extension, server or admin changes.
-4. Create a fresh immutable backup of \`main\`, open/review the correct PR or merge path, and integrate the accepted Windows code into \`main\`. Do not force-push or reset main.
-5. Reconcile and repair the production workflow blocker and Hostinger/Floki deployment split with tests. Keep \`publish_to_production=false\` until the exact signed package, trust pin, production target and auto-update behavior are ready.
-6. Build/sign the exact new version from \`main\`; verify the package, P-256 manifest/signatures, sequence, installer contents, updater trust pin and official HTTPS feed paths.
-7. Only then make the production publish job eligible. It must pause at protected environment \`windows-stable-production\`; send the owner the exact GitHub Actions run/deployment link and wait for his explicit approval. Do not bypass required reviewers, environment protection, branch protections or signing checks.
+3. Review the complete recovery-branch diff against current `main`; only intended Windows runtime, tests, release metadata and docs may be included. Do not merge unrelated Android, extension, server or admin changes.
+4. Create a fresh immutable backup of `main`, open/review the correct PR or merge path, and integrate the accepted Windows code into `main`. Do not force-push or reset main.
+5. Reconcile and repair the production workflow blocker and Hostinger/Floki deployment split with tests. Keep `publish_to_production=false` until the exact signed package, trust pin, production target and auto-update behavior are ready.
+6. Build/sign the exact new version from `main`; verify the package, P-256 manifest/signatures, sequence, installer contents, updater trust pin and official HTTPS feed paths.
+7. Only then make the production publish job eligible. It must pause at protected environment `windows-stable-production`; send the owner the exact GitHub Actions run/deployment link and wait for his explicit approval. Do not bypass required reviewers, environment protection, branch protections or signing checks.
 8. Before publishing, explicitly verify whether the stable feed is consumed by all customer installations. If it is a global feed, do not release to all users merely to test one owner's PC; establish an owner-only/pilot targeting mechanism or obtain explicit confirmation that global rollout is intended.
 9. After approved publication, test end-to-end from the owner's already-installed previous version: the app checks the correct stable feed, discovers the new signed manifest, verifies P-256 signature and package hash, downloads, invokes the updater/supervisor, installs in place, preserves CELIKOM login/DPAPI and Yandex profile, and reports the new version after restart. Confirm the owner did not manually download or launch the installer.
-10. Verify the exact production \`latest.json\`, signature and package over HTTPS after publish. Record whether automatic discovery, download, install and restart each succeeded; these are separate acceptance results.
+10. Verify the exact production `latest.json`, signature and package over HTTPS after publish. Record whether automatic discovery, download, install and restart each succeeded; these are separate acceptance results.
 
 ### Hard boundaries
 
