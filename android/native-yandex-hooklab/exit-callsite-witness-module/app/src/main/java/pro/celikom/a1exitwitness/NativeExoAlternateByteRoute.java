@@ -16,9 +16,10 @@ import javax.net.ssl.HttpsURLConnection;
  * Actual alternate encoded-byte transport for ONE original Exo DataSource
  * instance. There is no CELIKOM MediaPlayer, AudioTrack or playback clock.
  *
- * IMPORTANT: no production caller currently issues an approved ALTERNATE
- * native decision. The original publisher source remains the default until
- * exact same-source semantic IDs + a signed user-entitled grant exist.
+ * The owner-consented limited BETA path in NativeEarlySourceLifecycleBridge
+ * can issue an ALTERNATE decision for its exact allowlisted source lineage.
+ * This route proves byte-source ownership only; it does NOT prove that the
+ * armed DataSource is the one consumed by the currently selected renderer.
  *
  * The existing native Exo open/read/close hooks may delegate here only when
  * this precise source has been armed BEFORE its very first open. Never mix
@@ -115,6 +116,10 @@ final class NativeExoAlternateByteRoute {
     private long highestAcceptedGeneration=-1;
     private Cursor openedCursor;
     private boolean opening,everCommitted,aborted;
+    // Positive alternate reads are scoped to this exact DataSource identity.
+    // They are retained after close so a buffered live renderer can be joined
+    // to the same source; Next/re-arm resets the counter.
+    private long positiveReadCount;
     NativeExoAlternateByteRoute() {
         this((url,mime)->new HttpsCursor(url,mime));
     }
@@ -146,6 +151,7 @@ final class NativeExoAlternateByteRoute {
         expectedMime=grant.mimeType;
         aborted=false;
         everCommitted=false;
+        positiveReadCount=0;
         return true;
     }
     synchronized void cancelForNext() {
@@ -156,6 +162,7 @@ final class NativeExoAlternateByteRoute {
         originalSource=null;
         signedUrl=null;
         expectedMime=null;
+        positiveReadCount=0;
         Cursor open=openedCursor;
         openedCursor=null;
         if(open!=null)open.close();
@@ -240,7 +247,14 @@ final class NativeExoAlternateByteRoute {
         }
         // No additional player or buffer/PCM transformation. Blocking read
         // happens on the original Exo loader thread, not the UI thread.
-        return cursor.read(buffer,start,size);
+        int count=cursor.read(buffer,start,size);
+        if(count>0) synchronized(this) {
+            if(!aborted && originalSource!=null
+                    && originalSource.get()==source && openedCursor==cursor
+                    && positiveReadCount<Long.MAX_VALUE)
+                positiveReadCount++;
+        }
+        return count;
     }
     /** True: alternate owned open, so do NOT close unopened vendor delegate. */
     boolean closeIfApproved(Object source) {
@@ -269,5 +283,20 @@ final class NativeExoAlternateByteRoute {
     synchronized boolean isArmed(Object source) {
         return source!=null && !aborted && originalSource!=null
                 && originalSource.get()==source;
+    }
+
+    /**
+     * Read-only identity witness for the live renderer.
+     * 1 = same source has returned positive alternate bytes;
+     * 2 = same source is armed but has not returned bytes;
+     * -1 = another source owns the active route;
+     * 0 = no live route/source is available.
+     */
+    synchronized int readStatusForSource(Object source) {
+        if(source==null || aborted || originalSource==null)return 0;
+        Object active=originalSource.get();
+        if(active==null)return 0;
+        if(active!=source)return -1;
+        return positiveReadCount>0?1:2;
     }
 }
