@@ -381,6 +381,13 @@ final class NativeRendererStreamEvidence {
         }
     }
     private OriginalSetterLineage exactOriginalSetterLineage;
+    // BETA25: reason-coded, read-only gate trace for the exact first-open setter.
+    private int freshSetterChecks,freshSetterPoisoned,freshSetterInFlight;
+    private int freshSetterNoLineage,freshSetterGenerationMismatch;
+    private int freshSetterNullInput,freshSetterWrapperMismatch;
+    private int freshSetterTrackMismatch,freshSetterAlbumMismatch;
+    private int freshSetterSourceLost,freshSetterSourceProofRejected;
+    private int freshSetterAccepted;
 
     synchronized void setEarlyOriginalSourceEvidence(EarlyOriginalSourceEvidence evidence) {
         earlyOriginalSourceEvidence=evidence;
@@ -541,16 +548,51 @@ final class NativeRendererStreamEvidence {
      */
     synchronized Object[] exactSetterForFreshSourceCreator(Object wrapper,
             Object track,Object album) {
+        freshSetterChecks=inc(freshSetterChecks);
+        if(poisoned) {
+            freshSetterPoisoned=inc(freshSetterPoisoned);
+            return null;
+        }
+        if(earlySourceInFlight!=null) {
+            freshSetterInFlight=inc(freshSetterInFlight);
+            return null;
+        }
         OriginalSetterLineage saved=exactOriginalSetterLineage;
-        if(poisoned || earlySourceInFlight!=null || saved==null
-                || saved.generation!=earlySourceGeneration
-                || wrapper==null || track==null || album==null
-                || saved.wrapper.get()!=wrapper || saved.track.get()!=track
-                || saved.album.get()!=album)return null;
+        if(saved==null) {
+            freshSetterNoLineage=inc(freshSetterNoLineage);
+            return null;
+        }
+        if(saved.generation!=earlySourceGeneration) {
+            freshSetterGenerationMismatch=inc(freshSetterGenerationMismatch);
+            return null;
+        }
+        if(wrapper==null || track==null || album==null) {
+            freshSetterNullInput=inc(freshSetterNullInput);
+            return null;
+        }
+        if(saved.wrapper.get()!=wrapper) {
+            freshSetterWrapperMismatch=inc(freshSetterWrapperMismatch);
+            return null;
+        }
+        if(saved.track.get()!=track) {
+            freshSetterTrackMismatch=inc(freshSetterTrackMismatch);
+            return null;
+        }
+        if(saved.album.get()!=album) {
+            freshSetterAlbumMismatch=inc(freshSetterAlbumMismatch);
+            return null;
+        }
         Object nativeSource=saved.source.get();
-        if(nativeSource==null
-                || exactEarlySetterSourceAtGeneration(nativeSource,
-                    saved.generation)==null)return null;
+        if(nativeSource==null) {
+            freshSetterSourceLost=inc(freshSetterSourceLost);
+            return null;
+        }
+        if(exactEarlySetterSourceAtGeneration(nativeSource,
+                saved.generation)==null) {
+            freshSetterSourceProofRejected=inc(freshSetterSourceProofRejected);
+            return null;
+        }
+        freshSetterAccepted=inc(freshSetterAccepted);
         return new Object[]{Long.valueOf(saved.generation),nativeSource};
     }
 
@@ -2370,7 +2412,19 @@ final class NativeRendererStreamEvidence {
             line("UNSCOPED_READ_RETURN_OTHER",weakOther),
             line("RENDERER_DETACHED",detachCount),
             "event=AUDIO_NATIVE_RENDERER_SUMMARY;origin=IDENTITY_STATUS;error="
-              + (poisoned ? "INVALID" : "STRUCTURAL_ONLY") + ";thread=OTHER"
+              + (poisoned ? "INVALID" : "STRUCTURAL_ONLY") + ";thread=OTHER",
+            line("FIRST_OPEN_SETTER_CHECK",freshSetterChecks),
+            line("FIRST_OPEN_SETTER_POISONED",freshSetterPoisoned),
+            line("FIRST_OPEN_SETTER_IN_FLIGHT",freshSetterInFlight),
+            line("FIRST_OPEN_SETTER_NO_LINEAGE",freshSetterNoLineage),
+            line("FIRST_OPEN_SETTER_GENERATION_MISMATCH",freshSetterGenerationMismatch),
+            line("FIRST_OPEN_SETTER_NULL_INPUT",freshSetterNullInput),
+            line("FIRST_OPEN_SETTER_WRAPPER_MISMATCH",freshSetterWrapperMismatch),
+            line("FIRST_OPEN_SETTER_TRACK_MISMATCH",freshSetterTrackMismatch),
+            line("FIRST_OPEN_SETTER_ALBUM_MISMATCH",freshSetterAlbumMismatch),
+            line("FIRST_OPEN_SETTER_SOURCE_LOST",freshSetterSourceLost),
+            line("FIRST_OPEN_SETTER_SOURCE_PROOF_REJECTED",freshSetterSourceProofRejected),
+            line("FIRST_OPEN_SETTER_ACCEPTED",freshSetterAccepted)
         };
     }
 }
