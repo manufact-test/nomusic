@@ -69,7 +69,7 @@ function createRenderer({
   };
   const context={
     window,console:{info:(...args)=>logs.push(args.join(" "))},
-    URL,AbortController,fetch:undefined,
+    URL,AbortController,WeakRef,fetch:undefined,
     setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval:()=>{},
     setTimeout,clearTimeout
   };

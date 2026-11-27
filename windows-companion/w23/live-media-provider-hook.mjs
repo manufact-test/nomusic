@@ -22,6 +22,7 @@ export function createLiveMediaProviderHook({onEvent = () => {}} = {}) {
           if ((typeof id === "string" && /^[1-9][0-9]{0,23}$/.test(id)) ||
               (typeof id === "number" && Number.isSafeInteger(id) && id > 0))
             currentPlayer = new WeakRef(this);
+          note("LIVE_PLAYER_INSTANCE_SEEN");
         } catch {}
       }
       return state;
@@ -47,8 +48,8 @@ export function createLiveMediaProviderHook({onEvent = () => {}} = {}) {
         if (!provider || typeof provider.getMediaSource !== "function" ||
             typeof provider.getFileInfo !== "function") continue;
         const proto = Object.getPrototypeOf(provider) || provider;
-        if (typeof proto.getFileInfo === "function") return proto;
-        return provider;
+        if (typeof proto.getFileInfo === "function") { note("LIVE_MEDIA_PROVIDER_FOUND"); return proto; }
+        note("LIVE_MEDIA_PROVIDER_FOUND"); return provider;
       } catch {}
     }
     return null;
