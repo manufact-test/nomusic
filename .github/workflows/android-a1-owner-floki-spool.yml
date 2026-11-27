@@ -7,6 +7,9 @@ on:
       - '.github/deploy/a1-owner-download-request.json'
       - '.github/scripts/floki-a1-root-signed-spool-consumer.py'
       - '.github/scripts/tests/floki-a1-signed-spool.test.py'
+  # Manual fallback for a verified private draft when the owner workflow's
+  # display name has changed and the workflow_run name filter is not current.
+  workflow_dispatch:
   workflow_run:
     workflows: ['CELIKOM A1 Ramil Au Beta13 owner-phone audio test — no acoustic proof']
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -19,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   stage-verified-signed-apk:
-    if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event.workflow_run.conclusion == 'success')
+    if: github.repository == 'manufact-test/nomusic' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'))
     runs-on: celikom-ci-smoke-only
     timeout-minutes: 18
     permissions:
