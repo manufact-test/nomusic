@@ -461,6 +461,63 @@ public final class StageBAudioEvidenceTest {
         return e;
     }
 
+    // Deterministic reference-lifetime regression: inspect the actual retained
+    // object, not GC timing or a relaxed first-open admission predicate.
+    static Object descriptorPin(StageBAudioEvidence e) {
+        try {
+            java.lang.reflect.Field links=StageBAudioEvidence.class
+                .getDeclaredField("nativeTrackSourceLinks");
+            links.setAccessible(true);
+            java.util.List<?> list=(java.util.List<?>)links.get(e);
+            check(list.size()==1);
+            Object link=list.get(0);
+            java.lang.reflect.Field pin=link.getClass()
+                .getDeclaredField("firstOpenDescriptorPin");
+            pin.setAccessible(true);
+            return pin.get(link);
+        } catch(ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    static void firstOpenDescriptorPinFixture() {
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        StageBAudioEvidence e=exactTcaFactorySource(
+            track,album,wrapper,descriptor,factory,source);
+        check(descriptorPin(e)==descriptor);
+        check(e.exactFreshCreatorOrBetaAtFirstOpen(new Object())==null);
+        check(descriptorPin(e)==descriptor);
+        Object[] accepted=e.exactFreshCreatorOrBetaAtFirstOpen(source);
+        check(accepted!=null && accepted[0]==wrapper && accepted[1]==track
+            && accepted[2]==album);
+        check(descriptorPin(e)==descriptor);
+        e.onExoSourceInstanceOpenAttempt(source);
+        check(descriptorPin(e)==null);
+        check(e.exactFreshCreatorOrBetaAtFirstOpen(source)==null);
+
+        Object d2=new Object(),f2=new Object(),s2=new Object(),sibling=new Object();
+        StageBAudioEvidence other=exactTcaFactorySource(
+            track,album,wrapper,d2,f2,s2);
+        other.onExoSourceInstanceCreated(sibling,f2);
+        other.onExoSourceInstanceClose(s2);
+        check(descriptorPin(other)==null);
+        check(other.exactFreshCreatorOrBetaAtFirstOpen(sibling)==null);
+
+        Object d3=new Object(),f3=new Object(),s3=new Object();
+        StageBAudioEvidence rebound=exactTcaFactorySource(
+            track,album,wrapper,d3,f3,s3);
+        Object replacementDescriptor=new Object();
+        rebound.enterNativeMainSourceRequest(wrapper,null);
+        rebound.onNativeExoDescriptorBuiltForCurrentWrapper(replacementDescriptor);
+        rebound.exitNativeMainSourceRequest();
+        check(descriptorPin(rebound)==null);
+        check(rebound.exactFreshCreatorOrBetaAtFirstOpen(s3)==null);
+        java.lang.ref.Reference.reachabilityFence(descriptor);
+        java.lang.ref.Reference.reachabilityFence(d2);
+        java.lang.ref.Reference.reachabilityFence(d3);
+    }
+
     static void firstOpenReasonBucketsFixture() {
         Object track=new Object(),album=new Object(),wrapper=new Object();
         Object descriptor=new Object(),factory=new Object(),source=new Object();
@@ -498,6 +555,7 @@ public final class StageBAudioEvidenceTest {
 
     public static void main(String[] argv) {
         originalChildCoroutineCaptureFixture();
+        firstOpenDescriptorPinFixture();
         firstOpenReasonBucketsFixture();
         originalMediaItemSourceBridgeFixture();
         originalChildCallerContextFixture();

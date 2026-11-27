@@ -96,11 +96,16 @@ final class StageBAudioEvidence {
     private final AtomicLong failedReads = new AtomicLong();
 
     // Exact selected-track Flow -> native wrapper -> descriptor -> Exo factory
-    // continuity. Every object is weakly held and compared only with ==.
+    // continuity. All identities are compared only with ==. The exact
+    // descriptor is temporarily retained after the factory handoff.
     private static final class NativeTrackSourceLink {
         WeakReference<Object> track;
         WeakReference<Object> wrapper;
         WeakReference<Object> descriptor;
+        // BETA27: bounded lineage-local retention, not an alternative identity
+        // or approval path. Keep the witnessed descriptor alive through first
+        // OPEN; release on touch or descriptor rebind.
+        Object firstOpenDescriptorPin;
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
         WeakReference<Object> albumInstance;
@@ -248,7 +253,19 @@ final class StageBAudioEvidence {
         return false;
     }
     private void markSourceTouched(Object source) {
-        if(source==null || wasSourceTouched(source))return;
+        if(source==null)return;
+        // Release only the exact factory lineage, including a touched sibling.
+        // Birth records are bounded; do not retain the publisher descriptor
+        // after any member has started original or alternate I/O.
+        for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
+            if(birth.source.get()!=source)continue;
+            NativeTrackSourceLink link=birth.link;
+            Object factory=birth.factory.get();
+            if(factory!=null && link.factoryResult!=null
+                    && link.factoryResult.get()==factory)
+                link.firstOpenDescriptorPin=null;
+        }
+        if(wasSourceTouched(source))return;
         if(touchedSourceInstances.size()>=MAX_TOUCHED_SOURCE_INSTANCES) {
             // No evicted live source may ever be accidentally treated as
             // a new unopened DataSource on a future factory rebind.
@@ -1287,6 +1304,7 @@ final class StageBAudioEvidence {
         if (album!=null) mark(trackWrapperAlbumLinks);
         link.creatorOnlyAtBirth=creatorOnlyAtBirth;
         link.descriptor=null;
+        link.firstOpenDescriptorPin=null;
         link.factoryResult=null;
         link.sourceInstance=null;
         link.sourceOpened=false;
@@ -1675,6 +1693,7 @@ final class StageBAudioEvidence {
         NativeTrackSourceLink link=findByWrapper(wrapper);
         if (link!=null) {
             link.descriptor=new WeakReference<>(descriptor);
+            link.firstOpenDescriptorPin=null;
             link.factoryResult=null;
             link.sourceInstance=null;
             link.sourceOpened=false;
@@ -1882,6 +1901,10 @@ final class StageBAudioEvidence {
         }
         NativeTrackSourceLink link=findByDescriptor(descriptor);
         if (link!=null && factoryResult!=null) {
+            // findByDescriptor already verified exact Java identity. A strong
+            // pin here prevents GC between this handoff and source first OPEN.
+            // It is bounded by the existing lineage/birth tables.
+            link.firstOpenDescriptorPin=link.sourceEverTouched?null:descriptor;
             link.factoryResult=new WeakReference<>(factoryResult);
             link.sourceInstance=null;
             link.sourceOpened=false;
@@ -1939,6 +1962,8 @@ final class StageBAudioEvidence {
             link.sourceInstance=new WeakReference<>(source);
             link.sourceOpened=false;
             link.sourceEverTouched=wasSourceTouched(source);
+            if(link.sourceEverTouched || exactFactoryBirthsSaturated)
+                link.firstOpenDescriptorPin=null;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
             trackSourceReadInspectionBudget.set(0);
