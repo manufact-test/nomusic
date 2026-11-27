@@ -3,7 +3,7 @@ import { initDiagnosticsButton } from "./diagnostics-button.js";
 import { playbackPresentation } from "./playback-presentation.js";
 import { withDeadline } from "../shared/request-deadline.js";
 import { inspectM4a } from "../upload/m4a.js";
-import { mp3DurationMs, durationNotice } from "../upload/mp3-duration.js";
+import { inspectMp3, durationNotice } from "../upload/mp3-duration.js";
 import { createUploadJournal } from "../upload/upload-journal.js";
 import { stageUploadFile, deleteStagedUpload } from "../upload/staging.js";
 import { initScrollSpacing } from "./scroll-spacing.js";
@@ -154,16 +154,21 @@ let uploadManuallyCollapsed = false;
 let uploadOpenGeneration = 0;
 let lastTerminalUploadId = "";
 const durationNote=document.querySelector<HTMLElement>("[data-upload-duration]");
-let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false;
+let durationGeneration=0, measuredFile=null, durationPromise=null, durationBlocked=false, preparedUploadFile=null;
 function checkFileDuration(){
   const file=uploadFile?.files?.[0], target=pinnedTrack, generation=++durationGeneration;
-  measuredFile=file;durationPromise=null;durationBlocked=false;
+  measuredFile=file;durationPromise=null;durationBlocked=false;preparedUploadFile=null;
   if(!durationNote||!file||!target){if(durationNote)durationNote.hidden=true;return Promise.resolve();}
   if(uploadButton)uploadButton.disabled=true;
   durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность файла…";
-  durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(bytes=>/\.m4a$/i.test(file.name)?inspectM4a(bytes).durationMs:mp3DurationMs(bytes)).catch(()=>null).then(ms=>{
+  durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(bytes=>{
+    if(/\.m4a$/i.test(file.name))return {durationMs:inspectM4a(bytes).durationMs,file};
+    const inspected=inspectMp3(bytes);
+    return inspected ? {durationMs:inspected.durationMs,file:inspected.changed?new Blob([inspected.bytes],{type:"audio/mpeg"}):file} : null;
+  }).catch(()=>null).then(result=>{
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
-    const notice=durationNotice(target.durationMs,ms);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
+    preparedUploadFile=result?.file||null;
+    const notice=durationNotice(target.durationMs,result?.durationMs);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
     if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
     // Never scroll the popup on background validation: the user controls the viewport.
   });
@@ -244,7 +249,7 @@ function setPickerState(): void {
 }
 
 function resetUploadPanel(): void {
-  durationGeneration++;measuredFile=null;durationPromise=null;durationBlocked=false;if(durationNote)durationNote.hidden=true;
+  durationGeneration++;measuredFile=null;durationPromise=null;durationBlocked=false;preparedUploadFile=null;if(durationNote)durationNote.hidden=true;
   if (uploadResult) uploadResult.hidden = true;
   if (uploadForm) uploadForm.hidden = true;
   uploadAction("submit");
@@ -539,6 +544,8 @@ uploadForm?.addEventListener("submit", async (event) => {
       uploadMessage("");
       return;
     }
+    const preparedFile=preparedUploadFile;
+    if(!preparedFile)throw new Error("invalid_upload_file");
     const now = uploadTargetFromStatus(await send<ExtensionState>({ type: COMMANDS.getStatus }));
     if (!now || now.id !== pinnedTrack.id) {
       void uploadJournal.record(attemptId, "rejected", {code: "track_changed"});
@@ -564,7 +571,7 @@ uploadForm?.addEventListener("submit", async (event) => {
       const finalTarget = uploadTargetFromStatus(await send<ExtensionState>({type:COMMANDS.getStatus}));
       if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
       uploadMessage("Подготавливаем файл для фоновой загрузки…", "checking");
-      await stageUploadFile(attemptId, file);
+      await stageUploadFile(attemptId, preparedFile);
       let response;
       try {
         response = await chrome.runtime.sendMessage({
@@ -602,7 +609,7 @@ uploadForm?.addEventListener("submit", async (event) => {
     data.append("album", pinnedTrack.album);
     data.append("declaration", "1");
     data.append("request_id", uploadRequestId);
-    data.append("file", file, file.name);
+    data.append("file", preparedFile, file.name);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", origin + "/api/v1/uploads");
     xhr.timeout = 120000;

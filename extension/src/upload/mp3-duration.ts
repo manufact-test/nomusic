@@ -18,19 +18,36 @@ export function inspectMp3(buffer) {
     }
     return true;
   };
-  const frameAt=p=>{
+  // A few downloaders omit the last padding-slot byte. Accept only a single
+  // missing byte in an unprotected MPEG-1 padded final frame whose side info
+  // proves all coded audio bits are already present. Never invent audio bits.
+  const ancillaryByteMissing=(p,h,bytes)=>{
+    if(p+bytes!==size+1 || ((h>>>19)&3)!==3 || !((h>>>16)&1) || !((h>>>9)&1))return false;
+    const channels=((h>>>6)&3)===3?1:2, side=channels===1?17:32;
+    if(p+4+side>size)return false;
+    let bit=0;
+    const read=n=>{let value=0;for(let i=0;i<n;i++,bit++)value=(value<<1)|((data[p+4+(bit>>>3)]>>>(7-(bit&7)))&1);return value;};
+    const back=read(9);bit+=(channels===1?5:3)+channels*4;
+    let codedBits=0;
+    for(let i=0;i<channels*2;i++){codedBits+=read(12);bit+=47;}
+    return codedBits>0 && codedBits <= (back+size-p-4-side)*8;
+  };
+  let repairedAncillaryByte=false;
+  const frameAt=(p,allowFinalRepair=false)=>{
     if(p+4>size)return null;
     const h=view.getUint32(p), version=(h>>>19)&3, index=(h>>>12)&15, rateIndex=(h>>>10)&3;
     if(h>>>21!==2047||version===1||((h>>>17)&3)!==1||index<1||index>14||rateIndex===3)return null;
     const rate=[44100,48000,32000][rateIndex]/(version===3?1:version===2?2:4);
     const bitrate=(version===3?[0,32,40,48,56,64,80,96,112,128,160,192,224,256,320]:[0,8,16,24,32,40,48,56,64,80,96,112,128,144])[index];
     const bytes=Math.floor((version===3?144:72)*bitrate*1000/rate)+((h>>>9)&1);
-    if(bytes<24||bytes>1441||p+bytes>size)return null;
+    if(bytes<24||bytes>1441)return null;
+    const repair=p+bytes>size;
+    if(repair&&(!allowFinalRepair||!ancillaryByteMissing(p,h,bytes)))return null;
     const crc=(h>>>16)&1?0:2, mono=((h>>>6)&3)===3;
     const side=version===3?(mono?17:32):(mono?9:17), info=p+4+crc+side;
     const metadata=(marker(info,"Info")||marker(info,"Xing"))&&info+8<=p+bytes&&
       data.subarray(p+4+crc,info).every(x=>x===0);
-    return {bytes,rate,version,samples:version===3?1152:576,metadata};
+    return {bytes:repair?bytes-1:bytes,repair,rate,version,samples:version===3?1152:576,metadata};
   };
   if(!skipTags())return null;
   let firstInfo=null, headerCount=0, signature=null;
@@ -47,9 +64,10 @@ export function inspectMp3(buffer) {
   const start=position;
   let frames=0, samples=firstInfo?signature.samples:0, rate=signature?.rate||0, version=signature?.version;
   while(position+4<=size){
-    const f=frameAt(position);if(!f)break;
+    const f=frameAt(position,frames>=2);if(!f)break;
     if(f.metadata||(rate&&(rate!==f.rate||version!==f.version)))return null;
     rate=f.rate;version=f.version;position+=f.bytes;samples+=f.samples;
+    repairedAncillaryByte ||= f.repair;
     if(++frames>500000||samples/rate>86400)return null;
   }
   const audioEnd=position;
@@ -79,9 +97,9 @@ export function inspectMp3(buffer) {
   if(end<position||end-position>4096||!data.subarray(position,end).every(x=>x===0)||frames<2||!rate)return null;
   const durationMs=Math.round(1000*samples/rate);
   if(durationMs<1000||durationMs>86400000)return null;
-  const bytes=new Uint8Array((firstInfo?.length||0)+audioEnd-start);
+  const bytes=new Uint8Array((firstInfo?.length||0)+audioEnd-start+(repairedAncillaryByte?1:0));
   if(firstInfo)bytes.set(firstInfo);bytes.set(data.subarray(start,audioEnd),firstInfo?.length||0);
-  return {durationMs,bytes,changed:bytes.length!==size};
+  return {durationMs,bytes,changed:bytes.length!==size||repairedAncillaryByte,repairedAncillaryByte};
 }
 export function mp3DurationMs(buffer): number | null { return inspectMp3(buffer)?.durationMs??null; }
 

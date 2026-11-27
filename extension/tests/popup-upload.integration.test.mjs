@@ -610,3 +610,47 @@ test('background HTTP 429 names the hourly quota and server retry time; fresh pr
  localValues[key]={...localValues[key],phase:"cancelled",at:Date.now()};
  await intervals[0]();await new Promise(setImmediate);delete localValues[key];
 });
+
+test('a file with a missing final ancillary byte is measured and the repaired bytes reach multipart upload',async()=>{
+ const id='944530627';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const last=new Uint8Array(1045).fill(0xaa);last.fill(0,0,36);last.set([0xff,0xfb,0xe2,0x64]);
+ last[6]=0x04; // first part2_3_length = 1024 bits, entirely available before EOF
+ const source=new Blob([fixtureAudio.subarray(0,-417),last.subarray(0,-1)],{type:'audio/mpeg'});
+ Object.defineProperty(source,'name',{value:'ancillary.mp3'});
+ find('[data-upload-file]').files=[source];find('[data-upload-rights]').checked=true;
+ FakeXHR.hold=false;FakeXHR.throwOnSend=false;
+ const before=requests.length;await form().fire('submit');
+ assert.equal(requests.length,before+1);
+ const sent=requests.at(-1).body.get('file');assert.equal(sent.name,source.name);
+ assert.equal(sent.size,source.size+1);
+ const sentBytes=new Uint8Array(await sent.arrayBuffer()),original=new Uint8Array(await source.arrayBuffer());
+ assert.deepEqual(sentBytes.subarray(0,-1),original);assert.equal(sentBytes.at(-1),0);
+});
+
+test('background upload stages the same repaired blob rather than the rejected original',async()=>{
+ const id='944530628';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const last=new Uint8Array(1045).fill(0xaa);last.fill(0,0,36);last.set([0xff,0xfb,0xe2,0x64]);last[6]=0x04;
+ const original=new Blob([fixtureAudio.subarray(0,-417),last.subarray(0,-1)],{type:'audio/mpeg'});
+ Object.defineProperty(original,'name',{value:'background-ancillary.mp3'});
+ find('[data-upload-file]').files=[original];find('[data-upload-rights]').checked=true;
+ let staged,task;
+ const previousSend=chrome.runtime.sendMessage,previousManifest=chrome.runtime.getManifest,previousDb=globalThis.indexedDB;
+ const db={close(){},transaction(){
+  const tx={objectStore(){return {put(record){staged=record.file;const request={};queueMicrotask(()=>{request.onsuccess?.();queueMicrotask(()=>tx.oncomplete?.());});return request;}};}};
+  return tx;
+ }};
+ globalThis.indexedDB={open(){const request={result:db};queueMicrotask(()=>request.onsuccess?.());return request;}};
+ chrome.runtime.getManifest=()=>({permissions:['offscreen']});
+ chrome.runtime.sendMessage=async message=>{
+  if(message.type==='CELIKOM_UPLOAD_BEGIN'){task=message.task;return {ok:true};}
+  return previousSend(message);
+ };
+ try{
+  await form().fire('submit');assert.equal(task?.filename,original.name);assert.equal(task?.trackId,id);
+  assert.equal(staged?.size,original.size+1);
+  const bytes=new Uint8Array(await staged.arrayBuffer());assert.equal(bytes.at(-1),0);
+  assert.deepEqual(bytes.subarray(0,-1),new Uint8Array(await original.arrayBuffer()));
+ }finally{chrome.runtime.sendMessage=previousSend;chrome.runtime.getManifest=previousManifest;globalThis.indexedDB=previousDb;}
+});

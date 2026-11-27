@@ -60,3 +60,7 @@ Three controller regressions were reproduced and fixed: false stalled-clock rese
 ## Current continuation — 0.4.93 combined playback/diagnostics candidate, 27 November 2026
 
 The owner authorized the accumulated dropouts and formerly deferred VPN/diagnostics work together. The latest diagnostic still comes from 0.4.91. 0.4.93 retains 0.4.92 transport recovery, avoids decoder seeks for modest running drift through bounded speed correction, and retains bounded pre-interruption decoder/network/synchronization context after song changes. 457 tests, build, manifest and security checks pass. See `CELIKOM-EXTENSION-093-CONTINUITY-DIAGNOSTICS-20261127.md` for exact behavior, boundaries and eventual delivery receipt. No customer publication or independent listening acceptance.
+
+## Latest owner upload correction — 0.4.94, 27 November 2026
+
+The supplied baby-melo-orvi MP3 exposed a one-byte-short final ancillary slot rejected before reaching server cleanup. Exact audio-bit bounds now permit this narrow repair, and popup sends the prepared Blob in direct/background upload instead of discarding normalized bytes. Owner-file decoded PCM is identical before/after; 462 tests, build/manifest/security pass. Read `CELIKOM-EXTENSION-094-UPLOAD-ANCILLARY-20261127.md` for evidence, rejection boundaries and private delivery verification. Backend/auth/Android/Windows and playback engine unchanged; no customer publication.

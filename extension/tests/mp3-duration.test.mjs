@@ -120,3 +120,35 @@ test('UTF-8 inflated ID3v1 trailer is bounded by character count, arbitrary suff
  assert.deepEqual(inspectMp3(concatenate(audio,tail)).bytes,audio);
  assert.equal(inspectMp3(concatenate(audio,tail,new Uint8Array([1]))),null);
 });
+
+function finalPaddedFrame(lengths=[1024,0,0,0]) {
+ const frame=new Uint8Array(1045).fill(0xaa);frame.fill(0,0,36);
+ frame.set([0xff,0xfb,0xe2,0x64]);
+ const put=(offset,count,value)=>{for(let i=0;i<count;i++){const bit=offset+i,at=4+(bit>>>3);frame[at]|=((value>>>(count-1-i))&1)<<(7-(bit&7));}};
+ for(let i=0;i<4;i++)put(20+i*59,12,lengths[i]);
+ return frame;
+}
+test('one missing final ancillary byte is reconstructed without removing any existing audio byte',()=>{
+ const audio=mp3(),last=finalPaddedFrame(),original=concatenate(audio,last.subarray(0,-1));
+ const result=inspectMp3(original);
+ assert.equal(result.repairedAncillaryByte,true);assert.equal(result.bytes.length,original.length+1);
+ assert.deepEqual(result.bytes.subarray(0,-1),original);assert.equal(result.bytes.at(-1),0);
+ assert.equal(result.durationMs,mp3DurationMs(concatenate(audio,last)));
+ assert.equal(inspectMp3(result.bytes).changed,false);
+});
+test('EOF repair rejects missing coded bits, longer truncation, unpadded frames and protected CRC frames',()=>{
+ const audio=mp3();
+ assert.equal(inspectMp3(concatenate(audio,finalPaddedFrame([3000,3000,2072,0]).subarray(0,-1))),null);
+ assert.equal(inspectMp3(concatenate(audio,finalPaddedFrame().subarray(0,-2))),null);
+ const unpadded=finalPaddedFrame();unpadded[2]&=0xfd;
+ assert.equal(inspectMp3(concatenate(audio,unpadded.subarray(0,-2))),null);
+ const protectedFrame=finalPaddedFrame();protectedFrame[1]&=0xfe;
+ assert.equal(inspectMp3(concatenate(audio,protectedFrame.subarray(0,-1))),null);
+ assert.equal(inspectMp3(concatenate(finalPaddedFrame().subarray(0,-1))),null);
+});
+test('ancillary repair cannot skip internal damage or change MPEG format',()=>{
+ const audio=mp3(),last=finalPaddedFrame();
+ assert.equal(inspectMp3(concatenate(audio,new Uint8Array([1]),last.subarray(0,-1))),null);
+ last[2]|=4;
+ assert.equal(inspectMp3(concatenate(audio,last.subarray(0,-1))),null);
+});
