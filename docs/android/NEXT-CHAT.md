@@ -97,7 +97,7 @@ Before exporting BETA29, recheck both run conclusions and all jobs. Do not assum
 
 If owner ARM13 and clone-alone both finish SUCCESS:
 
-1. After both current CI runs finish successfully, create a small docs-only commit on this branch with `[export-beta-audio]` in the commit message. The owner workflow's push trigger explicitly uses that marker to export BETA29 as a private diagnostic APK. Do not authorize fresh clone installation or change audio behavior.
+1. After both current CI runs finish successfully, create a comment-only change in an already included source path (for example `NativeRendererStreamEvidence.java`) with `[export-beta-audio]` in the commit message. The owner workflow's push trigger explicitly uses that marker to export BETA29 as a private diagnostic APK; a docs-only commit does not match its path filter. Do not authorize fresh clone installation or change audio behavior.
 2. Keep the owner draft unpublished.
 3. Follow the existing trusted Floki/root delivery process:
    - owner signer/provenance checks;
