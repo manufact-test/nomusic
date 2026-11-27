@@ -54,6 +54,8 @@ public final class NativeExoAlternateByteRouteTest {
         Object yandexDataSource=new Object(),prefetch=new Object();
         Factory factory=new Factory();
         NativeExoAlternateByteRoute route=new NativeExoAlternateByteRoute(factory);
+        check(route.readStatusForSource(yandexDataSource)==0,
+            "NO_ROUTE_HAS_NO_SOURCE_READ_STATUS");
         check(route.openIfApproved(yandexDataSource,0)==null,
             "NEVER_REPLACE_WITHOUT_APPROVED_GRANT");
         check(!route.armApproved(1,yandexDataSource,"42884423","41","main",
@@ -65,10 +67,15 @@ public final class NativeExoAlternateByteRouteTest {
         check(route.armApproved(1,yandexDataSource,"42884423","41","main",
             180000,grant,"https://audio.example",now,
             NativeSourceGate.Choice.ALTERNATE),"VALID_REAL_SIGNED_GRANT_ARMS");
+        check(route.readStatusForSource(yandexDataSource)==2
+                && route.readStatusForSource(prefetch)==-1,
+            "STATUS_DISTINGUISHES_ARMED_SOURCE_FROM_PREFETCH");
         check(route.openIfApproved(prefetch,0)==null,
             "PREFETCH_SOURCE_NOT_ROUTED");
         check(route.openIfApproved(yandexDataSource,0)==factory.data.length,
             "ONE_EXO_DECODER_SEES_REAL_ALTERNATE_LENGTH");
+        check(route.readStatusForSource(yandexDataSource)==2,
+            "OPEN_WITHOUT_POSITIVE_READ_IS_NOT_MISREPORTED");
         byte[] b=new byte[50];
         check(route.readIfApproved(prefetch,b,0,b.length)==null,
             "PREFETCH_BYTES_OWNED_BY_VENDOR");
@@ -76,6 +83,8 @@ public final class NativeExoAlternateByteRouteTest {
             "EXO_READ_ALT_BYTES");
         check("CELIKOM".equals(new String(b,0,7,StandardCharsets.US_ASCII)),
             "ACTUAL_ALT_BYTES_READ_BY_SAME_EXO_SOURCE");
+        check(route.readStatusForSource(yandexDataSource)==1,
+            "POSITIVE_READ_IS_BOUND_TO_EXACT_DATASOURCE");
         check(route.closeIfApproved(yandexDataSource),
             "ALTERNATE_OPEN_NEVER_CLOSE_UNOPENED_VENDOR");
         check(factory.instances.get(0).closed,"ALT_STREAM_CLOSED");
@@ -87,6 +96,8 @@ public final class NativeExoAlternateByteRouteTest {
             ()->100L,route,()->now);
         originalSelection.invalidated(2); // the real original source setter's Next hook
         check(factory.instances.get(1).closed,"NEXT_CLOSES_ALT_CURSOR");
+        check(route.readStatusForSource(yandexDataSource)==0,
+            "NEXT_REVOKES_OLD_SOURCE_READ_WITNESS");
         boolean staleOpenRejected=false,staleReadRejected=false;
         try {route.openIfApproved(yandexDataSource,0);}
         catch(IOException expected) {staleOpenRejected=true;}
@@ -104,10 +115,15 @@ public final class NativeExoAlternateByteRouteTest {
             180000,nextGrant,"https://audio.example",now,
             NativeSourceGate.Choice.ALTERNATE),
             "NEXT_EXACT_DIFFERENT_SOURCE_CAN_ARM");
+        check(route.readStatusForSource(yandexDataSource)==-1
+                && route.readStatusForSource(nextSource)==2,
+            "NEXT_SOURCE_IDENTITY_REPLACES_OLD_ROUTE");
         check(route.openIfApproved(nextSource,0)==factory.data.length,
             "NEXT_NEW_SOURCE_READS_ITS_OWN_ALTERNATE_BYTES");
         check(route.readIfApproved(nextSource,b,0,7)==7,
             "NEXT_ALTERNATE_READS");
+        check(route.readStatusForSource(nextSource)==1,
+            "NEXT_POSITIVE_READ_IS_SOURCE_SCOPED");
         check(route.closeIfApproved(nextSource),"NEXT_ALTERNATE_CLOSES");
         check(!route.armApproved(1,yandexDataSource,"42884423","41","main",
             180000,grant,"https://audio.example",now,
