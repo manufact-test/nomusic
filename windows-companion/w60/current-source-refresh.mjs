@@ -30,7 +30,7 @@ function playable(state) {
   return !!current && ALLOWED_STATUS.has(current.status);
 }
 
-export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved = () => {}} = {}) {
+export function createCurrentSourceRefresh({onEvent = () => {}} = {}) {
   let prototype = null, original = null, patchedGetter = null;
   let current = null, disposed = false, generation = 0;
   let chain = Promise.resolve();
@@ -57,12 +57,9 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
     const observedGet = function() {
       const state = descriptor.get.call(this);
       if (!disposed) {
-        try {
-          if (currentEntity(state)) {
-            current = new WeakRef(this);
-            try { onPlayerObserved(this); } catch {}
-          }
-        } catch {}
+        // The vendor getter must keep its exact return/throw behavior even if
+        // an exotic entity's metadata accessor rejects our observer.
+        try { if (currentEntity(state)) current = new WeakRef(this); } catch {}
       }
       return state;
     };
@@ -74,48 +71,6 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
     patchedGetter = observedGet;
     note("NATIVE_TOGGLE_PLAYER_OBSERVER_READY");
     return true;
-  }
-  function resourcePrototype() {
-    if (disposed || !prototype) return null;
-    // W183: the exported state-observer class may be a base class. The live
-    // Yandex player can be a derived instance with getFileInfo on its own
-    // prototype. Resolve the method owner from the exact instance whose state
-    // getter was observed, not from the exported base prototype.
-    const player = current?.deref();
-    if (!player) return null;
-    let owner = player;
-    while (owner && owner !== Object.prototype) {
-      if (Object.prototype.hasOwnProperty.call(owner, "getFileInfo") &&
-          typeof owner.getFileInfo === "function") return owner;
-      owner = Object.getPrototypeOf(owner);
-    }
-    return null;
-  }
-
-  function mediaSourceOwner() {
-    if (disposed || !prototype) return null;
-    const player = current?.deref();
-    if (!player) return null;
-    let descriptor;
-    try { descriptor = Object.getOwnPropertyDescriptor(player, "mediaProvider"); }
-    catch { return null; }
-    // The pinned Yandex 5.128 player assigns mediaProvider as an own data
-    // property. Never invoke a vendor getter while discovering the live path.
-    if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value"))
-      return null;
-    const provider = descriptor.value;
-    if (!provider || (typeof provider !== "object" && typeof provider !== "function"))
-      return null;
-    let owner = provider;
-    while (owner && owner !== Object.prototype) {
-      let method;
-      try { method = Object.getOwnPropertyDescriptor(owner, "getMediaSource"); }
-      catch { return null; }
-      if (method && typeof method.value === "function" &&
-          method.get === undefined && method.set === undefined) return owner;
-      try { owner = Object.getPrototypeOf(owner); } catch { return null; }
-    }
-    return null;
   }
 
   function request(expectedTrackId = null) {
@@ -212,7 +167,5 @@ export function createCurrentSourceRefresh({onEvent = () => {}, onPlayerObserved
   function currentTrackId() { return currentTrack()?.id || ""; }
 
   return Object.freeze({attach, request, dispose, currentTrack, currentTrackId,
-    resourcePrototype, mediaSourceOwner,
-    get playerObserved() { return !!current?.deref(); },
     get attached() { return !!prototype && !disposed; }});
 }

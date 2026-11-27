@@ -1852,8 +1852,16 @@ try
     Test(!Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(folder, "session.dpapi"))).Contains(first.BridgeToken),
         "bridge token is encrypted at rest");
 
-    // FlokiNET cutover: preserve the exact encrypted session and migrate only
-    // the approved legacy production authority, never custom/test origins.
+    Test(CelikomApi.ProductionOrigin == "https://api.celikom.com",
+        "new Windows installations use the Floki production API");
+    Test(CelikomApi.GetLoginTargetClass(CelikomApi.ProductionOrigin) == "FLOKI" &&
+         CelikomApi.GetLoginTargetClass("https://darkred-camel-588676.hostingersite.com") == "LEGACY" &&
+         CelikomApi.GetLoginTargetClass("https://example.test") == "CUSTOM" &&
+         CelikomApi.GetLoginTargetClass("not a URL") == "INVALID",
+        "login diagnostics expose only the allowlisted origin class");
+
+    // W188: migrate only the exact old production origin and preserve the
+    // entire encrypted owner session, including InstallationId and all tokens.
     var migrationStore = new SessionStore(Path.Combine(folder, "origin-migration"));
     var legacySession = migrationStore.LoadOrCreate() with
     {
@@ -1866,14 +1874,23 @@ try
     using (var migratedApi = new CelikomApi(migrationStore))
     {
         var expected = legacySession with { Origin = "https://api.celikom.com" };
-        Test(migratedApi.Settings == expected && migratedApi.IsLoggedIn,
-            "Floki migration retains account, tokens and installation");
-        Test(migrationStore.LoadOrCreate() == expected, "Floki migration persists encrypted origin");
-        Test(CelikomApi.MigrateProductionOrigin(expected) == expected, "Floki migration idempotent");
+        Test(migratedApi.Settings == expected && migratedApi.IsLoggedIn &&
+             migratedApi.Settings.InstallationId == legacySession.InstallationId &&
+             migratedApi.Settings.BridgeToken == legacySession.BridgeToken,
+            "Floki migration retains account, access/refresh/bridge tokens and installation");
+        Test(migrationStore.LoadOrCreate() == expected,
+            "Floki migration persists the encrypted DPAPI origin");
+        Test(CelikomApi.MigrateProductionOrigin(expected) == expected,
+            "Floki migration is idempotent");
         var custom = legacySession with { Origin = "https://example.test" };
-        Test(CelikomApi.MigrateProductionOrigin(custom) == custom, "Floki migration leaves unrelated origin alone");
-        var lookalike = legacySession with { Origin = "https://darkred-camel-588676.hostingersite.com.example.test" };
-        Test(CelikomApi.MigrateProductionOrigin(lookalike) == lookalike, "Floki migration rejects lookalike");
+        Test(CelikomApi.MigrateProductionOrigin(custom) == custom,
+            "Floki migration leaves unrelated custom origins untouched");
+        var lookalike = legacySession with
+        {
+            Origin = "https://darkred-camel-588676.hostingersite.com.example.test"
+        };
+        Test(CelikomApi.MigrateProductionOrigin(lookalike) == lookalike,
+            "Floki migration rejects lookalike hostnames");
     }
 
     // W111: an updater must prove the SAME account and installation survived,
@@ -2875,6 +2892,10 @@ try
         "W53 rejects ambiguous leading-zero resource IDs");
     Test(!DiagnosticLog.IsSafeEntry(safeTimestamp + "|PLAYER_NET_REQUEST|resource_id=139\nSECRET"),
         "W53 rejects multiline log injection");
+    Test(DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_TARGET_FLOKI") &&
+         DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_HTTP_401") &&
+         !DiagnosticLog.IsSafeEntry(safeTimestamp + "|LOGIN_TARGET_FLOKI|email=private"),
+        "W188 login diagnostics allow only safe event codes and reject identity fields");
     Test(DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_EVENT_LOOP_STALL") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_MEMORY_HIGH") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ELECTRON_CPU_HIGH") &&
@@ -2884,14 +2905,15 @@ try
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_NATIVE_VOLUME_DROP") &&
          DiagnosticLog.IsIncidentCode("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM") &&
          DiagnosticLog.IsIncidentCode("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED") &&
-         DiagnosticLog.IsIncidentCode("NATIVE_FILEINFO_ID_UNRECOGNIZED") &&
-         DiagnosticLog.IsIncidentCode("NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED") &&
          DiagnosticLog.IsIncidentCode("NATIVE_ORIGINAL_SOURCE_NO_RELOAD") &&
          DiagnosticLog.IsIncidentCode("NATIVE_UNKNOWN_SOURCE_NO_RELOAD") &&
          DiagnosticLog.IsIncidentCode("NATIVE_REPLACEMENT_SOURCE_RELOAD") &&
          DiagnosticLog.IsIncidentCode("SOURCE_ORIGINAL") &&
          DiagnosticLog.IsIncidentCode("SOURCE_UNKNOWN") &&
          DiagnosticLog.IsIncidentCode("SOURCE_ACTIVE_REPLACEMENT") &&
+         DiagnosticLog.IsIncidentCode("LOGIN_TARGET_FLOKI") &&
+         DiagnosticLog.IsIncidentCode("LOGIN_HTTP_401") &&
+         DiagnosticLog.IsIncidentCode("LOGIN_TIMEOUT") &&
          !DiagnosticLog.IsIncidentCode("NATIVE_CONNECTED") &&
          !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
         "W135 source decisions and actual decoder proof are durable incidents, ordinary connection status is not");
@@ -2931,10 +2953,6 @@ try
     Test(snapshot.Contains("PLAYER_CDP_PROPERTIES_SEEN/PLAYER_CDP_URL_PROPERTY_SEEN show Media-domain field availability only"),
         "W130 export explicitly says CDP field visibility is not current-source proof");
     Test(snapshot.Contains("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE"), "W54 truthful diagnostics baseline");
-    var yandex51280 = DiagnosticLog.ExportText("5.128.0.r22145392", "ACTIVE",
-        true, true, true, diagnosticDirectory: fixtureLogsDirectory);
-    Test(yandex51280.Contains("YandexVersion=5.128.0.r22145392"),
-        "W181 official Yandex r-build suffix is retained in owner diagnostics");
     Test(snapshot.Contains("PLAYER_URL_QUERY_CHANGED|resource_id=739209"),
         "W53 native URL mismatch reaches actual exported TXT");
     Test(snapshot.Contains("PLAYER_403_PHP_INVALID_AUDIO_TOKEN|resource_id=739209"),
@@ -2974,10 +2992,6 @@ try
         "repeated owner exports do not duplicate native incident history");
     var auto = DiagnosticLog.ExportSupportSnapshot("5.126.1.0","ACTIVE", true, true,
         "0.24.20", true, "123", fixtureLogsDirectory);
-    var auto51280 = DiagnosticLog.ExportSupportSnapshot("5.128.0.r22145392",
-        "ACTIVE", true, true, "0.24.20", true, "123", fixtureLogsDirectory);
-    Test(JsonSerializer.Serialize(auto51280).Contains("5.128.0.r22145392"),
-        "W181 auto-support snapshot retains official Yandex r-build suffix");
     var autoJson = JsonSerializer.Serialize(auto);
     using (var parsedAuto = JsonDocument.Parse(autoJson))
     {
@@ -3088,6 +3102,8 @@ try
     DiagnosticLog.Record("NATIVE_ELECTRON_EVENT_LOOP_STALL", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_MEMORY_HIGH", null, archiveDir);
     DiagnosticLog.Record("NATIVE_ELECTRON_CPU_HIGH", null, archiveDir);
+    DiagnosticLog.Record("LOGIN_TARGET_FLOKI", null, archiveDir);
+    DiagnosticLog.Record("LOGIN_HTTP_401", null, archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_NATIVE_VOLUME_DROP", "123", archiveDir);
      DiagnosticLog.Record("PLAYER_CURRENT_SOURCE_LEFT_CELIKOM", "123", archiveDir);
@@ -3097,9 +3113,11 @@ try
      DiagnosticLog.Record("PLAYER_DECODER_CELIKOM_SOURCE_MATCHED", "125", archiveDir);
     DiagnosticLog.Record("NATIVE_STATE_RECEIVED", null, archiveDir);
     var preserved = DiagnosticLog.ReadIncidentHistory(archiveDir);
-    Test(preserved.Count == 12 &&
+    Test(preserved.Count == 14 &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED")) &&
          preserved.Any(x => x.Contains("|ACTIVE_ENTITLEMENT_RECOVERED")) &&
+         preserved.Any(x => x.Contains("|LOGIN_TARGET_FLOKI")) &&
+         preserved.Any(x => x.Contains("|LOGIN_HTTP_401")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_MEMORY_HIGH")) &&
           preserved.Any(x => x.Contains("|NATIVE_ELECTRON_CPU_HIGH")) &&
@@ -3119,7 +3137,9 @@ try
         true, false, true, "0.24.22", true, archiveDir);
     Test(historic.Contains("PERSISTENT INCIDENT HISTORY") &&
          historic.Contains("|ACTIVE_ENTITLEMENT_NETWORK_SUSPENDED") &&
-         historic.Contains("|ACTIVE_ENTITLEMENT_RECOVERED"),
+         historic.Contains("|ACTIVE_ENTITLEMENT_RECOVERED") &&
+         historic.Contains("|LOGIN_TARGET_FLOKI") &&
+         historic.Contains("|LOGIN_HTTP_401"),
         "W75 owner export still contains incident even after thousands of native polls");
     Test(!DiagnosticLog.IsIncidentCode("NATIVE_STATE_RECEIVED") &&
           historic.Contains("|NATIVE_ELECTRON_EVENT_LOOP_STALL") &&

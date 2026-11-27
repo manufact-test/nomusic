@@ -3,15 +3,15 @@ import crypto from "node:crypto";
 
 const asarPath = process.argv[2];
 const reportPath = process.argv[3];
-if (!asarPath || !reportPath) throw new Error("W181_USAGE");
+if (!asarPath || !reportPath) throw new Error("W188_USAGE");
 const bytes = fs.readFileSync(asarPath);
-if (bytes.length < 16 || bytes.readUInt32LE(0) !== 4) throw new Error("W181_ASAR_INVALID");
+if (bytes.length < 16 || bytes.readUInt32LE(0) !== 4) throw new Error("W188_ASAR_INVALID");
 const headerLength = bytes.readUInt32LE(12);
-if (!headerLength || headerLength > 30 * 1024 * 1024) throw new Error("W181_ASAR_HEADER_INVALID");
+if (!headerLength || headerLength > 30 * 1024 * 1024) throw new Error("W188_ASAR_HEADER_INVALID");
 const dataStart = 16 + ((headerLength + 3) & ~3);
-if (dataStart > bytes.length) throw new Error("W181_ASAR_DATA_START_INVALID");
+if (dataStart > bytes.length) throw new Error("W188_ASAR_DATA_START_INVALID");
 const header = JSON.parse(bytes.subarray(16, 16 + headerLength).toString("utf8"));
-if (!header?.files || typeof header.files !== "object") throw new Error("W181_ASAR_TREE_INVALID");
+if (!header?.files || typeof header.files !== "object") throw new Error("W188_ASAR_TREE_INVALID");
 const sha256 = value => crypto.createHash("sha256").update(value).digest("hex");
 const terms = [
   ["endpoint_get_file_info", '"get-file-info"'],
@@ -155,7 +155,7 @@ const methodFiles = hits.filter(item =>
   item.counts.method_getFileInfo || item.counts.method_getFileInfoBatch);
 const report = {
   schema: 1,
-  purpose: "read-only static audit of official signed Yandex 5.128.0 app.asar",
+  purpose: "read-only static audit of official signed Yandex 5.129.0 app.asar",
   archiveBytes: bytes.length,
   archiveSha256: sha256(bytes),
   scannedJsFiles: scanned,
@@ -165,7 +165,7 @@ const report = {
   methodCandidates: methodFiles
 };
 fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), { flag: "w" });
-console.log("W181_YANDEX_51280_ASAR_AUDIT", JSON.stringify({
+console.log("W188_YANDEX_51280_ASAR_AUDIT", JSON.stringify({
   archiveBytes: report.archiveBytes,
   archiveSha256: report.archiveSha256,
   scannedJsFiles: report.scannedJsFiles,
@@ -175,5 +175,5 @@ console.log("W181_YANDEX_51280_ASAR_AUDIT", JSON.stringify({
   methodCandidates: report.methodCandidates.slice(0, 20)
 }));
 if (endpointFiles.length === 0 || methodFiles.length === 0) {
-  throw new Error("W181_RESOURCE_API_CANDIDATES_NOT_FOUND");
+  throw new Error("W188_RESOURCE_API_CANDIDATES_NOT_FOUND");
 }

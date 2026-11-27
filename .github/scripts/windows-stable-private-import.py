@@ -58,8 +58,12 @@ def bounded_file(path, low, high):
 
 
 def sha(path):
+    # hashlib.file_digest is unavailable on some supported Python 3.10 runners.
+    digest = hashlib.sha256()
     with path.open("rb") as f:
-        return hashlib.file_digest(f, "sha256").hexdigest()
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def verifier_env(pin):

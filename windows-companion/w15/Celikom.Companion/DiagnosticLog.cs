@@ -21,11 +21,6 @@ public static class DiagnosticLog
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Id = new(@"^[1-9][0-9]{0,17}$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    // Yandex signed Windows build metadata includes the official "r" suffix,
-    // e.g. 5.128.0.r22145392. The old numeric-only filter hid supported builds.
-    private static readonly Regex YandexVersion = new(
-        @"^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(?:\.[0-9]{1,4}|\.r[0-9]{5,12})?$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex SafeLine = new(
         @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\|[A-Z0-9_]{3,48}(\|(?:track|resource_id)=[1-9][0-9]{0,17})?$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -66,13 +61,6 @@ public static class DiagnosticLog
              "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
              "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
              "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
-             "NATIVE_FILEINFO_ID_UNRECOGNIZED" or
-             "NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED" or
-             "NATIVE_MEDIASOURCE_ID_UNRECOGNIZED" or
-             "MEDIASOURCE_SHAPE_MISSING" or
-             "RESOURCE_HOOK_ATTACHED_LIVE_MEDIA_PROVIDER" or
-             "RESOURCE_MEDIA_PROVIDER_UNSUPPORTED" or
-             "RESOURCE_HOOK_MISSING" or
              "SOURCE_ACTIVE_REPLACEMENT" or "SOURCE_ORIGINAL" or "SOURCE_UNKNOWN" or
              "SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL" or "SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED") ||
          code.StartsWith("NATIVE_ORIGINAL_SOURCE_", StringComparison.Ordinal) ||
@@ -80,6 +68,7 @@ public static class DiagnosticLog
          code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
          (code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE") ||
          code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+            code.StartsWith("LOGIN_", StringComparison.Ordinal) ||
          code.StartsWith("START_ENTITLEMENT_", StringComparison.Ordinal) ||
          code.Contains("DISCONNECT", StringComparison.Ordinal) ||
          code.Contains("NETWORK", StringComparison.Ordinal) ||
@@ -262,13 +251,6 @@ public static class DiagnosticLog
                 "PLAYER_CURRENT_GAIN_VARIANT_URL_MISSING" or "PLAYER_CURRENT_NATIVE_VOLUME_DROP" or
                 "PLAYER_CURRENT_SOURCE_LEFT_CELIKOM" or
                 "PLAYER_DECODER_CELIKOM_SOURCE_MATCHED" or
-                "NATIVE_FILEINFO_ID_UNRECOGNIZED" or
-                "NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED" or
-                "NATIVE_MEDIASOURCE_ID_UNRECOGNIZED" or
-                "MEDIASOURCE_SHAPE_MISSING" or
-                "RESOURCE_HOOK_ATTACHED_LIVE_MEDIA_PROVIDER" or
-                "RESOURCE_MEDIA_PROVIDER_UNSUPPORTED" or
-                "RESOURCE_HOOK_MISSING" or
                 "SOURCE_ACTIVE_REPLACEMENT" or "SOURCE_ORIGINAL" or "SOURCE_UNKNOWN" or
                 "SOURCE_LEFT_CURRENT_ALREADY_ORIGINAL" or "SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED") ||
             code.StartsWith("NATIVE_ORIGINAL_SOURCE_", StringComparison.Ordinal) ||
@@ -276,6 +258,7 @@ public static class DiagnosticLog
             code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
             (code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
+            code.StartsWith("LOGIN_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||
             code.Contains("FAILED", StringComparison.Ordinal) ||
             code.Contains("FORBIDDEN", StringComparison.Ordinal) ||
@@ -315,8 +298,7 @@ public static class DiagnosticLog
             platform = "windows",
             appVersion = AppUpdateManager.RunningVersion.ToString(3),
             nativeModuleVersion = Version(nativeModuleVersion),
-            yandexVersion = yandexVersion is not null && YandexVersion.IsMatch(yandexVersion)
-                ? yandexVersion : "unknown",
+            yandexVersion = Version(yandexVersion),
             integration = Code.IsMatch(integration) ? integration : "UNKNOWN",
             nativeMatchesApplication,
             bridgeStarted,
@@ -351,7 +333,7 @@ public static class DiagnosticLog
             (nativeMatchesApplication is null ? "unknown" : nativeMatchesApplication.Value ? "true" : "false"));
         text.AppendLine("CodeBaseline=W54_GAIN_VARIANT_AND_W53_PERFORMANCE_EXPORT_SAFE");
         text.AppendLine("YandexVersion=" + (yandexVersion is not null &&
-            YandexVersion.IsMatch(yandexVersion) ? yandexVersion : "unknown"));
+            Regex.IsMatch(yandexVersion, @"^[0-9.]{1,24}$") ? yandexVersion : "unknown"));
         text.AppendLine("NativeIntegration=" + (Code.IsMatch(integration) ? integration : "UNKNOWN"));
         text.AppendLine("BridgeStarted=" + bridgeStarted.ToString().ToLowerInvariant());
         text.AppendLine("Enabled=" + enabled.ToString().ToLowerInvariant());

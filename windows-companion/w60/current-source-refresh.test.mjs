@@ -45,32 +45,6 @@ test("W60 signed vendor class observer reloads current source without changing s
   assert.strictEqual(Object.getOwnPropertyDescriptor(h.NativeYandexPlayback.prototype,"state").get,h.getter);
 });
 
-test("W183 resolves getFileInfo from the observed derived current-player instance",()=>{
-  const h=harness(),events=[];
-  const r=createCurrentSourceRefresh({onEvent:c=>events.push(c)});
-  class LiveYandexPlayer extends h.NativeYandexPlayback {
-    async getFileInfo(params) { return {fileInfo:{trackId:params.id}}; }
-  }
-  assert.equal(r.attach(h.webpackRequire),true);
-  assert.equal(r.playerObserved,false);
-  assert.equal(r.resourcePrototype(),null,
-    "do not guess the resource owner before a live instance exists");
-  const player=new LiveYandexPlayer();
-  void player.state; // the pinned 7123.VE state getter observes this instance
-  assert.equal(r.playerObserved,true);
-  assert.strictEqual(r.resourcePrototype(),LiveYandexPlayer.prototype,
-    "hook target must be the actual derived method owner");
-  assert.ok(events.includes("NATIVE_TOGGLE_PLAYER_OBSERVER_READY"));
-  r.dispose();
-  assert.equal(r.resourcePrototype(),null);
-});
-test("W183 does not report a player resource owner before state observation",()=>{
-  const h=harness(),r=createCurrentSourceRefresh();
-  assert.equal(r.attach(h.webpackRequire),true);
-  assert.equal(r.resourcePrototype(),null);
-  assert.equal(r.playerObserved,false);
-  r.dispose();
-});
 test("W60 paused Yandex remains paused and at the same position",async()=>{
   const h=harness({status:"paused"}),r=createCurrentSourceRefresh();
   assert.equal(r.attach(h.webpackRequire),true);
@@ -232,33 +206,5 @@ test("W141 stopped current entity is explicit but cannot trigger a reload",async
   });
   assert.equal(await r.request(),false);
   assert.deepEqual(p.calls,[]);
-  r.dispose();
-});
-
-
-test("W186 discovers getMediaSource on the exact live player's mediaProvider owner",()=>{
-  const h=harness(),r=createCurrentSourceRefresh();
-  assert.equal(r.attach(h.webpackRequire),true);
-  const providerProto={
-    async getMediaSource(params){return {downloadInfo:{trackId:params.entity.id}};}
-  };
-  const player=new h.NativeYandexPlayback();
-  player.mediaProvider=Object.create(providerProto);
-  void player.state;
-  assert.strictEqual(r.mediaSourceOwner(),providerProto,
-    "must follow the live instance's injected mediaProvider, not a webpack export guess");
-  r.dispose();
-  assert.equal(r.mediaSourceOwner(),null);
-});
-
-test("W186 mediaProvider discovery never invokes vendor accessors",()=>{
-  const h=harness(),r=createCurrentSourceRefresh();
-  assert.equal(r.attach(h.webpackRequire),true);
-  const player=new h.NativeYandexPlayback();
-  Object.defineProperty(player,"mediaProvider",{
-    configurable:true,get(){throw new Error("must not invoke vendor getter");}
-  });
-  void player.state;
-  assert.equal(r.mediaSourceOwner(),null);
   r.dispose();
 });

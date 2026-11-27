@@ -3,15 +3,15 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 
 const [asarPath, reportPath] = process.argv.slice(2);
-if (!asarPath || !reportPath) throw new Error("W183_USAGE");
+if (!asarPath || !reportPath) throw new Error("W188_USAGE");
 const bytes = fs.readFileSync(asarPath);
-if (bytes.length < 16 || bytes.readUInt32LE(0) !== 4) throw new Error("W183_ASAR_INVALID");
+if (bytes.length < 16 || bytes.readUInt32LE(0) !== 4) throw new Error("W188_ASAR_INVALID");
 const headerLength = bytes.readUInt32LE(12);
-if (!headerLength || headerLength > 30 * 1024 * 1024) throw new Error("W183_ASAR_HEADER_INVALID");
+if (!headerLength || headerLength > 30 * 1024 * 1024) throw new Error("W188_ASAR_HEADER_INVALID");
 const dataStart = 16 + ((headerLength + 3) & ~3);
-if (dataStart > bytes.length) throw new Error("W183_ASAR_DATA_START_INVALID");
+if (dataStart > bytes.length) throw new Error("W188_ASAR_DATA_START_INVALID");
 const header = JSON.parse(bytes.subarray(16, 16 + headerLength).toString("utf8"));
-if (!header?.files || typeof header.files !== "object") throw new Error("W183_ASAR_TREE_INVALID");
+if (!header?.files || typeof header.files !== "object") throw new Error("W188_ASAR_TREE_INVALID");
 const sha256 = value => crypto.createHash("sha256").update(value).digest("hex");
 
 
@@ -252,7 +252,7 @@ relevant.sort((a,b)=>
   a.path.localeCompare(b.path) || a.moduleId.localeCompare(b.moduleId));
 const report = {
   schema: 1,
-  purpose: "read-only module identity and call-shape audit of signed official Yandex 5.128.0 app.asar",
+  purpose: "read-only module identity and call-shape audit of signed official Yandex 5.129.0 app.asar",
   archiveBytes: bytes.length,
   archiveSha256: sha256(bytes),
   scannedJsFiles: scanned,
@@ -267,6 +267,6 @@ const output = {
   playerMethodModules: relevant.slice(0,60),
   astModuleGraph: astRelevant.slice(0,250)
 };
-console.log("W183_YANDEX_51280_PLAYER_CALLGRAPH_AUDIT",JSON.stringify(output));
+console.log("W188_YANDEX_51280_PLAYER_CALLGRAPH_AUDIT",JSON.stringify(output));
 if (!relevant.some(x=>x.hasGetFileInfo) || !relevant.some(x=>x.hasGetMediaSource))
-  throw new Error("W183_PLAYER_METHOD_MODULES_NOT_FOUND");
+  throw new Error("W188_PLAYER_METHOD_MODULES_NOT_FOUND");

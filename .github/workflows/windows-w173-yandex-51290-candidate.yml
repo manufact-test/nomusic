@@ -1,0 +1,102 @@
+name: CELIKOM W188 exact Yandex 5.129.0 compatibility candidate
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/windows-w173-yandex-51290-candidate.yml
+      - windows-companion/w15/Celikom.Companion/**
+      - windows-companion/w15/Celikom.Companion.Tests/**
+      - windows-companion/w22/**
+      - windows-companion/w23/**
+      - windows-companion/w24/**
+      - windows-companion/w81/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  official-51290-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build exact W174 native module without changing its source
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund --prefix windows-companion/w23
+          if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_DEPENDENCIES_FAILED' }
+          node windows-companion/w23/build.mjs
+          npm install --no-save --no-package-lock --no-audit --no-fund --prefix windows-companion/w23 acorn@8.15.0
+          if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_BUILD_FAILED' }
+      - name: Test W188 live mediaProvider discovery and id normalization
+        shell: pwsh
+        run: |
+          node --test windows-companion/w23/live-media-provider-hook.test.mjs windows-companion/w23/renderer-relay.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W188_LIVE_MEDIA_PROVIDER_TEST_FAILED' }
+      - name: Download official Yandex 5.129.0 and verify signatures, hashes, image and exact restore
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'w174-yandex-51290-candidate.json'
+          ./windows-companion/w81/Watch-YandexWindowsRelease.ps1 -ForceVersion '5.129.0' -ValidateCandidate -RetainAsarPath (Join-Path $env:RUNNER_TEMP 'yandex-51290-app.asar') -ReportPath $report
+          if ($LASTEXITCODE -notin @(0,$null)) { throw 'W174_YANDEX_51290_CANDIDATE_FAILED' }
+          $data = Get-Content $report -Raw | ConvertFrom-Json
+          if ($data.status -ne 'candidate_requires_runtime_review' -or
+              $data.vendorVersion -ne '5.129.0' -or
+              $data.exeVersion -notmatch '^5\.129\.0\.' -or
+              $data.installerSha256 -notmatch '^[0-9a-f]{64}$' -or
+              $data.exeSha256 -notmatch '^[0-9a-f]{64}$' -or
+              $data.asarSha256 -notmatch '^[0-9a-f]{64}$') {
+            throw 'W174_YANDEX_51290_PROVENANCE_OR_IMAGE_INVALID'
+          }
+          foreach ($required in @('vendor-installer-signature','inner-executable-signature-and-version','native-image-builder-staged','native-install-and-byte-exact-restore-sandbox')) {
+            if ($data.checks -notcontains $required) { throw "W174_MISSING_CHECK_$required" }
+          }
+          Write-Host "W174_OFFICIAL_YANDEX_51290_VERIFIED exeVersion=$($data.exeVersion)"
+          Write-Host "W174_YANDEX_51290_INSTALLER_SHA256=$($data.installerSha256)"
+          Write-Host "W174_YANDEX_51290_EXE_SHA256=$($data.exeSha256)"
+          Write-Host "W174_YANDEX_51290_ASAR_SHA256=$($data.asarSha256)"
+          Write-Host 'W174_YANDEX_51290_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
+      - name: Audit the official 5.129.0 ASAR against the unchanged W174 hook contract
+        # The callgraph audit is a one-off static review tool; keep Acorn out of product dependencies.
+        if: success()
+        shell: pwsh
+        run: |
+          $asar = Join-Path $env:RUNNER_TEMP 'yandex-51290-app.asar'
+          if (-not (Test-Path $asar)) { throw 'W188_YANDEX_51290_ASAR_NOT_RETAINED' }
+          node windows-companion/w23/yandex-asar-hook-audit.mjs $asar (Join-Path $env:RUNNER_TEMP 'yandex-51290-hook-audit.json')
+          if ($LASTEXITCODE -ne 0) { throw 'W188_YANDEX_51290_HOOK_AUDIT_FAILED' }
+          node windows-companion/w23/yandex-asar-player-callgraph-audit.mjs $asar (Join-Path $env:RUNNER_TEMP 'yandex-51290-callgraph-audit.json')
+          if ($LASTEXITCODE -ne 0) { throw 'W188_YANDEX_51290_CALLGRAPH_AUDIT_FAILED' }
+      - name: Run W174 native, recovery and companion contracts
+        shell: pwsh
+        run: |
+          dotnet run --project windows-companion/w24/Celikom.NativeInstaller.Tests/Celikom.NativeInstaller.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_IMAGE_CONTRACT_FAILED' }
+          dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W174_RECOVERY_CONTRACT_FAILED' }
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'W174_COMPANION_CONTRACT_FAILED' }
+          dotnet build windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj -c Release -warnaserror
+          if ($LASTEXITCODE -ne 0) { throw 'W174_GUI_BUILD_FAILED' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CELIKOM-W174-YANDEX-51290-CANDIDATE-REPORT
+          path: |
+            ${{ runner.temp }}/w174-yandex-51290-candidate.json
+            ${{ runner.temp }}/yandex-51290-app.asar
+            ${{ runner.temp }}/yandex-51290-hook-audit.json
+            ${{ runner.temp }}/yandex-51290-callgraph-audit.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -35,6 +35,38 @@ public sealed class CelikomApi : IDisposable
             ? session with { Origin = ProductionOrigin }
             : session;
 
+    // This returns only an allowlisted class. Never write the supplied origin
+    // or a URL to diagnostics.
+    public static string GetLoginTargetClass(string origin)
+    {
+        try
+        {
+            var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
+            if (string.Equals(normalized, ProductionOrigin, StringComparison.Ordinal)) return "FLOKI";
+            if (string.Equals(normalized, LegacyProductionOrigin, StringComparison.Ordinal)) return "LEGACY";
+            return "CUSTOM";
+        }
+        catch { return "INVALID"; }
+    }
+
+    private static void RecordLoginApiFailure(ApiFailure failure)
+    {
+        if (failure.HttpStatus is >= 100 and <= 599)
+            DiagnosticLog.Record($"LOGIN_HTTP_{failure.HttpStatus}");
+        DiagnosticLog.Record(failure.Category switch
+        {
+            "INVALID_CREDENTIALS" => "LOGIN_ERROR_INVALID_CREDENTIALS",
+            "INVALID_SESSION" => "LOGIN_ERROR_INVALID_SESSION",
+            "ACCESS_DENIED" => "LOGIN_ERROR_ACCESS_DENIED",
+            "RATE_LIMITED" => "LOGIN_ERROR_RATE_LIMITED",
+            "EMAIL_VERIFICATION_REQUIRED" => "LOGIN_ERROR_EMAIL_UNVERIFIED",
+            "INVALID_API_JSON" => "LOGIN_INVALID_JSON",
+            "RESPONSE_TOO_LARGE" => "LOGIN_RESPONSE_TOO_LARGE",
+            "REDIRECT_FORBIDDEN" => "LOGIN_REDIRECT_BLOCKED",
+            _ => "LOGIN_API_FAILURE"
+        });
+    }
+
     public CelikomApi(SessionStore store, HttpMessageHandler? handler = null)
     {
         _store = store;
@@ -106,15 +138,55 @@ public sealed class CelikomApi : IDisposable
 
     public async Task LoginAsync(string origin, string email, string password, CancellationToken ct = default)
     {
+        var targetClass = GetLoginTargetClass(origin);
+        DiagnosticLog.Record("LOGIN_TARGET_" + targetClass);
         var normalized = GrantValidator.NormalizeOrigin(origin).GetLeftPart(UriPartial.Authority);
         if (string.IsNullOrWhiteSpace(email) || password.Length == 0 || password.Length > 512)
+        {
+            DiagnosticLog.Record("LOGIN_ERROR_INVALID_CREDENTIALS");
             throw new ApiFailure(400, "INVALID_CREDENTIALS");
+        }
         var previous = Settings;
-        var response = await RequestAsync(
-            new Uri(normalized + "/api/v1/auth/login"), HttpMethod.Post,
-            new { email = email.Trim(), password, installation_id = previous.InstallationId }, null, ct);
+        JsonElement response;
+        try
+        {
+            response = await RequestAsync(
+                new Uri(normalized + "/api/v1/auth/login"), HttpMethod.Post,
+                new { email = email.Trim(), password, installation_id = previous.InstallationId }, null, ct);
+        }
+        catch (ApiFailure ex)
+        {
+            RecordLoginApiFailure(ex);
+            throw;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            DiagnosticLog.Record("LOGIN_TIMEOUT");
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            DiagnosticLog.Record("LOGIN_CANCELLED");
+            throw;
+        }
+        catch (HttpRequestException)
+        {
+            DiagnosticLog.Record("LOGIN_TRANSPORT_FAILURE");
+            throw;
+        }
+        catch
+        {
+            // Deliberately omit exception messages and request/response data.
+            DiagnosticLog.Record("LOGIN_UNEXPECTED_FAILURE");
+            throw;
+        }
+
         var tokens = ReadTokens(response);
-        if (tokens is null) throw new ApiFailure(403, "EMAIL_VERIFICATION_REQUIRED");
+        if (tokens is null)
+        {
+            DiagnosticLog.Record("LOGIN_ERROR_EMAIL_UNVERIFIED");
+            throw new ApiFailure(403, "EMAIL_VERIFICATION_REQUIRED");
+        }
         var next = previous with
         {
             Origin = normalized,
@@ -127,10 +199,14 @@ public sealed class CelikomApi : IDisposable
         lock (_sessionCommitLock)
         {
             if (!ReferenceEquals(Settings, previous))
+            {
+                DiagnosticLog.Record("LOGIN_ERROR_INVALID_SESSION");
                 throw new ApiFailure(401, "INVALID_SESSION");
+            }
             _store.Save(next);
             Volatile.Write(ref _current, next);
         }
+        DiagnosticLog.Record("LOGIN_RESPONSE_ACCEPTED");
     }
 
     public async Task LogoutAsync(CancellationToken ct = default)
@@ -160,20 +236,11 @@ public sealed class CelikomApi : IDisposable
 
     public async Task<SourceGrant?> ResolveAsync(string id, CancellationToken ct)
     {
-        if (!GrantValidator.IsTrackId(id)) return null;
-        if (!IsLoggedIn)
-        {
-            DiagnosticLog.Record("RESOLVE_LOCAL_SESSION_MISSING", id);
-            return null;
-        }
+        if (!GrantValidator.IsTrackId(id) || !IsLoggedIn) return null;
         var session = Settings;
         Uri origin;
         try { origin = GrantValidator.NormalizeOrigin(session.Origin); }
-        catch
-        {
-            DiagnosticLog.Record("RESOLVE_LOCAL_ORIGIN_INVALID", id);
-            return null;
-        }
+        catch { return null; }
         var target = new Uri(origin,
             "/api/v1/resolve?service=yandex&track_id=" + Uri.EscapeDataString(id) + "&audio_formats=mp3,m4a&audio_profile=windows_gain_v1");
         JsonElement result;
@@ -183,39 +250,14 @@ public sealed class CelikomApi : IDisposable
         }
         catch (ApiFailure ex) when (ex.HttpStatus == 401)
         {
-            if (!await RefreshOnceAsync(session.AccessToken, ct))
-            {
-                DiagnosticLog.Record("RESOLVE_SESSION_REFRESH_FAILED", id);
-                return null;
-            }
+            if (!await RefreshOnceAsync(session.AccessToken, ct)) return null;
             var newer = Settings;
             if (!IsLoggedIn || newer.InstallationId != session.InstallationId ||
-                newer.Origin != session.Origin)
-            {
-                DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
-                return null;
-            }
+                newer.Origin != session.Origin) return null;
             result = await RequestAsync(target, HttpMethod.Get, null, newer.AccessToken, ct);
         }
-        if (Settings.Origin != session.Origin || !IsLoggedIn)
-        {
-            DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
-            return null;
-        }
-        // W178: a normal catalog miss is not an expired DPAPI session or a
-        // rejected signed grant. Export only the class and numeric track ID.
-        // Never export owner credentials, signed URLs, grants or HTTP bodies.
-        if (result.ValueKind == JsonValueKind.Object &&
-            result.TryGetProperty("found", out var found) &&
-            found.ValueKind == JsonValueKind.False)
-        {
-            DiagnosticLog.Record("RESOLVE_SERVER_NO_GRANT", id);
-            return null;
-        }
-        var grant = GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
-        DiagnosticLog.Record(grant is null ? "RESOLVE_GRANT_REJECTED" :
-            "RESOLVE_GRANT_VALID", id);
-        return grant;
+        if (Settings.Origin != session.Origin || !IsLoggedIn) return null;
+        return GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
     }
 
     private async Task<bool> RefreshOnceAsync(string failedAccess, CancellationToken ct)

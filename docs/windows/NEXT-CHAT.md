@@ -1,337 +1,184 @@
-# АКТУАЛЬНО — W187: 0.24.54 запускается, но login сломан; вернуть Floki API, сохранив W174 audio baseline (26.11.2026)
+# ACTIVE CELIKOM WINDOWS — W190 baseline promotion, then W189 repair (27 November 2026)
 
-**Текущий owner result:** точный W173 0.24.54 EXE запущен владельцем, но вход не проходит. Скриншот показывает общую ошибку «Не удалось выполнить действие. Проверь интернет и повтори». Поэтому rollback НЕ завершён: login не работает, аудио после rollback не тестировалось.
+**Read first:** `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md`.
 
-## Критическая поправка к W186
+Then read:
+1. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — detailed bug list and acceptance criteria.
+2. `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md` — exact 0.24.62 source, W174/W188 hashes and release evidence.
+3. `docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md` — original diagnostics and baseline investigation.
 
-Предыдущий чат ошибочно посоветовал при откате удалить сохранённые данные входа. Это удалило/могло удалить `%LOCALAPPDATA%\CELIKOM\Windows\session.dpapi` и заставило старый W173 0.24.54 выбрать свой старый Hostinger default origin. Он не знает о Floki migration.
+## Immediate execution order
 
-**Не повторять uninstall и не удалять DPAPI.** Общая ошибка UI не доказывает неверный пароль. W186 Hostinger health/config checks не проверяли owner login. Скриншот не показывает реальный endpoint/status, поэтому Hostinger — ведущая гипотеза, не окончательно подтверждённая причина. См. подробный разбор [W187](./W187-02454-HOSTINGER-LOGIN-FAILURE-FLOKI-API-RECOVERY-20261126.md). Сам [W186 помечен как superseded](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md).
-
-## Точка восстановления
-
-- Точный исторический пакет W173 / **0.24.54**, artifact `14703029534`, run `44894407351`.
-- EXE SHA-256: `da5877bb01dca6048ce85cb07881f663c3a16cb81ec1f3b16074837bf9b60f33`.
-- W174 canonical code base: commit `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
-- Recovery branch уже создан: `recovery/windows-w174-02454-known-good-20261126`.
-- Ветку создали от точного W174 commit. Использовать её для следующего owner candidate, а не текущий Windows runtime из main.
-- Main содержит готовую узкую реализацию Floki migration: `ProductionOrigin=https://api.celikom.com`, точное преобразование только старого Hostinger origin, сохранение существующих токенов/InstallationId, Floki default и тесты. Перенести только этот API-origin слой.
-
-## Что делать следующему чату
-
-1. Сначала прочитать W187, W186, W174 и этот NEXT-CHAT.
-2. Проверить recovery branch и его точный базовый commit.
-3. Сделать минимальный backport Floki API-origin migration из current main: production default, exact legacy-origin migration, DPAPI persistence, Floki fallback для config/password reset, migration tests.
-4. Добавить безопасные login diagnostics: target class и outcome/status category. Никаких email, паролей, токенов, Authorization, полных URL или HTTP body.
-5. Не менять W174 audio hook. Контрольные blobs `renderer-entry.mjs`, `native-resource-adapter.mjs`, `current-source-refresh.mjs` должны остаться byte-identical к W174 SHA, указанным в W187.
-6. Прогнать W15 contracts, W20 installer, W21–W24, renderer/native tests и Floki Windows cross-build.
-7. Подготовить один owner-only candidate по текущему проверенному pipeline; версию/sequence сверить с release metadata. Не публиковать customer stable и не включать массовое автообновление.
-8. Владелец устанавливает candidate поверх 0.24.54 **без uninstall и без удаления DPAPI**. Сначала подтвердить вход на Floki, затем отдельно проверить реальную подмену «Ау» track `144530503`, оригинальный трек, Next и Play/Pause.
-
-**Login и audio — два разных acceptance gate.** Успешная авторизация ещё не доказывает звук; зелёная сборка/CI не доказывает ни одно из них.
-
-## Границы
-
-Не трогать Android, браузерное расширение, server production/DB, Hostinger/Floki deployment, аккаунты, trial/subscription, каталог/grants, customer stable и автообновление. Не просить владельца снова переустанавливать приложение, удалять данные входа или отправлять пароль. Не делать новые speculative audio-hook эксперименты.
-
-## Документация и история
-
-- [W187 — причина login failure и точный work order](./W187-02454-HOSTINGER-LOGIN-FAILURE-FLOKI-API-RECOVERY-20261126.md)
-- [W186 — артефакт 0.24.54; старый rollback procedure superseded](./W186-02454-OWNER-ROLLBACK-RECOVERY-20261126.md)
-- [W174 — owner-accepted W173 0.24.54 canonical baseline](./W174-MAINLINE-CONSOLIDATION-20261121.md)
-
-Исторический W173 EXE был восстановлен и SHA-256 проверен; runtime-код в этом documentation update не менялся. Следующий deliverable — не ещё один «старый EXE», а W174 playback baseline с минимальным Floki auth-origin compatibility fix.
-
-
----
-# CELIKOM Windows W185 — восстановлен принятый W174 source hook; 0.24.60 доставлена владельцу (26.11.2026)
-
-## Главное
-
-**0.24.59 была ещё одной неудачной попыткой: W183 заменил рабочий discovery path неподтверждённым SonataProvider hook.** Ошибка в моём подходе подтверждена исходниками и тестом: статический ASAR audit показал, что module 7695 экспортирует SonataProvider и содержит методы, но не доказал, что реальный playback call chain вызывает именно его. W183 test fixture сам создавал `resourceProvider = new SonataProvider()` и заставлял fake `reloadEntity` вызывать его — тест проверял собственное предположение.
-
-Последняя лично принятая Windows-версия **0.24.54 (W174)** уже работала на официальном Yandex **5.128.0** и использовала динамический поиск endpoint resource по `"get-file-info"` / `"resources/v2/file-info"`. В W185 этот точный discovery path восстановлен. Отдельный current-player observer 7123.VE оставлен только для state/reload, не как file-info hook target. Adapter поддерживает реальную двухаргументную форму `getFileInfo(context, {trackId})`.
-
-## Текущая owner candidate
-
-- Версия: **0.24.60**
-- P-256 sequence: **7**
-- Source/release commit: `863abfd3a7eb7838128aecf54fb1c873bcc30813`
-- W185 source fix commit: `adc09cf73e8deba417c77f7eae00727e894572d7`
-- EXE SHA-256: `986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`
-- Версионная ссылка: https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.60.exe
-- Owner latest: https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe
-
-## Root cause, без приукрашивания
-
-W54 для **0.24.58**: grant track `144530503` получен и доставлен, `NATIVE_INITIAL_SOURCE_RELOAD_OK` есть, но `NATIVE_FILEINFO_REQUEST` отсутствует. Это показывает разрыв после получения grant/reload — реальный Yandex file-info метод не проходил через прикреплённый CELIKOM adapter.
-
-W182/W183 изменили discovery path относительно принятого W174:
-- W182 стал искать getFileInfo на live player prototype, выводя это из статического анализа.
-- W183 закрепил module 7695 export SonataProvider, хотя наличие класса/методов в ASAR не доказывало, что реальный текущий плеер вызывает именно этот метод.
-- Synthetic W183 test искусственно вызывал SonataProvider из fake player. Он не был проверкой vendor call chain.
-
-W185 восстановил endpoint discovery из W174. Изменения зафиксированы в `windows-companion/w23/renderer-entry.mjs` и `renderer-relay.test.mjs`. Новый test моделирует старую принятую endpoint-сигнатуру `getFileInfo(context, {trackId})`, проверяет `NATIVE_FILEINFO_REQUEST` и `SOURCE_MAPPED`, а SonataProvider не используется как target.
-
-## Сборка, тесты и доставка
-
-1. Floki isolated Windows cross-build [45847863878](https://github.com/manufact-test/nomusic/actions/runs/45847863878): **SUCCESS**. Renderer/native regressions: **99 passed, 0 failed**; W185 test PASS; Windows Companion и Update Supervisor cross-compile PASS.
-2. Signed release [45847863957](https://github.com/manufact-test/nomusic/actions/runs/45847863957): **SUCCESS**. Prepare job [140006133313](https://github.com/manufact-test/nomusic/actions/runs/45847863957/job/140006133313): P-256 signature, schema-2 manifest, EXE/ZIP owner package and transfer PASS. `W156_OWNER_PACKAGE_EXE_ZIP_PASS`.
-3. Manifest: `version=0.24.60`, `sequence=7`, `package_sha256=986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`.
-4. GitHub transport artifact ID `15132094218`, size **84,679,085 bytes**, digest `sha256:e1fd1bcc3952b424c1c655bc76492c16e3af04c1e4d34d63a5ddb0da397f10dc`.
-5. Floki private-stage job [140008023675](https://github.com/manufact-test/nomusic/actions/runs/45847863957/job/140008023675): **SUCCESS**, immutable transfer staged. Transfer SHA-256 `6eb656b329936c50f449403a9d428b23246276097f1de52d09a497b2a34f0686`, size **85,161,131 bytes**.
-6. Root consumer HTTPS receipt verification [45848612472](https://github.com/manufact-test/nomusic/actions/runs/45848612472): **SUCCESS**. Exact log: `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 986294eb51337d1246874c1ffb8e9fac70d368b1ea5e13cb68275d81f2c257e8`. Root receipt is written only after authenticated HTTPS 200, exact size and full SHA-256 checks for both versioned owner URL and owner latest; anonymous route must return 401.
-7. Full Windows integration CI [45847864002](https://github.com/manufact-test/nomusic/actions/runs/45847864002) was blocked by GitHub-hosted runner `ENOSPC: no space left on device` during W113/W148 temp-file tests; Windows integration job was skipped. This is infrastructure failure, not a failed audio assertion. The isolated Floki run above independently passed 99 renderer/native tests and Windows cross-compilation.
-
-## Release boundary
-
-- 0.24.60 is **owner-only test candidate**, not client stable.
-- `.github/release/windows-customer-stable.json` remains `approved:null`.
-- Customer signed baseline remains **0.24.55 / sequence 2**.
-- Release workflow `publish` job was skipped. No customer promotion or mass OTA occurred.
-- **Audible replacement is NOT yet owner-accepted.** CI and HTTPS SHA prove build/delivery only, not sound.
-
-## Следующий шаг владельца
-
-Install 0.24.60 over the existing installation. No uninstall/re-login or additional approval should be needed. Test once:
-1. mapped track **144530503 («Ау»)** — listen for actual substituted audio;
-2. another mapped track;
-3. unmapped/original track;
-4. Next, Play/Pause and resume.
-
-If it still fails, export a fresh W54 diagnostic **from 0.24.60**. Check `RESOURCE_HOOK_ATTACHED_ENDPOINT_FALLBACK`, `NATIVE_FILEINFO_REQUEST`, `SOURCE_MAPPED`. The W54 supplied earlier was 0.24.58; do not treat it as 0.24.60 diagnostics. W54 does not prove audible output — final acceptance is actual listening.
-
-Do not change Android, browser extension, paid features, Hostinger, VPN/gain/audio architecture or customer stable approval. No further source-hook redesign without fresh runtime evidence.
+1. Establish CELIKOM Windows 0.24.62.0 / Update Supervisor 0.24.62.0 / native 0.24.31 / Yandex 5.129.0 as the canonical Windows source on `main`, preserving newer non-Windows repository work.
+2. Run and inspect the mainline PR checks. Confirm the W174 source hashes and W188 provider bridge are present on `main`.
+3. Only after that baseline is verified, create a new Windows repair branch from the resulting `main`.
+4. Restore W169, W175 and W178; fix current-track/proposal UI state and latency; preserve working upload and proposal flows.
+5. Then prepare the next version and stable OTA path under W189. No production publish until protected approval and rollout scope are verified.
 
 ---
 
-# ИСТОРИЧЕСКАЯ ЗАПИСЬ — W179: GitHub-hosted CI восстановлен, 0.24.57 ожидает owner approval (26.11.2026)
+# ACTIVE CELIKOM WINDOWS — W189 UI state, latency, playback recovery and production auto-update (27 November 2026)
 
-**Текущий main HEAD:** c336f9442cc6b1cb38423fe44ea128874633f089. Репозиторий manufact-test/nomusic подтверждён как public. До изменений сделана свежая backup-точка backup/windows-main-pre-floki-api-audit-20261126 на 41f823dd02d914d3b98f13360f34569974d9b2ad; более ранняя W178 backup остаётся на fb5e27d2c1e942a276d456174c7b35f56f118bce.
+**Read this active work order first:** `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md`.
 
-## Windows candidate 0.24.57
+Then read:
+1. `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md` — exact W188 source, 0.24.62 package, Yandex 5.129.0 compatibility and private delivery evidence.
+2. `docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md` — original 0.24.61 diagnostic and W174 baseline.
+3. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — historical owner-accepted W174 source baseline.
 
-- Версия/sequence: **0.24.57 / P-256 sequence 4**, source commit 28587670e9efda35c73eb3a49d9702d2d72b3b8c.
-- GUI, Update Supervisor и Inno Setup metadata на current main всё ещё 0.24.57. Сравнение candidate commit с current main показало **никаких последующих Windows runtime source changes**; после candidate добавлялись docs/CI и независимые extension changes. Поэтому signed candidate source актуален.
-- Signed release run [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672), attempt **4**, сейчас **WAITING**, а не failure: GitHub-hosted Windows job prepare остановлен на protected environment windows-stable-production. Pending-deployment API подтверждает current_user_can_approve=true, reviewer — владелец manufact-test. Нужно нажать **Review deployments → windows-stable-production → Approve and deploy** на странице run. Это открывает только P-256 signing + unpublished owner draft и следующий private Floki stage; для push event publish_to_production false. Клиентский канал не затрагивается. В reusable private-stage workflow также используется тот же protected environment — проверить, не потребуется ли отдельное подтверждение после prepare.
-- После approval: проверить Windows prepare job до конца, exact unpublished owner/feed draft assets, private stage run и root Floki receipt; затем проверить обе owner URLs через owner-auth HTTP200 + полный EXE SHA. Только после этого выдать одну ссылку https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.57.exe (или verified owner latest). GitHub URLs владельцу не выдавать.
-- windows-customer-stable.json остаётся approved:null; signed customer baseline — 0.24.55/seq2. Никакой customer promotion/OTA до личного прослушивания и явного «выпускай всем».
+## Current task
 
-## GitHub runner recovery and current CI
+The owner reports that admin song upload and the in-app «Предложить песню» flow both work. New defects are in current-song UI state, stale proposal status on window reopen, and general interface latency. The previous source audit also found W169/W175/W178 protections/revalidation/diagnostics missing from the W188 candidate. Restore these narrowly and preserve the W174 audio baseline and W188 Yandex 5.129 provider bridge.
 
-- Репозиторий public; hosted runner allocation восстановлена. Protected signed job больше не падает с runner_id=0; теперь он корректно ждёт owner review.
-- Current-main Windows integration run [45813153648](https://github.com/manufact-test/nomusic/actions/runs/45813153648): **SUCCESS**, both portable Linux package and Windows integration jobs.
-- Generic CI run [45813153516](https://github.com/manufact-test/nomusic/actions/runs/45813153516): **SUCCESS**.
-- Floki API/admin read-only audit [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575): **SUCCESS**.
-- Temporary public visibility is recovery-only. Close the repository after the accepted Windows candidate, verified delivery, and the required project recovery steps; do not change repo visibility without owner command.
+The owner explicitly requests that the next accepted version go through GitHub `main` and the production stable update path rather than stopping at a test/private package, so the existing installation's automatic update must be tested. The current workflow has a hard production-publish guard and a Hostinger/Floki deployment split; W189 documents the exact blockers. Do not bypass approval or publish globally without confirming rollout scope.
 
-## Floki API/admin read-only audit — corrected origin
+## Exact starting point
 
-- New no-secret workflow [45813153575](https://github.com/manufact-test/nomusic/actions/runs/45813153575) SUCCESS; it explicitly targets https://api.celikom.com (Floki), not Hostinger.
-- Floki: /api/v1/health 200, /api/v1/config 200, /admin/login 200 with form/CSRF/login/password fields and login cookie, anonymous /admin redirects 303 to /admin/login, anonymous /api/v1/auth/me and /api/v1/resolve return expected 401.
-- This proves public API and admin login page/routes are alive. It does **not** prove owner credentials work, admin POST login succeeds, dashboard/database actions work, or exact catalog/grant state. No credentials were used or read.
-- Important correction: the older celikom-api-availability.yml monitor still targets https://darkred-camel-588676.hostingersite.com. Its green result is a Hostinger check and must NOT be represented as a Floki check.
-- The one-time W178 production DB/owner-auth read-only audit remains undone. floki-maintenance-request.sh is still a deliberate safe-no-op; do not assume the persistent/temporary root maintenance gateway is installed. Any live DB check requires a separately approved, narrowly scoped read-only root procedure.
+- Repository: `manufact-test/nomusic`.
+- Working branch: `recovery/windows-w174-02454-known-good-20261126`.
+- W188 product/test source: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
+- W188 signed owner package: **0.24.62.0**, sequence **9**, native module **0.24.31**; source/metadata commit `0364309006bd3451778f01390398fe0f52e5a20c`.
+- Official Yandex: `5.129.0.r22295238`.
+- Owner's current installed version must be confirmed from fresh diagnostics; do not assume the private package was installed just because it was staged.
+- W174 source hashes and all release evidence are recorded in W189/W188 handoff.
 
-## Playback acceptance remains outstanding
+## Important release fact
 
-0.24.56 still fails audible replacement; 0.24.57 W178 source-catch-up and privacy-safe queue diagnostics are only a candidate, not a fix proven by CI. After owner install, test the known mapped track 144530503 («Ау») plus ordinary/unmapped tracks, Next/Play/Pause, and send fresh diagnostics. Inspect RESOLVE_QUEUED, RESOLVE_DEQUEUED, RESOLVE_REPLY_RECEIVED, the new RESOLVE_SERVER_NO_GRANT / session / grant validation classes, NATIVE_CURRENT_CATCHUP_*, native file-info and decoder proof. Do not confuse a login page or SignedIn=true with an authenticated signed audio grant or audible replacement.
+`.github/workflows/windows-stable-signed-release.yml` currently rejects `publish_to_production=true` in its prepare job with `FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED`. The production job is separately protected by environment `windows-stable-production`. The production publisher still uses `windows-stable-publish-hostinger.sh` while the owner package is staged through FlokiNET. Repair and verify this path before promising auto-update. The user's approval must be requested through the protected deployment gate after all package and target checks pass.
 
-No Android, extension runtime, paid features, Hostinger retirement, VPN/gain/audio architecture or customer stable changes in this Windows task.
+No runtime source, production feed, server, Android or browser-extension code was changed by the W189 documentation update. The previous W188 handoff is now technical history; follow W189 for the immediate task.
 
 ---
 
-# АКТУАЛЬНО — W178: 0.24.57 source prepared, подписанный EXE БЛОКИРОВАН (26.11.2026)
+# ACTIVE CELIKOM WINDOWS — W188 audio recovery / Yandex 5.129.0 (27 November 2026)
 
-Владелец прав: 0.24.56 не подменяет музыку. Исходная свежая диагностика 0.24.56 разобрана и сохранена в [W178 audit/implementation](./W178-02456-PLAYBACK-POSTCUTOVER-INVESTIGATION-20261126.md). Основная подтверждённая последовательность: `RESOLVE_MISS track=18697033` (не known mapped `144530503`) → `NATIVE_INITIAL_SOURCE_REVALIDATE` → `RESOLVE_START`, без `NATIVE_FILEINFO_REQUEST`, активной замены либо подтверждения звука. Реальная причина отсутствия доступного grant для сессии владельца пока не подтверждена серверным аудитом. Админка музыки по адресу `https://api.celikom.com/admin/login` также, по заявлению владельца, не работает; live owner login/action не проверены.
+**Read this active handoff first:** `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md`.
 
-В `main` узкое Windows-only восстановление повторной проверки при смене текущей PLAYING/PAUSED композиции и privacy-safe классы диагностики. Без авторизованного grant оригинал не перезагружается. W178 Node renderer/native regressions и .NET Windows crosscompile на Floki [45707188284](https://github.com/manufact-test/nomusic/actions/runs/45707188284) SUCCESS. Код/метаданные 0.24.57, P-256 sequence=4 запущены в подписанном защищённом workflow [45707797672](https://github.com/manufact-test/nomusic/actions/runs/45707797672) **FAILED дважды до первого шага**, `windows-2022` `runner_id=0`, `steps=[]`. Таким образом **подписанный EXE 0.24.57 ещё НЕ СОЗДАН**, сайт НЕ ОБНОВЛЁН, новую ссылку пока давать НЕЛЬЗЯ. `private_stage` skipped. 0.24.57 Floki crossbuild [45707797544](https://github.com/manufact-test/nomusic/actions/runs/45707797544) был в процессе на момент записи: проверить финальный статус. Public customer approved:null, last signed customer baseline 0.24.55, last owner personally accepted audible 0.24.54, unaccepted owner 0.24.56/seq3. Hostinger/Android/extension/paid untouched.
+Then read:
+1. `docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md` — original owner diagnostic and W174 baseline.
+2. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — historical source/owner-accepted W174 context only; its old mainline task is not the current task.
 
-Задача остаётся: восстановить доверенный hosted Windows release executor без ослабления изоляции, добить signed release + независимый Floki root publish / HTTPS200 complete EXE SHA, дать владельцу **одну** подтверждённую ссылку `celikom.com`, получить real «Ау» owner test, решить фактический audio/admin сбой. Результаты зафиксированы в W178, backup `backup/windows-main-pre-w178-audio-audit-20261126`. Не объявлять починенным по зелёным тестам и не делать public customer promotion.
+## Current exact state
 
----
+- Repository: `manufact-test/nomusic`.
+- Branch: `recovery/windows-w174-02454-known-good-20261126`.
+- Pre-documentation branch HEAD: `e3563b0687a3a68d4ce0eb865c06feeaee59b8a8`; fetch live HEAD before further edits.
+- W188 product/test source baseline: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
+- Exact owner-package build commit: `0364309006bd3451778f01390398fe0f52e5a20c` (version/pipeline metadata only beyond the W188 source; no W174 audio-source replacement).
+- Owner candidate: CELIKOM Windows **0.24.62.0**, Update Supervisor **0.24.62.0**, native module **0.24.31**.
+- Exact official Yandex: `5.129.0.r22295238`; compatibility run [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251) SUCCESS and package-commit validation [45968594874](https://github.com/manufact-test/nomusic/actions/runs/45968594874) SUCCESS.
+- Compatibility evidence: 32 Node tests, W24 20, W21 41, W15 477, GUI warnings-as-errors build 0 warnings/0 errors, official 5.129.0 signature/hash/native-image/byte-exact-restore and ASAR audits passed.
+- Separate Floki cross-compile run [45968594921](https://github.com/manufact-test/nomusic/actions/runs/45968594921): SUCCESS.
+- W174 protected audio files remain byte-identical:
+  - `renderer-entry.mjs`: `203b098914d549bc8d21b682b62df6486025cefa`
+  - `native-resource-adapter.mjs`: `e3bfdc3ed579709c342c3ae87e2e83510e35826e`
+  - `current-source-refresh.mjs`: `a5814bee52a8698ab79f9f4861f1b1451d85ee09`
 
-# АКТУАЛЬНО — W178: диагностика 0.24.56, причина не локализована (26.11.2026)
+## Owner package — built, signed and delivered to private HTTPS
 
-Владелец предоставил свежую W54 диагностику именно 0.24.56. Анализ, точные события, отличия от 0.24.54 и результаты попытки read-only live проверки: [W178 investigation](./W178-02456-PLAYBACK-POSTCUTOVER-INVESTIGATION-20261126.md). Один `RESOLVE_MISS` для track=18697033 (НЕ проверенная «Ау» 144530503), затем `NATIVE_INITIAL_SOURCE_REVALIDATE`/`RESOLVE_START` без видимого второго bridge request или terminal timeout. Подмена **не работает и не исправлена**; надпись SignedIn/доступность не подтверждает live owner auth. По словам владельца, админка также не работает; текущее состояние login/actions не проверено. Основной source hook, native adapter, bridge и NativeIntegrationManager побайтово идентичны лично принятой 0.24.54; миграция поменяла API origin/session, а 0.24.56 — narrow revalidation.
+- Signed release workflow [45968594886](https://github.com/manufact-test/nomusic/actions/runs/45968594886): SUCCESS.
+- Prepare job `140403187036`: SUCCESS; private Floki stage job `140404252522`: SUCCESS; production publish job `140404253684`: **SKIPPED**.
+- Private Floki spool log: `CELIKOM_WINDOWS_SIGNED_RUNNER_SPOOL_READY 0.24.62 9 a5f4493d39dcff0d39d52621a7261790b2e0170553f9810084bb916663fe160c 85158804 private-staged`.
+- GitHub transfer artifact ID: `15183274884`; name `CELIKOM-Windows-P256-transfer-0.24.62-0364309006bd3451778f01390398fe0f52e5a20c`; outer artifact SHA256 `e12d850d96a23737301a069ced49e3926519dda745c36bc70662cc9d5333ca05`; transfer ZIP SHA256 `a5f4493d39dcff0d39d52621a7261790b2e0170553f9810084bb916663fe160c`.
+- Manifest identity: version `0.24.62`, sequence `9`, package size `85156133`, installer SHA256 `5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9`.
+- P-256 public-key SHA256: `46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95` (matches the root-pinned key). Both latest and immutable manifest signatures independently verified; both manifest files are byte-identical.
+- Owner HTTPS receipt workflow [45969140182](https://github.com/manufact-test/nomusic/actions/runs/45969140182): SUCCESS, with exact line `WINDOWS_OWNER_ROOT_HTTPS_SHA256_CONFIRMED 0.24.62 5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1f37a9`.
+- Private owner download: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.62.exe` (Basic Auth required). Root verified the exact HTTPS download size and SHA256. A direct GitHub artifact copy was also extracted and independently checked.
+- The EXE is **not Authenticode-signed**; its release manifest is P-256 signed and the package SHA256 is verified. Do not bypass Defender/SmartScreen. The P-256 manifest expiry is 2026-12-04T08:49:19.183Z.
+- The previous `0.24.61 / sequence 8` package (run `45894203030`) was successfully staged but predates the current W188 source by 23 commits. Do not deliver it.
 
-Резервная точка до проверки `backup/windows-main-pre-w178-audio-audit-20261126` на `fb5e27d2c1e942a276d456174c7b35f56f118bce`. Защищённый production read-only audit НЕ выполнился: GitHub-hosted Action `45705603699` упал до первого шага в двух попытках; временный root maintenance request возвращён к безопасному no-op в `61d175885531c00d7c6741d31d579e5f01ea080b`. Нового EXE нет, release sequence 3 остаётся последним, customer approved:null / 0.24.55. Не заявлять исправления и не публиковать release наугад. Следующий шаг: доказать живое server resolve/auth/admin и background relay/renderer lifecycle, затем узкий fix, CI и unique owner candidate >0.24.56 с реальной site SHA проверкой. Android/extension/paid/Hostinger не трогать.
+## Immediate owner test
 
----
+Install **0.24.62 over the existing 0.24.61 in place**. Do not uninstall, delete `session.dpapi`, clear the Yandex profile, or change the official Yandex installation. First confirm Floki login; then separately test actual audible replacement in Yandex 5.129.0 and collect a fresh CELIKOM diagnostic if it still fails.
 
-# АКТУАЛЬНО — W177: Windows 0.24.56 НЕ подменяет музыку; диагностика ожидается (26.11.2026)
+**Do not claim playback is fixed yet.** CI, signatures and private HTTPS delivery are verified; audible replacement on the owner's PC is still unconfirmed. No merge to main, public stable-feed publication, customer OTA or mass update was performed.
 
-**Статус:** передача в следующий Windows-чат. Владелец сообщил после получения установщика 0.24.56: «там нихуя не работает»; новую диагностику 0.24.56 он пришлёт в следующем чате, её в этой переписке ещё нет. **Ничего не объявлять исправленным / принятым.** 0.24.54 была последней лично принятой работающей по музыке; 0.24.55 после миграции не подменяла; 0.24.56 содержит попытку исправления и **пока тоже не принята**.
+## Important clarification about the earlier Floki run
 
-**Обязательно первым делом читать:** [W177 handoff и точные доказательства](./W177-OWNER-02456-PLAYBACK-FAILURE-HANDOFF-20261126.md). Там: предыдущая W54 диагностика из **0.24.55**, серверный resolve/Range proof по «Ау» (не owner-пользователь), патч cold-start `renderer-entry.mjs`, проверки CI, версия, SHA/sequence, ограничения обновлений и порядок анализа новой диагностики.
+Run [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job `140394244238`, ended FAILURE. It is `.github/workflows/celikom-win-crossbuild-floki.yml` (smoke cross-compile), not the signed owner-package workflow; it had no uploaded installer artifact and its log archive was unavailable. The actual signed private handoff is run `45968594886` above. Do not retry the smoke run as a substitute for the signed package.
 
-**Release:** 0.24.56, signed P-256 sequence=3; EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`. Owner EXE `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.56.exe`, защищённый owner latest `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe`. В соседнем инфраструктурном чате owner 0.24.56 была перенесена root publisher на сайт; ссылка ранее передана владельцу. **Здесь повторный полный owner-auth HTTP200/EXE SHA не выполнен**; перед новой ссылкой проверить root receipt и реальный файл, не полагаться на зелёный CI. `main` на момент handoff до документирующего коммита `5fd98c7ef66418f2c9ead345d89b47476dc52746`; перечитать актуальный HEAD перед работой.
-
-**Граница релизов:** `.github/release/windows-customer-stable.json` имеет `approved:null`. Owner candidate 0.24.56 **не выпущена всем**, customer подписанный baseline = 0.24.55/seq2, реальный auto-update old→new **не протестирован**. После подтверждённого исправления воспроизведения и команды владельца отдельно завершить real OTA и rollback. Никаких публичных публикаций, оплаты, отключения Hostinger, изменений Android/extension/аудиоархитектуры.
-
-**Первая операция следующего чата:** принять/прочитать **новую диагностику установленной 0.24.56**, не перепутать с W54 `AppVersion=0.24.55.0`, локализовать реальный разрыв между availability → signed grant → native source → audible output. Не гадать, не перестраивать проигрыватель, не требовать от владельца CMD/PowerShell/IDE. Исправления в `main` с бэкапом, CI; новый EXE строго **выше** 0.24.56 с новым подписанным sequence; выдача только после проверенной публикации на `celikom.com`.
-
----
-
-## Infrastructure release addendum — 25 November 2026 (owner downloads)
-
-The CELIKOM infrastructure chat prepared a single trusted Floki bootstrap at `.github/scripts/floki-release-owner-bootstrap.sh` and reused the existing Windows signed-spool root consumer, installer and P-256 pin, without changing audio code. Exact 0.24.56 EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a` remains privately staged pending live root activation and full owner-auth HTTPS confirmation. The next Windows developer **must not** run a separate per-release root installer or create more ad hoc GitHub download links; use the permanent signed owner producer/consumer after bootstrap.
-
-Owner latest = latest verified signed *test candidate* behind site Basic authentication. Customer stable update feed must remain separately controlled by owner acceptance. The signed 0.24.56 installed-client replacement/audio regression has not yet been accepted; first make the exact 0.24.56 available on celikom.com and test that version before any new Windows audio changes.
-
-Future Windows versions: only main, verified signed manifest with increasing sequence, existing spool workflow; root consumer independently validates and publishes immutable version + owner latest. Do not weaken signature pin or change Hostinger until real old→new OTA has been confirmed. Infrastructure status and blockers: `docs/migration/CELIKOM-RELEASE-PUBLICATION-HANDOFF-2026-11-25.md`.
-
----
-
-# CURRENT WINDOWS — W176 permanent Floki delivery: signed 0.24.56 staged, owner HTTPS root activation BLOCKED (25 November 2026)
-
-## Exact current position
-
-- **Business rule from owner:** every new Windows version becomes the main, directly downloadable EXE on `https://celikom.com`; keep the previous exact EXE and signed release for rollback. Owner handles only install/listen/acceptance, not terminal/GitHub draft download.
-- Last owner installed: **0.24.55.0**, connected but owner reported NO replacement audio. **0.24.56** W175 narrow already-loaded current-track revalidation correction is compiled/signed but NOT owner-tested.
-- Signed Windows release [run 45653125688](https://github.com/manufact-test/nomusic/actions/runs/45653125688) SUCCESS, source `3c743332d134618fd4bba39ee826e833f39aa54c`, owner EXE SHA-256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`, size **85,149,440**, schema2 P-256 signed sequence **3**, unpublished private drafts 458351822 and 458351971. No public feed.
-- Existing site route confirmed in previous successful owner acceptance: `/downloads/windows/CELIKOM-Windows-0.24.55.exe` Basic-auth protected. Last independently confirmed root `/srv/celikom-releases/windows/stable/current` -> `versions/0.24.55`, sequence 2. **0.24.56 is NOT yet live on website; do not give a made-up URL or the old 55 link.**
-- **Permanent data-only Floki transfer is FIXED and ACTUALLY VERIFIED:** [run 45659773351](https://github.com/manufact-test/nomusic/actions/runs/45659773351) SUCCESS on native `celikom-ci-smoke-only` / `celikom-floki-ci01`. Exact signed 0.24.56 ZIP (85,152,111 bytes) SHA256 `736f4580e2d4580e84457e79849bb70dc82fab7f39621bdda367044c3de7f1bf` persisted atomically as `/home/runner/celikom-windows-signed-spool/windows-0.24.56-3-736f4580e2d4580e84457e79849bb70dc82fab7f39621bdda367044c3de7f1bf.zip` inside runner, corresponding host bind mount `/srv/celikom/ci-runner/runner/celikom-windows-signed-spool`. Actual signed installer SHA verified inside ZIP by P-256 before staging. NO SSH / root keys in runner. `gh` CLI not needed; Python token-scoped GitHub REST downloader with strict authenticated API→unauthenticated GitHub asset CDN redirect.
-- **Root activation is NOT DONE:** secure admin run [45662358922](https://github.com/manufact-test/nomusic/actions/runs/45662358922) FAILED before obtaining a GitHub-hosted `ubuntu-22.04` runner (runner_id=0, no steps). Windows+Linux GitHub-hosted jobs have been failing similarly; this is NOT a root-service failure. The isolated runner deliberately cannot SSH to VPS port22 (proved `Connection refused` in [45658731022](https://github.com/manufact-test/nomusic/actions/runs/45658731022)). Never change Docker isolation or mount host root/SSH for convenience.
-- Checked-in root-only one-time deployment is **prepared, reviewed by exact Git blob pin**, but not run. The scripts do NOT execute untrusted spool payload:
-  - `.github/scripts/floki-windows-signed-root-consumer.py` — pinned to root P-256 DER, validates untrusted spool path/mode/UID/inode/hash, independent installed root importer signature and monotonic version, atomically promotes to root-owned `stable/current`, copies exact checked EXE to root:www-data owner directory, updates permanent `CELIKOM-Windows-latest.exe` as hardlink, verifies BOTH versioned and latest HTTP200 with owner Basic credentials and complete SHA-256.
-  - `.github/scripts/floki-windows-owner-download-bootstrap.sh` — one-time safe Nginx exact Windows-version + latest allowlist, site-level Basic Auth inherited, nginx test/reload, rollback on failure, other Nginx routes unaffected. Existing 55 route remains.
-  - `.github/scripts/floki-windows-root-consumer-install.sh` — one-time root hash-pinned installer and systemd 1-minute timer `celikom-windows-signed-owner.timer`, verifies initial 0.24.55 floor, runs first import before activating recurring timer.
-  - `.github/workflows/windows-root-spool-bootstrap.yml` — existing approved `floki-deploy` environment SSH through GitHub-hosted runner, hash-pinned only; trigger file `.github/deploy/windows-root-bootstrap.trigger` created, first run failed at runner allocation. If GitHub-hosted executor is restored, retry THAT exact job; otherwise use another separately approved remote administration channel, NEVER let selfhosted CI run root commands.
-  - `.github/scripts/tests/floki-windows-signed-root-consumer.test.py` — isolated spool safety, signed parser, static Nginx syntax and exact source Git blob pin tests. Initial run [45662134715](https://github.com/manufact-test/nomusic/actions/runs/45662134715) had a **test harness** bug (runpy globals shadow). Fixed in `abef20d07c3ea287be21e0e68b3c901dcb52874a5`, subsequent [run 45662617113](https://github.com/manufact-test/nomusic/actions/runs/45662617113) requested. Check current result and fix test failures before any root activation.
-- New Windows stable signer workflow now automatically calls `.github/workflows/windows-stable-floki-private-stage.yml` after successful approved signed mainline build. The latter uses existing selfhosted Floki runner ONLY to store verified DATA into isolated private spool; a separately pinned root service, when installed, does independently verified atomic deployment. No GitHub-hosted Linux transfer, no need to install GitHub CLI, no CI root permissions.
-- DO NOT declare 0.24.56 delivered to user until root activation succeeds AND real owner-credential HTTPS download is HTTP200 and SHA256 exactly `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`. Then give `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.56.exe`, and permanent `https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe`. Until proven live do NOT paste either as working link.
-- Keep 0.24.55 immutable in `versions/0.24.55` and original owner download as the rollback. Preserve exact repo backup `backup/windows-02456-delivery-floki-runner-20261125`. Main is shared with Android/extension concurrent developers: always re-read live main before edits; Windows only, no new branch or audio architecture/UI modifications. No public auto-update manifest, no paid features, no Hostinger deletion. After owner playback accepts 56, separately complete signed auto-update HTTPS feed and prove transition to 57.
-
-## Immediate action
-
-Get approved protected admin bootstrap to execute ONCE (GitHub-hosted runner allocation must resume OR invoke Work/cloud SSH using approved owner credentials, no user's terminal), independently verify installed root importer, `stable/current`=56, Nginx and full private HTTP200+SHA256, and only then send one website EXE link. If the existing hosted job still fails before first step, do not claim server publication; document exact failure and preserve signed spool with queued root activation.
+The historical W173/W170/W169 and earlier handoffs below are retained for context. Their old immediate tasks are superseded by this W188 handoff; do not execute them as current instructions.
 
 ---
-
-# CURRENT WINDOWS — W175 0.24.56 owner regression, FlokiNET transport pending (25 November 2026)
-
-## Owner report and direct evidence
-
-The owner installed CELIKOM **0.24.55.0** on Windows over the accepted 0.24.54 baseline and reported **no music replacement** while Yandex Music 5.128.0 visibly played the real "Ау" track. GUI showed a teal connected state, "Версия CELIKOM доступна" and signed-in account; this is *availability*, not audible replacement. W54 diagnostic at 2026-11-25T16:07:10Z had NativeIntegration ACTIVE, BridgeStarted/Enabled/SignedIn=true, host+renderer handshake and current native observer attached, but **no new RESOLVE_REQUEST/NATIVE_FILEINFO_REQUEST/GRANT_FOUND/SOURCE_ACTIVE_REPLACEMENT or player-network events** for that session. `STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE` and `STABLE_UPDATE_CHECK_FAILED` are expected while owner-protected signed feed returns 401; do not confuse them with source injection failure.
-
-Protected root read-only live API check [45651443471](https://github.com/manufact-test/nomusic/actions/runs/45651443471) SUCCESS: exact Windows `GET /api/v1/resolve?service=yandex&track_id=144530503&audio_formats=mp3,m4a&audio_profile=windows_gain_v1` returned authorized `found:true` with `gain_applied:false` and an exact .NET GrantValidator-compatible signed `audio/mpeg` URL for each of two entitled accounts; both signed 1024-byte Range reads returned HTTP206. Ephemeral test sessions were deleted. This proves the migrated API/song exists and issues working signed bytes; no conclusion about the owner's own DPAPI token or actual browser/CORS decoder is justified.
-
-## W175 narrow code fix and tests
-
-- Fresh immutable backup made before the change: `backup/windows-02455-pre-current-track-recovery-20261125` at `afcafbbccf183ddbe1602e27d2e0478d3e7f98da`.
-- `windows-companion/w23/renderer-entry.mjs` patch at `9a18b544656e613a1747ca056e5f3bdc9932938c`: initially enabled native bridge now performs **one** delayed (3.5s settling) exact-current-track authenticated grant revalidation if Yandex already loaded an original media source before hook attach. Only a current PLAYING/PAUSED valid ID and positive `adapter.prime()` grant can request the existing `playerSourceRefresh.request(id)` → Yandex `reloadEntity("QUALITY_CHANGE")`. No alternate player, track queue, seek, pause, VPN/gain or server behavior changed. All Stop/origin-change/generation conditions suppress stale work. Diagnostic markers `NATIVE_INITIAL_SOURCE_REVALIDATE`, `NATIVE_INITIAL_SOURCE_RELOAD[_OK/_DEFERRED]`.
-- New regression file `windows-companion/w23/initial-current-source.test.mjs`, wired into `.github/workflows/windows-w98-integration-ci.yml`. [Windows integration #45652096445](https://github.com/manufact-test/nomusic/actions/runs/45652096445) **SUCCESS**, including the W22/W23/W60 original-source, VPN, 403, audio regressions and new cold-start contracts. [General CI #45652096441](https://github.com/manufact-test/nomusic/actions/runs/45652096441) **SUCCESS** at test-wiring checkpoint.
-- No claim the fix is user-accepted or audible yet; actual source acceptance is owner's next test.
-
-## Private 0.24.56 package ready; Floki transfer blocked by hosted runner
-
-- Companion, Update Supervisor and Inno installer metadata incremented from 0.24.55 to **0.24.56**; protected signing sequence from **2→3**; original signed stable publisher remains fail-closed to public release. A historical fixed-2 contract assertion was changed to validate the current monotonic pinned workflow sequence, not bypass signature checks.
-- Windows-hosted protected signed release **[45653125688](https://github.com/manufact-test/nomusic/actions/runs/45653125688) SUCCESS**: exact source commit `3c743332d134618fd4bba39ee826e833f39aa54c`, 0.24.56, P-256 schema2 detached manifest, immutable package, signed sequence **3**, trusted public DER SHA256 `46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95`. The EXE itself is not Authenticode signed. No public release.
-- **Direct private owner EXE** (requires GitHub repository access): `https://github.com/manufact-test/nomusic/releases/download/untagged-fd58dae6558d32121d80/CELIKOM-Windows-0.24.56.exe`. Draft ID `458351822`, EXE asset `792244646`, 85,149,440 bytes, SHA256 `2ee81ceaf9488cc80b88e312053af1744c0b801a8f8f6e725c40266e5553c15a`. ZIP and SHA256SUMS included separately in draft for immutable provenance. P-256 feed metadata in separate draft ID `458351971`, tag `celikom-windows-v0.24.56-floki-feed-candidate`, source commit and file checks all match. **Do not publish either draft**.
-- Updated protected `.github/workflows/windows-stable-floki-private-stage.yml` defaults to this exact 0.24.56/3/source commit. Explicit staged transport trigger `ab8a27a4122cab2edad299cd7d8c9e64c67cc885` initiated [run #45654110452](https://github.com/manufact-test/nomusic/actions/runs/45654110452); **failure twice before a hosted `ubuntu-latest` runner was assigned (runner_id=0, 0 steps)**. No EXE transfer or independent root import occurred. Do not claim `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.56.exe` works or exists. Do not weaken the isolated FlokiNET runner/SSH secrets isolation to bypass unavailable GitHub-hosted jobs; rerun verified transport when appropriate.
-- **Old 0.24.55 owner EXE stays unchanged** at `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.55.exe`, and Floki root-owned stable/current still targets `versions/0.24.55`, signed sequence2. No public automatic feed, payments or Android changes.
-- Some later general CI jobs failed with runner_id=0 and empty steps (hosted runner allocation), not product test failures. Earlier v56 release initial run failed due the now-fixed historical test assertion, followed by #45653125688 SUCCESS. Avoid conflating infrastructure failure with code regression.
-
-## Immediate next actions
-
-1. Owner can manually install the exact verified **private 0.24.56 EXE** from GitHub over 0.24.55, preserving settings, then play original Yandex "Ау" and confirm actual replacement, correct UI status, pause/Next and VPN. Collect a new W54 diagnostic only if replacement still fails.
-2. Retry approved protected draft-to-Floki data-only intake and independent root verification if GitHub-hosted jobs are available; publish **owner-only** direct 0.24.56 EXE under `/downloads/windows/` with existing Basic auth. Never expose private feed or change `stable/current` before owner acceptance.
-3. After owner-confirmed playback, finish fixed HTTPS signed update channel, replace disabled Hostinger publisher with a separately reviewed Floki release pipeline, and verify real newer-version update with fresh P-256 signature and safe-point rollback. No public/paid enablement before owner approval.
-4. Preserve all backups and freeze at exactly two legacy CELIKOM Hostinger sources. Do not modify Android, extension, server, audio routing/gain or VPN based on speculation; concurrent non-Windows development on `main` may advance HEAD and stale-main protected jobs must be retried rather than bypassed.
-
 ---
 
-# CURRENT WINDOWS — FlokiNET owner acceptance, CELIKOM 0.24.55 (25 November 2026)
-
-## Production baseline and scope
-
-- GitHub private primary: `manufact-test/nomusic`, Windows works only in `main`; Forgejo `celadmin/nomusic` is one-way GitHub → Forgejo backup.
-- **0.24.54.0 remains the last personally accepted Windows runtime baseline.** W173 audio/Start/VPN/gain/UI must be preserved.
-- **0.24.55** is the current prepared Windows owner candidate: Companion, Update Supervisor and Inno installer all declare 0.24.55.
-- Owner-only direct EXE: `https://celikom.com/downloads/windows/CELIKOM-Windows-0.24.55.exe`, protected by the existing website Basic credentials (anonymous HTTP 401). This is one installer for normal in-place upgrade, not a public release.
-- Native/Yandex playback architecture was not changed for the API migration; official Yandex 5.128.0 support remains from W173.
-- New production API: `https://api.celikom.com`. Runtime API app: `/srv/celikom/app/staging-20261122`, DB: `celikom_cutover_20261124`. Do not redeploy server or unfreeze Hostinger source to test Windows.
-- The DPAPI SessionStore stores existing user tokens and installation identity. `CelikomApi.MigrateProductionOrigin` migrates **only** the exact legacy Hostinger API origin to `https://api.celikom.com`, and persists it atomically; other origins are not rewritten. Initial 0.24.54 → 0.24.55 upgrade must be manual, because the old 0.24.54 package did not have the new feed public trust pin embedded.
-
-## Independent live FlokiNET acceptance evidence (25 November 2026)
-
-- GitHub-hosted privileged *read-only* remote check: [45611425032](https://github.com/manufact-test/nomusic/actions/runs/45611425032) — **SUCCESS**, using the existing owner-approved secured FlokiNET SSH environment. No server files or database changed.
-- Root-owned `/srv/celikom-releases/windows/stable/current` points to `versions/0.24.55`; exact `CELIKOM-Windows-0.24.55.exe` is 85,145,078 bytes, SHA-256 `f4c9a7881164ac7a9b5681d9f3568e5cbd3a9915c9e1da7b475caa20d3fb6487`, and has a PE/MZ header.
-- P-256 DER signature on the immutable 0.24.55 manifest was independently checked by OpenSSL against root-pinned public DER fingerprint `46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95`. Manifest schema2, version 0.24.55, sequence **2**, package URL/size/hash matched. The manifest expires **2026-12-01 17:14:29.349 UTC**. Check expiry before any later publishing.
-- **Signing terminology:** the P-256 *manifest* and exact installer SHA-256 are verified. The EXE itself is **not Authenticode-signed**; the signed-release workflow explicitly builds without Authenticode/PFX. Do not claim a Windows publisher certificate, or a certificate expiration date, exists.
-- Actual HTTPS checks: `GET /api/v1/health` and `/api/v1/config` 200; unauthenticated `auth/me`, `entitlement` and `resolve` 401; Nginx config syntax passes.
-- Owner download and `/CELIKOM/Windows/Updates/stable/latest.json`, detached `.sig`, immutable 0.24.55 manifest routes all return HTTP 401 anonymously. This is **intentional pre-acceptance protection**: the Windows updater does not carry the owner's Basic password; auto-update remains *blocked* until a reviewed signed feed route is approved.
-- Separate shared-backend authenticated test [45611263231](https://github.com/manufact-test/nomusic/actions/runs/45611263231) — SUCCESS: authenticated me, entitlement, Start/activate, same-origin replacement resolve, two signed Range 206 audio reads, trial unchanged; temporary session removed and subsequent access denied. This proves the new API path for a controlled session, **not** the owner's saved DPAPI session or audible replacement in CELIKOM Windows.
-- The one-off remote audit request `.github/deploy/floki-maintenance-request.sh` was returned to an inert no-op via commit `955f88593eb261a302468ecd1ca976df1f62ebd9`, and [45611603357](https://github.com/manufact-test/nomusic/actions/runs/45611603357) succeeded. Backup before audit: `backup/windows-floki-pre-acceptance-audit-20261125`.
-- No Windows EXE rebuild, server deployment, public feed publication, paid feature enablement, Android change, browser extension change, or Hostinger shutdown in this task.
-
-## Remaining work, in order
-
-1. Owner downloads the **existing exact 0.24.55 EXE** with Basic authentication and installs it over the existing Windows package; check preserved login, new API, replacement audio (including real mapped song), status colors/Start, upload, and behavior during VPN switches. Collect CELIKOM diagnostic only for a real failure.
-2. **Only after owner acceptance**, review and enable the exact fixed HTTPS signed feed routes from the root-owned FlokiNET store, public GET only for signed latest/immutable manifest/signatures and version-matched installer; never expose private storage, secrets, CMS, admin or paid endpoints. Current Basic 401 must not be bypassed early.
-3. Current `.github/workflows/windows-stable-signed-release.yml` has an **obsolete, currently blocked** `publish_to_production` path to `.github/scripts/windows-stable-publish-hostinger.sh`. Replace it with a reviewed FlokiNET production path, **not** by simply unblocking the old Hostinger job. Preserve the existing Windows-hosted build/signing and the FlokiNET private staging trust boundary.
-4. To prove real automatic upgrade, prepare the next strictly increasing version (greater than 0.24.55) and signed sequence (greater than 2), with a fresh valid expiry, verify hash/DER pin, publish atomically through the reviewed FlokiNET path and run a real owner safe-point update without playback interruption. Verify rollback, login retention and no downgrade. Do not manufacture an extra installer or update just for an unaccepted migration.
-5. Keep the exact legacy Hostinger string only in the deliberate one-time DPAPI session-origin migration and any known old-client compatibility bridge until corresponding clients are accepted. Keep old Hostinger applications frozen, not deleted; paid features off. No unrelated work or branch cleanup.
-
----
-
-# CURRENT WINDOWS — canonical CELIKOM 0.24.54.0 on main (21 November 2026)
+# HISTORICAL WINDOWS W173 — make the latest working build canonical on main (21 November 2026)
 
 Read these documents first:
 
-1. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — completed promotion record, final main SHA, CI and backup.
-2. `docs/windows/W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md` — owner-accepted W173 implementation, Yandex 5.128.0 compatibility, Start UX and upload audit.
-3. `docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md` — original Windows upload compatibility contract.
+1. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — exact next task: make the latest working Windows version canonical on main and safely remove obsolete Windows-only clutter.
+2. `docs/windows/W173-START-UX-AND-OWNER-UPLOAD-AUDIT-20261121.md` — latest Windows code, Yandex 5.128.0, Start UX correction, package and owner upload audit.
+3. `docs/windows/W170-WINDOWS-UPLOAD-AUTO-CLEANUP-20261121.md` — original upload contract and Windows-side preflight details.
 
-## Canonical production state
+## Immediate next-chat task
+
+The owner wants the latest working CELIKOM Windows version to become the one canonical version in GitHub `main`. Main should no longer misleadingly show an older Windows version while the latest implementation lives on a side branch. After the correct version is established on main, clean up obsolete Windows-only experimental branches/PR clutter so the repository is easier to navigate.
+
+**Target:** W173 / CELIKOM Windows app **0.24.54.0**, Update Supervisor **0.24.54.0**, Native host/module **0.24.31**, compatible with official Yandex Music **5.128.0**.
+
+The owner explicitly confirmed that he installed the exact W173 0.24.54.0 package, checked it, and it works. Treat the W173 source/package checkpoint as the owner-accepted production candidate. Do not ask for another confirmation, repeat broad runtime tests, or rebuild without a concrete failure.
+
+## Exact repository state
 
 - Repository: `manufact-test/nomusic`.
-- The only canonical Windows production line is GitHub `main`.
-- W173 code-promotion squash-merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`. Handoff documentation was committed afterward; resolve the live `main` ref before any future ref operation.
-- Promoted implementation: W173 / CELIKOM Windows **0.24.54.0**.
-- App: **0.24.54**; Update Supervisor: **0.24.54.0**; installer: **0.24.54.0**.
-- Official Yandex Music **5.128.0** compatibility pin is present.
-- The exact W173 0.24.54.0 package was installed and accepted by the owner before promotion. Do not ask the owner to repeat that test or rebuild without a concrete failure.
-- PR [#67](https://github.com/manufact-test/nomusic/pull/67) was squash-merged successfully. Merge commit: `aa713b99824f20abbe7c239bf06e356cf3f7f367`.
+- Default branch: `main`.
+- `main` HEAD at handoff: `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
+- Main Windows app and Update Supervisor still declare **0.24.48**. This is older than the current owner candidate.
+- Current Windows work branch: `experiment/windows-w172-yandex-51280-compat-20261121`.
+- W173 source/package checkpoint: `0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d`; later commits on the W173 branch are documentation/handoff updates. Resolve the live branch HEAD from GitHub before making any ref changes.
+- W173 app and Update Supervisor: **0.24.54.0**; embedded native host/module marker: **0.24.31**.
+- Live W173 comparison: 96 commits ahead, 0 behind, 29 changed files. The W173 code/package checkpoint is 0fe5729f3e6f51e2679bf1cbec2dc6cedb81c27d; the 14 commits after that checkpoint are documentation-only handoff updates. The reviewed inventory contains Windows W15/W20/W24/W81 code, Windows CI/workflows and Windows docs, with no Android, server or browser-extension source.
+- Main pre-W170 backup exists: `backup/windows-main-pre-upload-cleanup-20261121` at `affb7b225d2e7eb2835f53294e975a1e60bb758b`. Still create a fresh pre-consolidation backup before the mainline operation.
 
-## Verified backup
+## W173 implementation and verification
 
-- Pre-promotion `main` HEAD: `affb7b225d2e7eb2835f53294e975a1e60bb758b`.
-- Immutable backup: `backup/windows-main-pre-w173-consolidation-20261121`.
-- Verified backup ref still points exactly to the pre-promotion SHA above.
-- Preserve this backup.
+- W172 added the exact signed official Yandex 5.128.0 EXE/ASAR pair to the compatibility catalog and preserves prior approved integration state.
+- W173 fixes the owner-visible Start flow: keep the normal “Подождите, идёт подключение к Яндекс Музыке” message; do not show the extra red vendor-update prompt; do not invalidate an in-flight Start when the exact verified Yandex update is discovered. Unknown/modified files remain fail-closed.
+- W173 does not change playback, gain, VPN, audio routing, native host version, Android, extension, account/access, or server behavior.
+- W172 candidate CI: [44894403337](https://github.com/manufact-test/nomusic/actions/runs/44894403337) — SUCCESS.
+- W20 safe internal installer stage: [44894407351](https://github.com/manufact-test/nomusic/actions/runs/44894407351) — SUCCESS.
+- W15: **469 passed**; W21: **41 passed**; W24: **20 passed**; GUI warnings-as-errors build passed; disposable install, in-place upgrade, uninstall and package integrity checks passed.
+- Internal owner package: EXE `CELIKOM-W173-START-UX-02454-UNSIGNED.exe`; ZIP `CELIKOM-Windows-0.24.54.zip`; artifact ID `14703029534` on run `44894407351`; expires **1 December 2026, 10:30 UTC**. Package is unsigned/internal only. EXE SHA256: `da5877bb01dca6048ce85cb07881f663c3a16cb81ec1f3b16074837bf9b60f33`; ZIP SHA256: `d719af9688d74230440887707b9a6cd1c8e2b08af6026cd406c909fd4d3fb4b3`.
 
-## CI and installer verification
+## Upload cleanup — verified; do not add logging
 
-All checks below completed successfully:
+- Shared server cleanup version 0.4.78 is already deployed. Do not redeploy it as part of Windows consolidation.
+- Windows W170 preserves the original selected MP3 bytes and sends them to the existing authenticated `POST /api/v1/uploads`; server normalizes, measures, fully decodes and stores the canonical file.
+- Private read-only audit [44895271863](https://github.com/manufact-test/nomusic/actions/runs/44895271863): **13/13** post-activation uploads passed stored hash, size, duration, canonical-normalizer and full-decode checks; 9 approved, 4 pending, 0 failed checks.
+- The audit reads canonical stored files after cleanup, so it cannot identify retrospectively which raw upload had tags removed. Do not misstate this as “no source metadata found”.
+- **Owner decision: do not add a per-song cleanup journal, removed-tag counters, extra telemetry, or raw-file retention.** The required outcome is clean, working songs accepted and damaged files rejected. The existing pipeline and audit cover that. Do not create a logging project or complicate the uploader.
 
-- PR #67 general CI: [44898409654](https://github.com/manufact-test/nomusic/actions/runs/44898409654).
-- PR #67 Windows integration CI: [44898409698](https://github.com/manufact-test/nomusic/actions/runs/44898409698).
-- Main push general CI: [44898706705](https://github.com/manufact-test/nomusic/actions/runs/44898706705).
-- Main push Windows integration CI: [44898706600](https://github.com/manufact-test/nomusic/actions/runs/44898706600).
-- Main push W20 safe installer stage: [44898706605](https://github.com/manufact-test/nomusic/actions/runs/44898706605).
-- W20 artifact: [14705515606 — CELIKOM-Windows-internal-stage-aa713b99824f20abbe7c239bf06e356cf3f7f367](https://github.com/manufact-test/nomusic/actions/runs/44898706605/artifacts/14705515606). Internal unsigned staging artifact; expires 1 December 2026, 11:24 UTC.
-- W20 compiled the installer, verified app/supervisor/PE versions and updater ZIP anti-downgrade, and passed disposable per-user install/uninstall smoke.
-- Existing official Yandex 5.128.0 candidate verification: [44894403337](https://github.com/manufact-test/nomusic/actions/runs/44894403337) — SUCCESS.
-- Existing W173 owner package stage: [44894407351](https://github.com/manufact-test/nomusic/actions/runs/44894407351) — SUCCESS.
+## PRs and branches — handle carefully
 
-## Scope and owner decisions
+- PR **#65** is still an open draft, but its head is the older W170 branch `experiment/windows-w170-mainline-20261121` at `6ce4cc21352912ab31578190007042397e083f64`. It is not the W173 branch. Do not merge it as-is.
+- PR **#64** is a closed duplicate of the old W170 work.
+- PR **#62** is the separate already-deployed server upload-cleanup review; do not fold it into Windows mainline consolidation.
+- PR **#66** is separate admin rejected/disabled cleanup; do not fold it into Windows mainline consolidation.
+- Preserve all `backup/*` branches, Android A1 branches, and server/extension branches. These are not obsolete Windows experiments.
+- Candidate obsolete Windows-only work branches can be reviewed after main is validated: old W170 branch and superseded W172/W173 working branches. Delete only after the latest code is safely on main, a fresh backup exists, CI is green, and the owner-facing build is identified. Never bulk-delete by name pattern.
 
-- W170 upload compatibility, W172 Yandex 5.128.0 support and W173 Start UX are now part of `main`.
-- No Android, server, browser-extension, access, billing, playback, gain, VPN or audio-routing changes were included in the promotion.
-- Shared server cleanup 0.4.78 is already deployed. Do not redeploy it as part of Windows work.
-- Do not add a per-song cleanup journal, removed-tag counters, extra telemetry or raw MP3 retention.
-- The owner explicitly asked to postpone old-branch/PR cleanup. **Do not delete branches, close old PRs or perform repository housekeeping now.** Revisit only after the planned move to the owner's separate server, if the owner wants it then.
-- PR #65 (older W170), PR #62 (server upload cleanup) and PR #66 (admin cleanup) were left untouched. All backup, Android, server and extension refs remain untouched.
+## Required execution sequence
 
-## Next-chat operating rules
+1. Inspect current main, W173 branch HEAD, full commit graph, full file diff, PR #65 and all related workflow status. Confirm no unreviewed server/Android/extension changes are being brought across.
+2. Use the exact W173 0.24.54.0 package/source already installed and accepted by the owner. It is an internal unsigned owner build, not a public signed release; do not ask the owner to repeat acceptance.
+3. Create a fresh immutable backup branch from current main before changing main.
+4. Open a new PR from W173 to main (PR #65 points at the older W170 branch; do not silently pretend it contains W173). Ensure the PR description records W173, 0.24.54.0, Yandex 5.128.0 and the verification evidence.
+5. Run full main CI, Windows integration CI, W20 safe installer validation and any required repository gates on the exact merge candidate. Fix only actual failures.
+6. Merge the reviewed W173 PR to main after the exact PR-head checks pass. Verify main's app, supervisor and installer versions all read 0.24.54.0 and the embedded native host/module marker remains 0.24.31; verify Yandex 5.128.0 compatibility and the W173 Start UX fix.
+7. Close PR #65 as superseded by the W173 mainline PR. Leave PR #62 and #66 untouched.
+8. Only then remove clearly obsolete, unprotected Windows experiment branches/duplicate PR clutter. Preserve backups and all Android/server/extension work. Verify branch and PR lists after cleanup.
+9. Update this handoff with the final main SHA, merged PR, CI run IDs, retained backup branch and exactly which obsolete Windows refs were removed.
 
-- Start from current `main`, not an old Windows experiment branch.
-- Treat 0.24.54.0 as the current owner-accepted Windows baseline.
-- Do not redo mainline consolidation; it is complete.
-- Do not clean up branches or PRs until the owner explicitly reopens that task after the server migration.
-- Continue only with the next concrete CELIKOM task. Keep work focused and avoid unnecessary status reports.
+## Hard rules
+
+- One canonical Windows production line: `main`.
+- Do not reset or force-push main.
+- Do not delete `backup/*` branches.
+- Do not touch Android, browser extension, server deployment, auth/access, billing, playback, volume, VPN, routing or unrelated admin moderation work.
+- Do not merge PR #62 or #66 as part of this task.
+- Do not add per-song cleanup logs or retain source MP3s.
+- No new installer unless a code change is necessary. The existing W173 package is an internal unsigned owner-review build, not a signed public release.
+- Work in one complete block, with no unnecessary intermediate reports. Stop only for an owner decision or a real blocker.
 
 ---
 
