@@ -94,3 +94,11 @@ After baseline checks pass:
 - Legacy W181 Yandex 5.128 audit [46057355310](https://github.com/manufact-test/nomusic/actions/runs/46057355310): FAILED because its old workflow did not install the one-off Acorn dependency required by the read-only player-callgraph audit. The repair branch adds the same pinned Acorn install already used by the W188 audit workflow; this is static tooling only, not a runtime hook.
 - FlokiNET crossbuild [46057355312](https://github.com/manufact-test/nomusic/actions/runs/46057355312): FAILED before any job step/log was created (no runner log/artifact). Treat as runner availability/infrastructure, not as a source compile result; recheck after the workflow/test update.
 
+## W189 repair stage — current status
+
+The mainline baseline promotion is complete, and the repair is now implemented on PR [#73](https://github.com/manufact-test/nomusic/pull/73). Main advanced to `117e0772fbecf0bb902127f0a4a5ce704d44d8ec` with extension 0.4.96 work; the W189 branch was reconciled on top of it. The PR now contains 24 W189 files only; no extension runtime, Android or server/admin source is included.
+
+The four W175/W178 catch-up tests that were intentionally non-blocking during the W190 baseline promotion have been restored to the blocking Windows regression suite. They pass on the last complete Windows CI run [46070031881](https://github.com/manufact-test/nomusic/actions/runs/46070031881), along with W15, GUI warnings-as-errors, supervisor, installer and updater-safety checks. Generic CI [46070031935](https://github.com/manufact-test/nomusic/actions/runs/46070031935) also passed. Fresh exact-head checks are required for branch `d9473fc220594ccacd2c855b952287c2da31c538`.
+
+The production workflow was made fail-closed: Floki spool promotion is treated as production-capable, not private staging; Floki and Hostinger routes require explicit target selection and `windows-stable-production` approval. A read-only Floki audit is included but has not yet run. No stable package, public publish or global OTA was triggered. Do not treat the W188 owner package as proof of audible playback or automatic stable update.
+
