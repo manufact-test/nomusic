@@ -1,3 +1,5 @@
+> **Superseded build note — BETA28 (27.11.2026):** BETA28 retains the exact descriptor first-open lifetime fix unchanged and adds owner-session recovery. Source commit `895306cee0934e245aeda7aaa0ce95f3b609eff2`; APK size 71,602,156 bytes; SHA-256 `2c5dee053f2634224f929113e94b5aafe5ca5492160ed16f8e267020b394555c`. Source/JVM/ARM13 checks passed. BETA28 delivery is pending Floki spool run `46052141389`; BETA27 remains latest delivered. See the BETA28 handoff for exact status and owner test instructions.
+
 > **Delivery update (27.11.2026):** Trusted Floki spool workflow `46048173341` completed SUCCESS. Independent root-owned HTTPS receipt, live byte-count/SHA verification and unpublished owner draft readback passed. The direct `celikom.com` URL was sent privately; it is deliberately not copied into Git, docs or logs. BETA27 is delivered; owner audio test is still pending.
 
 # CELIKOM Android A1 — BETA27 exact descriptor first-open lifetime
