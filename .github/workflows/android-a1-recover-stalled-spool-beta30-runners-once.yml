@@ -62,3 +62,6 @@ jobs:
           cancel_exact 46073960759 1 84aa896b0712fd813201e8b300c124cdf966457d \
             .github/workflows/windows-w98-integration-ci.yml \
             "Linux extension and server package build" celikom-floki-ci01
+          cancel_exact 46073960828 1 84aa896b0712fd813201e8b300c124cdf966457d \
+            .github/workflows/android-a1-owner-floki-spool.yml \
+            stage-verified-signed-apk celikom-floki-ci02
