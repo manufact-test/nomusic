@@ -1456,6 +1456,23 @@ try
          !BridgeServer.IsTransientTrackMetadataGap(false, "UNAVAILABLE", "PLAYING") &&
          !BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_CONNECTED", "STOPPED"),
          "W163/W189 current-track identity expires consistently for UI, upload and proposal after the same 9-second metadata grace");
+    var rendererGapHeartbeatAt = metadataClock.AddSeconds(-1);
+    Test(CompactPlaybackPresentation.IsTransientRendererUnavailable(true, true, true,
+             "UNAVAILABLE", rendererGapHeartbeatAt, metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(true, true, true,
+             "UNAVAILABLE", metadataClock.AddMilliseconds(-2600), metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(true, false, true,
+             "UNAVAILABLE", rendererGapHeartbeatAt, metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(false, true, true,
+             "UNAVAILABLE", rendererGapHeartbeatAt, metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(true, true, false,
+             "UNAVAILABLE", rendererGapHeartbeatAt, metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(true, true, true,
+             "NATIVE_CONNECTED", rendererGapHeartbeatAt, metadataClock) &&
+         !CompactPlaybackPresentation.IsTransientRendererUnavailable(true, false, true,
+             "UNAVAILABLE", DateTimeOffset.MinValue, metadataClock),
+         "W189 a fresh UNAVAILABLE heartbeat is a short renderer handoff, while real process exit remains disconnected");
+
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
          UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
