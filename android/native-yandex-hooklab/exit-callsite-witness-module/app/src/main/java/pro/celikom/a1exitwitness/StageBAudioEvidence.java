@@ -615,7 +615,7 @@ final class StageBAudioEvidence {
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinksRestored = new AtomicLong();
-    // NAV49: one Track may own several live tCa wrappers. Keep each wrapper's
+    // NAV49 / BETA24 owner export: one Track may own several live tCa wrappers. Keep each wrapper's
     // descriptor/factory/source chain independent; never rebind by Track alone.
     private final AtomicLong nativeTrackWrapperSameTrackParallel = new AtomicLong();
     private final AtomicLong nativeTrackWrapperSameIdentityRefresh = new AtomicLong();
