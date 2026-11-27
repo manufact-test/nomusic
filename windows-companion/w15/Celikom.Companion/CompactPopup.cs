@@ -643,7 +643,7 @@ public sealed partial class MainWindow
         var heartbeatFresh = playback.HeartbeatFresh;
         var transientRendererGap = CompactPlaybackPresentation.IsTransientRendererUnavailable(
             playback.Enabled, heartbeatFresh, playback.PlayerUnavailable, nativeStatus,
-            playback.LastHeartbeatAt, DateTimeOffset.UtcNow);
+            playback.HeartbeatAt, DateTimeOffset.UtcNow);
         var paused = heartbeatFresh && playback.Enabled && playback.PlaybackState == "PAUSED";
         var stopped = heartbeatFresh && playback.Enabled && playback.PlaybackState == "STOPPED";
         if (_compactStarting && CompactPlaybackPresentation.CanCompleteStartPresentation(
