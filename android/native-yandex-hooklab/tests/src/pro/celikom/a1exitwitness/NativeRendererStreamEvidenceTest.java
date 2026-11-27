@@ -3332,6 +3332,12 @@ public final class NativeRendererStreamEvidenceTest {
             "OPENED_SIBLING_PREVENTS_CROSS_SOURCE_AUDIO_MIX");
         check(stage.exactFreshCreatorOrBetaAtFirstOpen(actuallyOpened)==null,
             "ALREADY_OPENED_SOURCE_CANNOT_REARM");
+        stage.onExoSourceInstanceOpen(actuallyOpened);
+        stage.onExoSourceInstanceRead(actuallyOpened,7);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==actuallyOpened,
+            "LIVE_RENDERER_RESOLVES_EXACT_TRACK_ALBUM_DATASOURCE_AFTER_READ");
+        check(stage.linkedSourceInstanceForCreatorOrBeta(new Object())==null,
+            "LIVE_RENDERER_NEVER_GUESSES_ANOTHER_TRACK_DATASOURCE");
         // New independent creator/factory remains strict: no promoted source
         // from the previous Track, even if a different factory produced it.
         StageBAudioEvidence missing=new StageBAudioEvidence();
