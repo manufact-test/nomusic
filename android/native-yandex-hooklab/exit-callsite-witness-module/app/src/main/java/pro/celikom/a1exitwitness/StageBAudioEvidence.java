@@ -2042,8 +2042,8 @@ link.factorySourceIdentityBound=false;
                 else exactFactorySourceBirths.add(
                     new ExactFactorySourceBirth(source,factoryObject,link));
             }
-link.sourceInstance=new WeakReference<>(source);
-link.factorySourceIdentityBound=true;
+            link.sourceInstance=new WeakReference<>(source);
+            link.factorySourceIdentityBound=true;
             link.sourceOpened=false;
             link.sourceEverTouched=wasSourceTouched(source);
             if(link.sourceEverTouched || exactFactoryBirthsSaturated)
@@ -2233,8 +2233,8 @@ link.factorySourceIdentityBound=true;
         // The birth above proves that THIS source came from THIS exact
         // signed factory. Rebind the historical observation to the one
         // actually about to open (without ever rewinding a touched source).
-link.sourceInstance=new WeakReference<>(source);
-link.factorySourceIdentityBound=true;
+            link.sourceInstance=new WeakReference<>(source);
+            link.factorySourceIdentityBound=true;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
