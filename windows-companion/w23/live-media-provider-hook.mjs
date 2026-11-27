@@ -28,11 +28,11 @@ export function createLiveMediaProviderHook({onEvent = () => {}} = {}) {
     if (!descriptor?.configurable || typeof descriptor.get !== "function" || descriptor.set !== undefined) return false;
     const getter = function() {
       const state = descriptor.get.call(this);
-      if (!disposed) {
-        try {
-          const id = validId(state?.queueState?.currentEntity?.value?.entity?.data?.meta?.id);
-          if (id) { currentPlayer = new WeakRef(this); note("LIVE_PLAYER_INSTANCE_SEEN"); }
-        } catch {}
+      if (!disposed && state?.queueState && state?.playerState) {
+        // Capture the player before the first track is selected; 5.129 already
+        // exposes its media-controller/provider chain at this point.
+        currentPlayer = new WeakRef(this);
+        note("LIVE_PLAYER_INSTANCE_SEEN");
       }
       return state;
     };
