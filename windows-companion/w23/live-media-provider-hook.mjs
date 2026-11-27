@@ -46,6 +46,8 @@ export function createLiveMediaProviderHook({onEvent = () => {}} = {}) {
     if (disposed) return null;
     const player = currentPlayer?.deref();
     if (!player) return null;
+    const state = player.playbackState;
+    if (!state?.queueState || !state?.playerState) return null;
     // Official 5.129: VE -> mediaController.currentMediaPlayer.value ->
     // crossfade current/first/second player -> mediaProvider.getFileInfoProvider.
     const roots = [], seen = new Set();

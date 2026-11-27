@@ -17,8 +17,8 @@ function createRenderer({
   const logs=[],handlers={},intervals=[];
   const downloadInfo = id => ({
     trackId:String(id),key:"yandex-drm",
-    url:id==="456"?"https://official.yandex.example/next":"https://official.yandex.example/stream",
-    urls:[id==="456"?"https://official.yandex.example/next":"https://official.yandex.example/stream"],
+    url:"https://official.yandex.example/stream",
+    urls:["https://official.yandex.example/stream"],
     codec:"aac"
   });
   class Resource {
@@ -70,16 +70,17 @@ function createRenderer({
       const currentMediaPlayer={value:cross};
       const mediaPlayersStore={value:{audio:cross}};
       this.mediaController={currentMediaPlayer,mediaPlayersStore};
-      this.playbackState={
+      this.snapshot={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
         playerState:{status:{value:status},progress:{value:{position}}},
         currentMediaPlayer,mediaPlayersStore
       };
     }
+    get playbackState() { return this.snapshot; }
     get state() { return this.playbackState; }
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
-      const entity=this.playbackState.queueState.currentEntity.value.entity;
+      const entity=this.state.queueState.currentEntity.value.entity;
       const cross=this.mediaController.currentMediaPlayer.value;
       const source=await cross.currentMediaPlayer.reload(entity);
       this.mediaSources.push(source.src);
