@@ -79,7 +79,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // BETA24 preserved per-wrapper lineage; BETA25 adds exact first-open rejection evidence.
+    // BETA25 owner diagnostic: first-open gates stay fail-closed; export only bucketed rejection reasons.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     private static final String BETA_BUILD = "A1_TRACKID_BETA25_FIRST_OPEN_AND_DEFERRED_ARM_REASON_DIAGNOSTICS_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
