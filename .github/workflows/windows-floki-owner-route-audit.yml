@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-owner-route-audit
+  group: celikom-windows-owner-route-audit-hosted
   cancel-in-progress: false
 jobs:
   audit:
