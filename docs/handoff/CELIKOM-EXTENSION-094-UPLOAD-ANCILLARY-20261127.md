@@ -15,3 +15,20 @@ The actual owner file becomes 5,710,366 bytes and measures 142,759 ms; inspectio
 462 extension tests pass. New tests cover exact preserved prefix and one-byte repair, idempotence, rejection of missing coded bits/two-byte truncation/CRC/unpadded/wrong-rate/internal damage, and actual prepared bytes passed through direct multipart and background staging. Full ZIP build, production manifest, security and whitespace checks pass. Existing playback changes from 0.4.93 are retained without additional playback engine edits.
 
 Independent verification against deployed PHP normalizer/decoder and exact owner download receipt will be appended after successful execution. Use the existing private spool, trusted consumer and celikom.com owner delivery; no Actions download links or customer publication. Do not claim a real owner-account upload of the supplied song unless it was actually performed.
+
+## Verified deployed upload path and private delivery
+
+- Exact source `81447bfef49a2492675ff0574a0eaa986ed79282`, private Floki extension run `46059173025`, attempt 1. All 462 tests, build, security, checksum and private staging passed.
+- Independent root-owned spool/ZIP verification and deployed ordinary-account HTTPS contribution flow: administrative run `46059336433`, job `140709502646`, SUCCESS.
+- The live check reused the previously proven isolated QA flow, with generated tone audio normalized by the new extension inspector. A 7,335,180-byte multipart was accepted HTTP 202/pending and retried idempotently. Separate song proposal, linked upload progress, pending ownership, CORS and non-public pending media checks passed. Its own synthetic account, records and media were cleaned. No owner song was submitted and no user's data was modified.
+- Filename `celikom-extension-0.4.94.zip`, **2,505,077 bytes**.
+- SHA256 `e381d4c4274c768b888ab279d6523c666944f6d34aba581e70cdc92e22d09e09`.
+- Existing owner-only approval manifest updated with exact verified metadata; public_stable remains null.
+- Trusted owner consumer publication and full download verification: administrative run `46059437431`, job `140709837619`, SUCCESS. Trusted receipt matches version/source/run/attempt/size/hash. Both versioned and latest HTTPS downloads: anonymous 401, authorized 200 with matching complete size and digest.
+- Explicit mirror service start again returned 1; trusted consumer independently read the exact new approval and successfully published/verified it. No unrelated mirroring repairs.
+- Verified owner URL: https://celikom.com/downloads/extension/celikom-extension-0.4.94.zip
+- Maintenance reset to harmless no-op in `ef873950c22fc3cb23194755f51362bad7096ad7`.
+
+Independent native playback gate did not run: its Chrome/tool preparation step failed on `getaddrinfo ENOTFOUND github.com`. Do not mark it passed or infer listening acceptance. No extra Chrome repair work was attempted. The supplied original and prepared MP3 did independently pass local strict FFmpeg decoding with identical PCM; actual deployed PHP upload/normalizer/decoder passed the synthetic HTTPS test above.
+
+Owner should update the existing unpacked extension and retry the same untouched original MP3. Its on-screen duration still must match the pinned original track within the existing 1.5-second tolerance; that rule is not relaxed.
