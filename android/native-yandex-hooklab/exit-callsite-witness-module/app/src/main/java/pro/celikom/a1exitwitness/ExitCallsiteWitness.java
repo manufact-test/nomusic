@@ -81,7 +81,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     // BETA24: recover an evicted exact creator Track+Album wrapper link before Exo factory binding.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA24_OWNER_CREATOR_BIRTH_SOURCE_LINK_RECOVERY_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA25_FIRST_OPEN_AND_DEFERRED_ARM_REASON_DIAGNOSTICS_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -4756,18 +4756,30 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 Object[] creator=STAGE_B_AUDIO
                                     .exactFreshCreatorOrBetaAtFirstOpen(
                                         chain.getThisObject());
+                                STAGE_B_AUDIO.onExoFirstOpenHookEnter();
+                            try {
+                                Object[] creator=STAGE_B_AUDIO
+                                    .exactFreshCreatorOrBetaAtFirstOpen(
+                                        chain.getThisObject());
                                 if(creator!=null) {
                                     Object[] setter=NATIVE_RENDERER_EVIDENCE
                                         .exactSetterForFreshSourceCreator(
                                             creator[0],creator[1],creator[2]);
-                                    if(setter!=null && NATIVE_EARLY_ADMISSION
+                                    STAGE_B_AUDIO.onExoFirstOpenSetterResult(setter!=null);
+                                    if(setter!=null) {
+                                        STAGE_B_AUDIO.onExoFirstOpenDeferredArmCalled();
+                                        boolean armed=NATIVE_EARLY_ADMISSION
                                             .armDeferredOriginalDataSource(
                                                 (Long)setter[0],creator[1],creator[2],
-                                                setter[1],chain.getThisObject()))
-                                        emit("AUDIO_EXO_FIRST_OPEN_ARM",
-                                             "ORIGINAL_FACTORY","EXACT_BOUND");
+                                                setter[1],chain.getThisObject());
+                                        STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed);
+                                        if(armed)emit("AUDIO_EXO_FIRST_OPEN_ARM",
+                                            "ORIGINAL_FACTORY","EXACT_BOUND");
+                                    }
                                 }
-                            } catch (Throwable ignored) { }
+                            } catch (Throwable ignored) {
+                                STAGE_B_AUDIO.onExoFirstOpenArmException();
+                            }
                             // The original open now starts; after this point
                             // no alternate can be newly authorized.
                             try {
@@ -6410,6 +6422,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                     output.write('\n');
                 }
                 for (String summary : NATIVE_RENDERER_EVIDENCE.exportLines()) {
+                    output.write(summary.getBytes(StandardCharsets.UTF_8));
+                    output.write('\n');
+                }
+                for (String summary : NATIVE_EARLY_ADMISSION.exportLines()) {
                     output.write(summary.getBytes(StandardCharsets.UTF_8));
                     output.write('\n');
                 }
