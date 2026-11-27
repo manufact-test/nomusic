@@ -1,0 +1,32 @@
+name: CELIKOM Windows public stable read-only probe
+on:
+  push:
+    branches: ['work/windows-w193-public-stable-audit-20261128']
+    paths: ['.github/workflows/windows-public-stable-readonly-probe.yml']
+permissions: {}
+jobs:
+  public-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Read public manifest and signature without credentials
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          root=https://celikom.com/CELIKOM/Windows/Updates/stable
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+          getent ahostsv4 celikom.com | awk '{print $1}' | sort -u || true
+          for name in latest.json latest.json.sig; do
+            status=$(curl --silent --show-error --proto '=https' --connect-timeout 10 --max-time 25 --max-filesize 16384 --output "$tmp/$name" --write-out '%{http_code}' "$root/$name") || status=transport_error
+            echo "PUBLIC_STABLE_HTTP $name $status"
+            if [[ "$status" == 200 ]]; then
+              echo "PUBLIC_STABLE_BYTES $name $(wc -c < "$tmp/$name")"
+              sha256sum "$tmp/$name" | awk '{print "PUBLIC_STABLE_SHA256 "$1}'
+              if [[ "$name" == latest.json ]]; then
+                python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("PUBLIC_STABLE_UNVERIFIED_METADATA", json.dumps({k:d[k] for k in ("version","sequence","expiresAt","sha256","packageSize") if k in d}))' "$tmp/$name"
+              fi
+            fi
+          done
+          echo "PUBLIC_STABLE_PROBE_READ_ONLY_NO_SIGNATURE_TRUST_CLAIM"
