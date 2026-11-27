@@ -1,4 +1,4 @@
-name: CELIKOM Windows 0.24.61 Floki owner HTTPS receipt verification
+name: CELIKOM Windows Floki owner HTTPS receipt verification
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
           trigger='.github/ci/celikom-windows-owner-receipt-verify-trigger.txt'
           version="$(sed -n 's/^version=//p' "$trigger" | tail -n 1)"
           expected="$(sed -n 's/^sha256=//p' "$trigger" | tail -n 1)"
-          [[ "$version" == '0.24.61' ]] || { echo 'WINDOWS_OWNER_RECEIPT_VERSION_INVALID'; exit 1; }
+          [[ "$version" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,5}$ ]] || { echo 'WINDOWS_OWNER_RECEIPT_VERSION_INVALID'; exit 1; }
           [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || { echo 'WINDOWS_OWNER_RECEIPT_SHA_INVALID'; exit 1; }
           receipt="$(mktemp)"
           error_file="$(mktemp)"
