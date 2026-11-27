@@ -464,7 +464,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         if (!adapter.attach(klass.prototype)) continue;
         attached = true;
         report("RESOURCE_HOOK_ENDPOINT_FALLBACK");
-        if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
+        if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
+            adapter.enable();
+            if (networkRecoveryPending) sourceRecovery.setPaused(true);
+            report("RENDERER_STATE_ON");
+          }
         console.info("[CELIKOM] Native endpoint fallback attached");
         return true;
       }
@@ -491,7 +495,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
             liveMediaProviderHook.normalizeAdapterArguments(livePrototype)) {
           attached = true;
           report("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED");
-          if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
+          if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
+            adapter.enable();
+            if (networkRecoveryPending) sourceRecovery.setPaused(true);
+            report("RENDERER_STATE_ON");
+          }
           console.info("[CELIKOM] Native live media-provider connector attached");
           return true;
         }
