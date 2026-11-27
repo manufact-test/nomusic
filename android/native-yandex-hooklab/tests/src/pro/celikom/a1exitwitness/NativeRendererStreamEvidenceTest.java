@@ -2958,6 +2958,71 @@ public final class NativeRendererStreamEvidenceTest {
     }
 
 
+    private static void createNav49CreatorWrapper(StageBAudioEvidence stage,
+            Object track,Object wrapper) {
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper,"144530503");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+    }
+
+    private static void testNav49SameTrackWrappersKeepIndependentSourceLineages() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),firstWrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        createNav49CreatorWrapper(stage,track,firstWrapper);
+
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        stage.enterNativeMainSourceRequest(firstWrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(source,factory);
+
+        Object secondWrapper=new Object();
+        createNav49CreatorWrapper(stage,track,secondWrapper);
+        Object[] fresh=stage.exactFreshCreatorOrBetaAtFirstOpen(source);
+        check(fresh!=null && fresh[0]==firstWrapper
+                && fresh[1]==track && fresh[2]==album,
+            "NAV49_SECOND_WRAPPER_FOR_SAME_TRACK_DOES_NOT_REBIND_FIRST_SOURCE");
+        check(contains(stage.exportLines(),
+                "origin=TRACK_WRAPPER_SAME_TRACK_PARALLEL;error=ONE"),
+            "NAV49_PARALLEL_SAME_TRACK_WRAPPER_IS_EXPLICIT");
+        check(contains(stage.exportLines(),
+                "origin=TRACK_DESCRIPTOR_FACTORY_LINK;error=ONE"),
+            "NAV49_FIRST_DESCRIPTOR_FACTORY_LINEAGE_SURVIVES");
+        check(contains(stage.exportLines(),
+                "origin=TRACK_FACTORY_SOURCE_LINK;error=ONE"),
+            "NAV49_FIRST_FACTORY_SOURCE_LINEAGE_SURVIVES");
+    }
+
+    private static void testNav49EvictedSameTrackWrapperRestoresBesideSibling() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),firstWrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        createNav49CreatorWrapper(stage,track,firstWrapper);
+        for(int i=0;i<16;i++)
+            createNav49CreatorWrapper(stage,track,new Object());
+
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        stage.enterNativeMainSourceRequest(firstWrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(source,factory);
+        Object[] fresh=stage.exactFreshCreatorOrBetaAtFirstOpen(source);
+        check(fresh!=null && fresh[0]==firstWrapper
+                && fresh[1]==track && fresh[2]==album,
+            "NAV49_EVICTED_CREATOR_WRAPPER_RESTORES_WITH_SAME_TRACK_SIBLINGS");
+        check(contains(stage.exportLines(),
+                "origin=TRACK_WRAPPER_LINK_RESTORED_WITH_SAME_TRACK_SIBLING;error=ONE"),
+            "NAV49_RESTORATION_DOES_NOT_REJECT_SAME_TRACK_SIBLINGS");
+    }
+
     private static void testTcaCreatorFlowBirthRestoresEvictedWrapperLineage() {
         StageBAudioEvidence stage=new StageBAudioEvidence();
         Object track=new Object(),album=new Object(),wrapper=new Object();
@@ -3321,6 +3386,8 @@ public final class NativeRendererStreamEvidenceTest {
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testExactCreatorBeforeFlowOriginalDataSourceLink();
+        testNav49SameTrackWrappersKeepIndependentSourceLineages();
+        testNav49EvictedSameTrackWrapperRestoresBesideSibling();
         testTcaCreatorFlowBirthRestoresEvictedWrapperLineage();
         testNativeFirstOpenedFactorySourceNotFirstConstructed();
         testRealPublisherAnnotatedTrackIdCorrelatesCreator();

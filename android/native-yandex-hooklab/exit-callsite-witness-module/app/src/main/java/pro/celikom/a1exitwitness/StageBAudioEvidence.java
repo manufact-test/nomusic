@@ -610,6 +610,12 @@ final class StageBAudioEvidence {
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinksRestored = new AtomicLong();
+    // NAV49: one Track may own several live tCa wrappers. Keep each wrapper's
+    // descriptor/factory/source chain independent; never rebind by Track alone.
+    private final AtomicLong nativeTrackWrapperSameTrackParallel = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperSameIdentityRefresh = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperIdentityConflict = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperRestoredWithSameTrackSibling = new AtomicLong();
     private final AtomicLong nativeTrackWrapperConstructed = new AtomicLong();
     private final AtomicLong tcaCreatorOwnerEnter = new AtomicLong();
     private final AtomicLong tcaCreatorOwnerNull = new AtomicLong();
@@ -1046,8 +1052,9 @@ final class StageBAudioEvidence {
     /**
      * Restore only a lost bounded Track->wrapper link from the unique signed
      * tCa creator birth. The original Track+Album must still be the same live
-     * Flow objects. A different wrapper for the same Track, duplicate birth,
-     * changed Album or weak-lost reference is rejected.
+     * Flow objects. A sibling wrapper for the same Track is a separate lineage,
+     * not a conflict; only a duplicate or mismatched identity for THIS wrapper
+     * is rejected.
      */
     private NativeTrackSourceLink restoreWrapperLinkFromCreatorBirth(Object wrapper) {
         WrapperBirth birth=uniqueWrapperBirth(wrapper);
@@ -1058,17 +1065,20 @@ final class StageBAudioEvidence {
         Object track=birth.creatorTrack.get(),album=birth.albumAtBirth.get();
         if(track==null || album==null || !wasNativeTrackFlowItem(track)
                 || findTrackAlbum(track)!=album)return null;
+        boolean siblingSameTrack=false;
         for(int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink existing=nativeTrackSourceLinks.get(i);
             Object existingTrack=existing.track==null?null:existing.track.get();
-            if(existingTrack==null) {
+            Object existingWrapper=existing.wrapper==null?null:existing.wrapper.get();
+            if(existingTrack==null || existingWrapper==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if(existingTrack==track) {
-                Object existingWrapper=existing.wrapper==null?null:existing.wrapper.get();
-                return existingWrapper==wrapper?existing:null;
+            if(existingWrapper==wrapper) {
+                if(existingTrack!=track)return null;
+                return existing;
             }
+            if(existingTrack==track)siblingSameTrack=true;
         }
         if(nativeTrackSourceLinks.size()>=16)nativeTrackSourceLinks.remove(0);
         NativeTrackSourceLink restored=new NativeTrackSourceLink();
@@ -1078,9 +1088,9 @@ final class StageBAudioEvidence {
         restored.creatorOnlyAtBirth=birth.scopeAtBirth==12;
         nativeTrackSourceLinks.add(restored);
         mark(nativeTrackWrapperLinksRestored);
+        if(siblingSameTrack)mark(nativeTrackWrapperRestoredWithSameTrackSibling);
         return restored;
     }
-
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
         onNativeTrackWrapperCreated(wrapper,null);
     }
@@ -1149,31 +1159,58 @@ final class StageBAudioEvidence {
                 numericOriginalId(originalConstructorArg)));
         if(!wasNativeTrackFlowItem(track) && !creatorOnlyAtBirth)return;
         NativeTrackSourceLink link=null;
+        boolean sameTrackSibling=false;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink candidate=nativeTrackSourceLinks.get(i);
-            if (candidate.track==null || candidate.track.get()==null) {
+            Object candidateTrack=candidate.track==null?null:candidate.track.get();
+            Object candidateWrapper=candidate.wrapper==null?null:candidate.wrapper.get();
+            if (candidateTrack==null || candidateWrapper==null) {
                 nativeTrackSourceLinks.remove(i);
                 continue;
             }
-            if (candidate.track.get()==track) { link=candidate; break; }
+            if(candidateWrapper==wrapper) {
+                if(candidateTrack!=track) {
+                    // The same wrapper object cannot safely change Track
+                    // identity. Invalidate its old chain and fail closed.
+                    candidate.track=null;
+                    candidate.wrapper=null;
+                    candidate.albumInstance=null;
+                    candidate.descriptor=null;
+                    candidate.factoryResult=null;
+                    candidate.sourceInstance=null;
+                    candidate.sourceOpened=false;
+                    candidate.sourceEverTouched=true;
+                    candidate.sourceReadAfterOpen=false;
+                    candidate.sourceAlbumReadAfterOpen=false;
+                    mark(nativeTrackWrapperIdentityConflict);
+                    return;
+                }
+                link=candidate;
+                break;
+            }
+            if(candidateTrack==track)sameTrackSibling=true;
         }
         if (link==null) {
             if (nativeTrackSourceLinks.size()>=16) nativeTrackSourceLinks.remove(0);
             link=new NativeTrackSourceLink();
             link.track=new WeakReference<>(track);
+            link.wrapper=new WeakReference<>(wrapper);
             nativeTrackSourceLinks.add(link);
+            if(sameTrackSibling)mark(nativeTrackWrapperSameTrackParallel);
+        } else {
+            // Refresh only this exact wrapper instance. Never select a link
+            // merely because its Track reference happens to be the same.
+            mark(nativeTrackWrapperSameIdentityRefresh);
         }
         Object album=findTrackAlbum(track);
         link.albumInstance=album==null ? null : new WeakReference<>(album);
         if (album!=null) mark(trackWrapperAlbumLinks);
-        // Reconstructing a wrapper creates a new lineage generation. Old
-        // descriptor/factory/source links must never be inherited by it.
-        link.wrapper=new WeakReference<>(wrapper);
         link.creatorOnlyAtBirth=creatorOnlyAtBirth;
         link.descriptor=null;
         link.factoryResult=null;
         link.sourceInstance=null;
         link.sourceOpened=false;
+        link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
         link.sourceAlbumReadAfterOpen=false;
         if(!creatorOnlyAtBirth)mark(nativeTrackWrapperLinks);
@@ -2123,6 +2160,11 @@ final class StageBAudioEvidence {
             event("FLOW_TRACK_SAME_OBJECT", flowTrackSourceSameObject),
             event("TRACK_WRAPPER_LINK", nativeTrackWrapperLinks),
             event("TRACK_WRAPPER_LINK_RESTORED", nativeTrackWrapperLinksRestored),
+            event("TRACK_WRAPPER_SAME_TRACK_PARALLEL",nativeTrackWrapperSameTrackParallel),
+            event("TRACK_WRAPPER_SAME_IDENTITY_REFRESH",nativeTrackWrapperSameIdentityRefresh),
+            event("TRACK_WRAPPER_IDENTITY_CONFLICT",nativeTrackWrapperIdentityConflict),
+            event("TRACK_WRAPPER_LINK_RESTORED_WITH_SAME_TRACK_SIBLING",
+                nativeTrackWrapperRestoredWithSameTrackSibling),
             event("WRAPPER_MAIN_SOURCE", wrapperMainSourceRequests),
             event("WRAPPER_DESCRIPTOR_LINK", wrapperDescriptorLinks),
             event("ORIGINAL_MEDIAITEM_SOURCE_ANCHOR", originalMediaItemAnchors),
