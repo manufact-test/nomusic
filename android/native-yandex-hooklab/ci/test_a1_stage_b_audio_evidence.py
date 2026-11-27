@@ -373,7 +373,8 @@ public final class StageBAudioEvidenceTest {
         noCreator.exitNativeTcaCreatorTrackScope();
         noCreator.exitNativeTcaCreatorOwner();
         check(noCreator.exactOriginalMediaItemCreator(ni)==null);
-        bucket(noCreator.exportLines(),0,"ORIGINAL_CHILD_WRAPPER_LINK_MISSING","ONE");
+        bucket(noCreator.exportLines(),0,"ORIGINAL_CHILD_WRAPPER_LINK_MISSING","NONE");
+        bucket(noCreator.exportLines(),0,"TRACK_WRAPPER_SAME_TRACK_PARALLEL","ONE");
 
         StageBAudioEvidence wrongScope=new StageBAudioEvidence();
         wrongScope.onOriginalMediaSourceConstructed(new Object(),new Object());
@@ -949,7 +950,8 @@ public final class StageBAudioEvidenceTest {
         reusedBirth.exitNativeTcaCreatorTrackScope();
         reusedBirth.exitNativeTcaCreatorOwner();
         reusedBirth.onNativeTrackFlowEmission(rbTrack);
-        check(reusedBirth.exactOriginalTrackAlbumForWrapper(rbWrapper)==null);
+        Object[] reusedPair=reusedBirth.exactOriginalTrackAlbumForWrapper(rbWrapper);
+        check(reusedPair!=null && reusedPair[0]==rbTrack && reusedPair[1]==rbAlbum);
 
         System.out.println("PASS Stage B exact Track-to-Exo identity chain; mismatches fail closed");
     }

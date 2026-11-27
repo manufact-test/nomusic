@@ -222,16 +222,21 @@ final class StageBAudioEvidence {
     // NAV40: exact original tCa creator-owned Track + Album, weak only.
     private static final class WrapperBirth {
         final WeakReference<Object> wrapper;
+        // Observed Track is diagnostic identity only. Only creatorTrack below
+        // can authorize a Track/Album lineage.
+        final WeakReference<Object> observedTrack;
         final WeakReference<Object> creatorTrack;
         final WeakReference<Object> albumAtBirth;
         final int scopeAtBirth;
         final String originalConstructorKey;
         final long bornElapsedMs;
         boolean laterFlowEmitted;
-        WrapperBirth(Object wrapper,int scopeAtBirth,Object track,Object album,
-                String constructorKey,long bornElapsedMs) {
+        boolean conflicted;
+        WrapperBirth(Object wrapper,int scopeAtBirth,Object observedTrack,Object track,
+                Object album,String constructorKey,long bornElapsedMs) {
             this.wrapper=new WeakReference<>(wrapper);
             this.scopeAtBirth=scopeAtBirth;
+            this.observedTrack=observedTrack==null?null:new WeakReference<>(observedTrack);
             this.creatorTrack=track==null?null:new WeakReference<>(track);
             this.albumAtBirth=album==null?null:new WeakReference<>(album);
             this.originalConstructorKey=constructorKey;
@@ -1013,7 +1018,7 @@ final class StageBAudioEvidence {
         WrapperBirth found=null;
         for(WrapperBirth birth:wrapperBirths) {
             if(birth.wrapper.get()!=wrapper)continue;
-            if(found!=null)return null;
+            if(found!=null || birth.conflicted)return null;
             found=birth;
         }
         return found;
@@ -1028,6 +1033,7 @@ final class StageBAudioEvidence {
             found=birth;
         }
         if(found==null)return 10;
+        if(found.conflicted)return 15;
         if(found.scopeAtBirth==14) {
             // Non-tCa wrappers retain the historical missing-link result;
             // only exact creator births carry the Track+Album proof for 20.
@@ -1138,26 +1144,29 @@ final class StageBAudioEvidence {
             WrapperBirth prior=uniqueWrapperBirth(wrapper);
             boolean wrapperSeen=false;
             if(prior==null) {
-                for(WrapperBirth existing:wrapperBirths)
-                    if(existing.wrapper.get()==wrapper) {wrapperSeen=true;break;}
+                for(WrapperBirth existing:wrapperBirths) {
+                    if(existing.wrapper.get()!=wrapper)continue;
+                    wrapperSeen=true;
+                    existing.conflicted=true;
+                }
             }
             if(prior==null && !wrapperSeen) {
                 if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
-                wrapperBirths.add(new WrapperBirth(wrapper,atBirth,birthTrack,
+                wrapperBirths.add(new WrapperBirth(wrapper,atBirth,track,birthTrack,
                     birthAlbum,birthKey,issuerClock.getAsLong()));
             } else if(prior==null) {
                 wrapperBirthIdentityConflict=true;
             } else {
+                Object priorObservedTrack=prior.observedTrack==null
+                    ?null:prior.observedTrack.get();
                 Object priorTrack=prior.creatorTrack==null?null:prior.creatorTrack.get();
                 Object priorAlbum=prior.albumAtBirth==null?null:prior.albumAtBirth.get();
                 boolean sameKey=prior.originalConstructorKey==null
                     ?birthKey==null:prior.originalConstructorKey.equals(birthKey);
-                if(prior.scopeAtBirth!=atBirth || priorTrack!=birthTrack
-                        || priorAlbum!=birthAlbum || !sameKey) {
+                if(prior.scopeAtBirth!=atBirth || priorObservedTrack!=track
+                        || priorTrack!=birthTrack || priorAlbum!=birthAlbum || !sameKey) {
+                    prior.conflicted=true;
                     wrapperBirthIdentityConflict=true;
-                    if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
-                    wrapperBirths.add(new WrapperBirth(wrapper,atBirth,birthTrack,
-                        birthAlbum,birthKey,issuerClock.getAsLong()));
                 }
             }
         }
@@ -1233,6 +1242,10 @@ final class StageBAudioEvidence {
                 return;
             }
             if(candidateTrack==track)sameTrackSibling=true;
+        }
+        if(wrapperBirthIdentityConflict) {
+            mark(nativeTrackWrapperIdentityConflict);
+            return;
         }
         if (link==null) {
             if (nativeTrackSourceLinks.size()>=16) nativeTrackSourceLinks.remove(0);
