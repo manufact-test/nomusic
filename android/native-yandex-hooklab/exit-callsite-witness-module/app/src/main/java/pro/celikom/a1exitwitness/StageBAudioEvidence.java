@@ -1023,7 +1023,10 @@ final class StageBAudioEvidence {
         }
         if(found==null)return 10;
         if(found.scopeAtBirth==14) {
-            Object track=found.creatorTrack==null?null:found.creatorTrack.get();
+            // Non-tCa wrappers retain the historical missing-link result;
+            // only exact creator births carry the Track+Album proof for 20.
+            if(found.creatorTrack==null || found.albumAtBirth==null)return 14;
+            Object track=found.creatorTrack.get();
             if(track==null || !wasNativeTrackFlowItem(track))return 19;
             Object album=found.albumAtBirth==null?null:found.albumAtBirth.get();
             Object observed=findTrackAlbum(track);
