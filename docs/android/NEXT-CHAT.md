@@ -1,71 +1,98 @@
 # CURRENT HANDOFF — CELIKOM A1 BETA24 per-wrapper source-lineage repair — 2026-11-27
 
-## Current status
+## Current owner-test status
 
-The latest owner diagnostic from the BETA24 phone build still showed no audible substitution. The server-side signed-audio path was succeeding, but the original player DataSource was never armed or opened:
+The previous BETA23 owner diagnostic still showed no audible replacement:
 
-- Owner resolve / signed audio ready / alternate decision / grant admitted: present.
-- `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ`: absent.
-- `AUDIO_STAGE_B_STATUS=NOT_CONNECTED`.
-- `TRACK_DESCRIPTOR_FACTORY_LINK` and `TRACK_FACTORY_SOURCE_LINK`: absent.
-- `ORIGINAL_CHILD_WRAPPER_LINK_MISSING`: present.
+- Server-side owner resolve, signed audio, alternate decision and grant admission were positive.
+- The original player DataSource was not armed/opened/read: `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN=NONE`, `AUDIO_READ=NONE`.
+- `TRACK_DESCRIPTOR_FACTORY_LINK` and `TRACK_FACTORY_SOURCE_LINK` were absent.
+- `ORIGINAL_CHILD_WRAPPER_LINK_MISSING` was present.
 
-## Root cause found
+## Root cause fixed in BETA24 source
 
-`StageBAudioEvidence.onNativeTrackWrapperCreated()` reused a bounded `NativeTrackSourceLink` by **Track identity**, then rebound its `wrapper` to the latest wrapper and cleared descriptor/factory/source state. Yandex can create several live `tCa` wrappers for the same Track. A later wrapper therefore erased the exact wrapper lineage needed by an already-created original source anchor.
+`StageBAudioEvidence.onNativeTrackWrapperCreated()` reused a bounded `NativeTrackSourceLink` by Track identity, then rebound the existing link to a newer wrapper and cleared descriptor/factory/source state. Yandex can create several live `tCa` wrappers for one Track. A sibling wrapper could therefore erase the exact wrapper lineage belonging to the original source chain.
 
-The earlier BETA24 repair addressed 16-entry eviction but still rejected restoration when a sibling wrapper for the same Track remained in the table. That left the real per-wrapper overwrite unresolved.
+## Implemented code repair
 
-## Implemented repair
-
-Current branch:
+Branch:
 `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-Code/export candidate commit:
+Android source commit used by the delivered APK:
 `901a421e461311de4b2fbba42c1c7ec78f55cb93`
 
-Documentation handoff commit:
-`df60b65a3643801c03b67867bde3b57a9bfa4fc9`
+Current documentation commit before this update:
+`dd5abc033d228f9059a95393f8299bb60f49fcdf`
 
 Changes in `StageBAudioEvidence.java`:
 
-- Maintain a separate source-lineage record for each exact wrapper object; never rebind by Track alone.
-- Allow a lost wrapper link to be restored from its exact creator birth even when sibling wrappers for the same Track are present.
-- Treat a repeated callback for the same wrapper/Track/Album as idempotent; preserve descriptor, factory, source, and touched/open state.
-- Keep conflicting reuse of the same wrapper identity fail-closed. Conflicting wrapper records remain ambiguous rather than authorizing the wrong Track.
-- Added diagnostic counters:
+- Keep an independent source-lineage record for each exact wrapper object; never rebind by Track alone.
+- A second wrapper for the same Track is a sibling lineage, not a replacement and not a reason to clear the first wrapper's descriptor/factory/source.
+- Repeated observation of the same wrapper/Track/Album is idempotent and preserves its touched/open state.
+- If the bounded link table evicts a wrapper link, restore it only from that exact wrapper's unique creator-birth record and the same live Track+Album objects still in Flow.
+- Reject ambiguous/conflicting reuse of the same wrapper identity and mismatched Track/Album; remain fail-closed.
+- Added privacy-safe counters:
   - `TRACK_WRAPPER_SAME_TRACK_PARALLEL`
   - `TRACK_WRAPPER_SAME_IDENTITY_REFRESH`
   - `TRACK_WRAPPER_IDENTITY_CONFLICT`
   - `TRACK_WRAPPER_LINK_RESTORED_WITH_SAME_TRACK_SIBLING`
 
-Regression coverage includes independent same-Track wrappers, idempotent same-wrapper observations, eviction/restoration with same-Track siblings, and conflicting wrapper identity. Historical Stage B fixture expectations were updated to the new per-wrapper semantics.
+Regression coverage exercises parallel wrappers for one Track, duplicate same-wrapper callbacks, link eviction/restoration with same-Track siblings, and conflicting wrapper identities.
 
-## Validation
+## CI and native validation — completed
 
-- Java/JVM regression workflow: PASS — run `45968602445`.
-- Clone-alone differential ARM13 workflow: PASS — run `45968602583`.
-- Owner-side issuer/proxy contract: PASS — run `45969190985`.
-- Real original-Yandex + CELIKOM Android 13 publisher-first side-by-side 75-second test: **still running** in run `45968602446`.
-- Owner APK export run with `[export-beta-audio]`: **still running** in run `45969190985`.
+- JVM / issuer-proxy / source-lineage regression: PASS, owner run `45969190985`.
+- Clone-alone differential ARM13: PASS, run `45968602583`.
+- Publisher-first original-Yandex + CELIKOM Android 13 native side-by-side 75-second launch gate: PASS, owner run `45969190985`.
+- A separate paired native run `45968602446` also completed successfully.
 
-Do not treat the APK as delivered until the owner Android 13 job succeeds and the draft release contains the new APK plus README. No audible substitution has yet been confirmed on the physical HONOR 50.
+Important limitation from the actual owner-run receipt/log:
 
-## Next action
+- Verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- `stage_a=NO_GO`.
+- `acoustic_replacement_proven=false`.
+- `owner_handset_touched=false`.
+- The CI pass proves the native launch/compatibility gate, **not** that alternate audio reached the original DataSource or was heard. Hook registration alone is not audio replacement.
 
-When run `45969190985` completes:
+## Delivered owner APK — use this exact draft
 
-1. If the owner Android 13 job passes, inspect the generated owner-only draft release and record the exact APK URL and SHA-256 here.
-2. If it fails, inspect the failed step/logs before creating another APK. Do not send the previous BETA24 release as a substitute.
-3. Once the new APK is available, install it **over** the existing CELIKOM app without uninstalling or clearing data.
-4. Test `Ау` (10AGE & Ramil), then export a fresh diagnostic. Confirm that Stage B descriptor/factory/source links and `DATASOURCE_ARMED` / `AUDIO_OPEN` / `AUDIO_READ` appear. Only the phone test can confirm audible substitution.
+Private owner-only draft release ID: `460365440`.
+
+Release page:
+https://github.com/manufact-test/nomusic/releases/tag/untagged-90d8dc22ebb8e5469de9
+
+Direct APK:
+https://github.com/manufact-test/nomusic/releases/download/untagged-90d8dc22ebb8e5469de9/CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk
+
+Filename: `CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk`
+
+Size: `71,598,060` bytes.
+
+SHA-256:
+`e8208201d2c06c107a9a0c996b9bb7fd8f3b7a3ce7d1a240640d045bc9c84e4c`
+
+This is the new package from source commit `901a421e461311de4b2fbba42c1c7ec78f55cb93`. Do not use the older BETA24 draft release `460295768` (it contains the previous package).
+
+## Next action — real HONOR 50 owner test
+
+1. Install this APK **over the existing CELIKOM BETA23**. Do not uninstall CELIKOM, clear app data, or clear cache.
+2. Open the original Yandex Music app and play Ramil / 10AGE — `Ау` directly from album `38902809`, original track ID `144530503`. Do not use MyWave.
+3. Listen to `00:43–00:54`.
+4. Export a fresh CELIKOM diagnostics TXT from that same test session and attach it here, whether the sound changes or not.
+
+The diagnostic chain to inspect is:
+
+`TRACK_WRAPPER_LINK_RESTORED` → `TRACK_DESCRIPTOR_FACTORY_LINK` → `TRACK_FACTORY_SOURCE_LINK` → `AUDIO_EXO_FIRST_OPEN_ARM` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+
+Also inspect the four new `TRACK_WRAPPER_*` counters above. If the chain stops, fix the first missing link; do not jump to unrelated codec/server changes. If all counters pass but the sound remains original, the TXT must show the next break before another patch is chosen.
 
 ## Working rules
 
-- Keep working in the existing repository and branch above; do not create a replacement project or branch.
-- Read this file before changing code and update it after each accepted milestone.
-- Do not claim audible replacement from JVM, ARM13 launch, or CI checks alone.
-- Do not disable original Yandex protections or bypass owner-signature checks.
+- Continue only in the existing repository and branch above; do not create a replacement project or branch.
+- Read this handoff before changing code and update it after each accepted milestone.
+- Do not claim audible replacement from JVM, CI, hook registration, or native launch alone.
+- Do not disable original Yandex protections, alter its package, or bypass owner-signature checks.
+- Do not change server catalogue, signed grant, Range/HMAC, Windows, stable Android, or OTA unless the new owner diagnostic proves that area is the first failing stage.
 
 ---
 
