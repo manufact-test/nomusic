@@ -1,3 +1,5 @@
+> **Delivery update (27.11.2026):** Trusted Floki spool workflow `46048173341` completed SUCCESS. Independent root-owned HTTPS receipt, live byte-count/SHA verification and unpublished owner draft readback passed. The direct `celikom.com` URL was sent privately; it is deliberately not copied into Git, docs or logs. BETA27 is delivered; owner audio test is still pending.
+
 # CELIKOM Android A1 — BETA27 exact descriptor first-open lifetime
 
 Date: 27.11.2026  
