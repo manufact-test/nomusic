@@ -7,18 +7,19 @@ on:
       - '.github/deploy/a1-owner-download-request.json'
       - '.github/scripts/floki-a1-root-signed-spool-consumer.py'
       - '.github/scripts/tests/floki-a1-signed-spool.test.py'
-  # Manual fallback for a verified private draft when the owner workflow's
-  # display name has changed and the workflow_run name filter is not current.
+  # Manual fallback remains available if automatic workflow_run delivery is unavailable.
   workflow_dispatch:
   workflow_run:
-    workflows: ['CELIKOM A1 Ramil Au Beta13 owner-phone audio test — no acoustic proof']
+    workflows:
+      - 'CELIKOM A1 Ramil Au Beta13 owner-phone audio test — no acoustic proof'
+      - 'CELIKOM A1 Ramil Au BETA30 NAV51 live renderer correlation — no acoustic proof'
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
     types: [completed]
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: celikom-a1-verified-private-spool-recovery-beta23-20261127
+  group: celikom-a1-verified-private-spool-recovery-beta30-20261127
   cancel-in-progress: true
 jobs:
   stage-verified-signed-apk:
