@@ -1464,11 +1464,12 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV35_DOES_NOT_ENABLE_REPLACEMENT");
     }
 
-    // NAV36: distinguish exact original tCa constructor histories even
-    // when the current Stage B single-track source link no longer has it.
+    // NAV36: distinguish exact original tCa constructor histories after
+    // the bounded per-wrapper link table evicts the original wrapper. A later
+    // wrapper for the same Track is a sibling, not a replacement.
     private static void testNav36OriginalTcaBirthCategories() {
         String[] categories={"NOT_IN_WINDOW","NO_TRACK_SCOPE","TRACK_NOT_IN_FLOW",
-            "FLOW_NO_ALBUM","FLOW_ALBUM_LINK_MISSING","DUPLICATE_AMBIGUOUS"};
+            "FLOW_NO_ALBUM","FLOW_ALBUM_LINK_MISSING"};
         for(int mode=0;mode<categories.length;mode++) {
             NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
             StageBAudioEvidence stage=new StageBAudioEvidence();
@@ -1485,12 +1486,20 @@ public final class NativeRendererStreamEvidenceTest {
                 if(mode!=3)stage.onNativeTrackAlbumConstructed(track,album);
                 stage.onNativeTrackFlowEmission(track);
                 stage.enterNativeTrackSourceRequest(track,null);
-                try {
-                    stage.onNativeTrackWrapperCreated(wrapper);
-                    if(mode==5)stage.onNativeTrackWrapperCreated(wrapper);
-                    // A later wrapper supersedes the retained per-track link.
-                    stage.onNativeTrackWrapperCreated(new Object());
-                } finally {stage.exitNativeTrackSourceRequest();}
+                try {stage.onNativeTrackWrapperCreated(wrapper);}
+                finally {stage.exitNativeTrackSourceRequest();}
+                // Evict the first bounded link using unrelated Track objects.
+                // The original wrapper birth remains exact and independently
+                // classifiable; a same-Track sibling is tested separately by NAV49.
+                for(int i=0;i<16;i++) {
+                    Object siblingTrack=new Object();
+                    if(mode!=3)
+                        stage.onNativeTrackAlbumConstructed(siblingTrack,new Object());
+                    stage.onNativeTrackFlowEmission(siblingTrack);
+                    stage.enterNativeTrackSourceRequest(siblingTrack,null);
+                    try {stage.onNativeTrackWrapperCreated(new Object());}
+                    finally {stage.exitNativeTrackSourceRequest();}
+                }
             }
             FakeSource source=new FakeSource();
             Object renderer=new Object(),stream=new Object();
