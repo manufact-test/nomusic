@@ -1,22 +1,19 @@
-# CURRENT HANDOFF — 27.11.2026 (BETA26 delivered; owner test pending)
+# CURRENT HANDOFF — 27.11.2026 (BETA26 delivered; waiting for owner diagnostic TXT)
 
-## Latest owner APK — build and direct delivery verified
+## Current checkpoint — do not start a new build before reading the phone diagnostic
 
-- Android A1 source branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- BETA26 source commit: `bcb5d9ccee56b2e8bcc5493c12514c07f342ee6b`.
-- Owner source/export workflow: `46014952782`, attempt `1` — **SUCCESS**.
-- JVM issuer/proxy contract, including original-codec-passthrough: **PASS**.
-- Publisher-first Android 13 native gate: **PASS**. Clone-alone differential ARM13: run `46014952798` — **PASS**.
-- APK: `CELIKOM-A1-RAMIL-AU-BETA26-HONOR50-20261127.apk`.
-- Size: `71,598,060` bytes. SHA-256: `43e5bb00eabde955eff8e2b25b76986a29198fa3f7ca0512cc55ff234b245888`.
-- Owner draft release ID: `460707648` (remains unpublished).
-- Owner APK signer and package independently verified; install mode: `UPDATE_EXISTING`.
-- Floki spool workflow: run `46018546776`, attempt `2`, job `140596788844`, runner `celikom-floki-ci01` — **SUCCESS**.
-- Independent root receipt matched run `46014952782`, attempt `1`, APK name, size and SHA-256. Root HTTPS readback returned the expected APK and matched size/SHA-256; workflow verified receipt and draft readback. The exact direct owner URL was sent privately in chat. Do not copy the capability URL/token into Git or docs.
-- The initial spool attempt failed before executing steps on `celikom-floki-ci02`; the failed job was retried without changing the APK or bypassing the trusted spool. The retry succeeded on `celikom-floki-ci01`.
-- CI verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`; `owner_phone_touched=false`. Delivery success is not audio-replacement proof.
+- Android A1 repository: `manufact-test/nomusic`.
+- Active branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- Latest documentation-only checkpoint before this update: `7f64f953c5e2ef808a4d096fff8fc18301722179`.
+- BETA26 Android source commit: `bcb5d9ccee56b2e8bcc5493c12514c07f342ee6b`.
+- BETA26 APK: `CELIKOM-A1-RAMIL-AU-BETA26-HONOR50-20261127.apk`.
+- Size: `71,598,060` bytes.
+- SHA-256: `43e5bb00eabde955eff8e2b25b76986a29198fa3f7ca0512cc55ff234b245888`.
+- Direct HTTPS delivery from `celikom.com` was verified through the trusted Floki spool and the exact link was sent privately in the previous chat. **Do not run delivery again for BETA26 and do not send a GitHub download URL.**
+- The user is moving to a new chat and will attach the fresh BETA26 diagnostic TXT there. At this checkpoint, that new TXT is not attached to this conversation. **As soon as it is attached, inspect it immediately; do not ask the user to repeat the test and do not answer with a generic report instead of analysis.**
+- The owner has not explicitly confirmed in this chat whether BETA26 installation/test was completed. Establish the installed version from the diagnostic itself; do not assume.
 
-## Why BETA26 exists
+## Why BETA26 was built
 
 BETA25's actual owner TXT showed `ISSUER_CODEC_MP3_REQUESTED=ONE` while the approved CELIKOM source never reached `DATASOURCE_ARMED`, `AUDIO_OPEN`, or `AUDIO_READ`. The first-open candidate was never accepted; `FIRST_OPEN_CANDIDATE_ACCEPTED=NONE`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED=MANY`, `FIRST_OPEN_BIRTH_NOT_FOUND=MANY`, and `DEFERRED_ARM_ENTER=NONE`.
 
@@ -24,20 +21,72 @@ The MP3 preference helper was replacing the original Yandex FileInfoApi `codecs`
 
 BETA26 keeps the BETA25 first-OPEN and deferred-arm rejection diagnostics. No server, catalogue, signed permissions, Range/HMAC, original Yandex APK, Windows, stable Android, or OTA code was changed. This is a targeted playback-safety rollback, **not** proof that MP3 preference was the sole cause and **not** an audio-replacement fix claim.
 
-Expected next diagnostic: `ISSUER_CODEC_MP3_REQUESTED=NONE`. If «Ау» plays again, that supports the codec-override hypothesis but still does not prove CELIKOM replacement. If it still fails, inspect the original Yandex PlaybackException and the exact track-scoped first-open path.
+Expected diagnostic: `ISSUER_CODEC_MP3_REQUESTED=NONE`. If it is still `ONE`, first establish why the BETA26 passthrough code is not active (wrong installed APK, wrong runtime path, or another caller); do not immediately edit unrelated code.
 
-## Next owner test — BETA26 is ready to install
+## Required first actions in the next chat
 
-1. Install BETA26 **over BETA25** using the direct `celikom.com` link sent privately in chat. Do not uninstall CELIKOM; do not clear app data or cache.
-2. Open the original Yandex Music app. Play Ramil / 10AGE — `Ау` directly from original album `38902809`, track ID `144530503`; do not use MyWave.
-3. Listen at `00:43–00:54` and note whether Yandex shows «Невозможно воспроизвести».
-4. Then play another track that previously had gaps at the beginning. Do not restart the app between checks.
-5. Export one fresh CELIKOM diagnostic TXT from that same session and attach it privately, regardless of the sound result.
+1. Read `docs/android/NEXT-CHAT.md`.
+2. Read `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md`.
+3. Read `docs/android/CELIKOM-A1-BETA26-OWNER-DIAGNOSTIC-NEXT-STEPS-2026-11-27.md`.
+4. Then inspect the newly attached owner diagnostic TXT in full. Treat the TXT as the primary evidence and correlate all events with the exact selected track/generation.
+5. Identify the **first concrete failing transition** before changing code. Do not start a broad refactor or build another APK just to add more generic counters.
 
-Read the first break in this order:
+## Phone test context to correlate
+
+- Device: HONOR 50, Android 13.
+- App under test: original Yandex Music plus CELIKOM A1.
+- Track: Ramil / 10AGE — «Ау».
+- Original album ID: `38902809`.
+- Original track ID: `144530503`.
+- Critical listening interval: `00:43–00:54`.
+- User also checked another song that previously had gaps at the beginning.
+- Test sequence should be one continuous session without restarting Yandex between the two songs.
+- Preserve the user's actual observations: whether «Ау» plays or shows «Невозможно воспроизвести», whether the second song has leading gaps, and whether either track contains audible alternate CELIKOM audio.
+
+## Diagnostic priority — follow the first break, not assumptions
+
+First verify:
+- App version/build identifies BETA26, not BETA25/BETA24.
+- `ISSUER_CODEC_MP3_REQUESTED=NONE` as expected from the BETA26 codec passthrough.
+- Exact original track/album and selection generation for each event. Do not mix «Ау» with the next song.
+- If Yandex still refuses «Ау», inspect the original Yandex playback exception: class, message, error code/cause and the track-scoped timing. The CELIKOM signed MP3 has not been shown to be opened/read merely because server-side resolve/grant events exist.
+
+For the CELIKOM first-open path, inspect the first missing/rejected stage in this order:
+
 `FIRST_OPEN_HOOK_ENTERED` → `FIRST_OPEN_CANDIDATE_ACCEPTED` → `FIRST_OPEN_SETTER_MATCH` → `FIRST_OPEN_DEFERRED_ARM_CALLED` → `DEFERRED_ARM_ENTER` → `DEFERRED_ARM_ACCEPTED` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
 
-Do not claim audible replacement from JVM, CI, hook registration, native launch, or successful APK delivery alone. The owner must confirm hearing the alternate audio.
+Also inspect the rejection counters/reasons around:
+- `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`
+- `FIRST_OPEN_BIRTH_NOT_FOUND`
+- candidate accepted/rejected reason
+- setter identity/match result
+- deferred-arm enter/accept result
+- any first-open generation/track identity mismatch
+- original Yandex playback exception for «Ау».
+
+Interpretation:
+- If `ISSUER_CODEC_MP3_REQUESTED=NONE` and «Ау» plays again, that supports the codec-override hypothesis; it does **not** prove CELIKOM replacement.
+- If «Ау» still fails, inspect the original Yandex playback exception and confirm original codec arguments pass through unchanged. Do not blame the signed CELIKOM MP3 unless CELIKOM `AUDIO_OPEN/AUDIO_READ` actually occurred.
+- If normal playback returns but the first-open chain still stops before `DATASOURCE_ARMED`, keep focus on the exact wrapper/factory/source-to-DataSource handoff.
+- Only `DATASOURCE_ARMED`, `AUDIO_OPEN`, and `AUDIO_READ` plus the owner's audible confirmation can move the claim toward actual replacement. CI/native launch alone is not audio proof.
+
+## Guardrails — do not regress unrelated working areas
+
+- Do not change server, catalogue, signed permissions, Range/HMAC, Windows, stable Android, original Yandex APK, or OTA without direct evidence from this diagnostic.
+- Do not remove/reinstall CELIKOM or clear app data/cache as a diagnostic shortcut.
+- Do not repeat already failed wrapper/factory experiments without evidence that the same failure is present.
+- Do not claim replacement is working unless the owner actually hears the alternate audio.
+- Prefer one narrowly scoped fix at the first proven failing transition, then run relevant JVM/ARM13 checks.
+- No new APK is required until the TXT identifies a code change worth testing.
+
+## BETA26 source/build validation
+
+- Owner source/export workflow: `46014952782`, attempt `1` — SUCCESS.
+- JVM issuer/proxy contract, including original-codec-passthrough: PASS.
+- Publisher-first Android 13 native gate: PASS.
+- Clone-alone differential ARM13: run `46014952798` — PASS.
+- Signer and package independently verified.
+- CI verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`; `owner_phone_touched=false`.
 
 ## BETA26 Floki delivery record
 
@@ -46,11 +95,12 @@ Do not claim audible replacement from JVM, CI, hook registration, native launch,
 - Same-value retry push commit: `0617cea7ecd9ab8b4abb470ef500b89eb78f08dd`.
 - Spool run `46017089409` was cancelled when the same concurrency group was superseded.
 - Spool run `46018546776`, attempt `1`, failed before steps on `celikom-floki-ci02`.
-- The failed job was re-run as attempt `2`; job `140596788844` on `celikom-floki-ci01` completed all steps successfully, including local contracts, provenance resolution, apksigner/package verification, immutable staging, independent root receipt, live HTTPS readback, and unpublished-draft URL readback.
+- Re-run attempt `2`, job `140596788844`, runner `celikom-floki-ci01` — SUCCESS. All steps completed: local spool/root contracts, exact source provenance, apksigner/package verification, immutable staging, independent root receipt, live HTTPS size/SHA-256 readback, unpublished draft URL write/readback.
+- The exact capability URL/token is intentionally omitted from docs and must not be copied into Git, logs, summaries, or public messages.
 - No SSH, legacy download workflow, or security bypass was used.
-- The exact capability URL is intentionally omitted from documentation. It exists only in the unpublished owner draft and the private chat delivery.
+- Do not re-publish/re-deliver BETA26; delivery is complete.
 
-The requested file `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md` is not present in the current branch tree. This `NEXT-CHAT.md` plus the current Floki workflow are the available delivery source of truth.
+The requested delivery repair file is now present at `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md`. This file and the BETA26 diagnostic note above are supporting records; `NEXT-CHAT.md` remains the canonical current handoff.
 
 ---
 
@@ -71,7 +121,10 @@ BETA26 is delivered through the verified Floki spool. Its independent root recei
 
 ---
 
-# CURRENT HANDOFF — CELIKOM A1 BETA24 per-wrapper source-lineage repair — 2026-11-27
+# HISTORICAL HANDOFF — CELIKOM A1 BETA24 per-wrapper source-lineage repair — 2026-11-27
+
+> Superseded by the BETA26 current handoff at the top of this file. Do not install or retest BETA24 for the current investigation; use the BETA26 owner diagnostic.
+
 
 ## Current owner-test status
 
