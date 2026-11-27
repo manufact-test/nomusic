@@ -2889,6 +2889,16 @@ public final class ExitCallsiteWitness extends XposedModule {
             // factory->DataSource Java lineage, still not selected/approved.
             NATIVE_RENDERER_EVIDENCE.setOriginalPrePrepareSourceInstanceEvidence(
                 STAGE_B_AUDIO::exactFreshSourceInstanceForCreatorOrBeta);
+            // NAV50: on the same live SLOT_B renderer callback, resolve the
+            // current period wrapper's already-created DataSource and compare
+            // it by object identity with the route that has returned bytes.
+            // Read-only witness; never authorizes or changes audio routing.
+            NATIVE_RENDERER_EVIDENCE.setAlternateSourceReadEvidence(wrapper -> {
+                Object dataSource=
+                    STAGE_B_AUDIO.linkedSourceInstanceForCreatorOrBeta(wrapper);
+                return dataSource==null ? -2
+                    : NATIVE_ALT_EXO_BYTES.readStatusForSource(dataSource);
+            });
         } catch(Throwable ignored) { }
         // One exact signed original concrete MediaPeriod before prepare.
         // Fail-closed: require exactly one declared MediaPeriod contract
