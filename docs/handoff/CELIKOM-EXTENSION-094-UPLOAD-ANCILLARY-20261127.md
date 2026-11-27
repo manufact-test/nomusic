@@ -32,3 +32,20 @@ Independent verification against deployed PHP normalizer/decoder and exact owner
 Independent native playback gate did not run: its Chrome/tool preparation step failed on `getaddrinfo ENOTFOUND github.com`. Do not mark it passed or infer listening acceptance. No extra Chrome repair work was attempted. The supplied original and prepared MP3 did independently pass local strict FFmpeg decoding with identical PCM; actual deployed PHP upload/normalizer/decoder passed the synthetic HTTPS test above.
 
 Owner should update the existing unpacked extension and retry the same untouched original MP3. Its on-screen duration still must match the pinned original track within the existing 1.5-second tolerance; that rule is not relaxed.
+
+## Subsequent owner diagnostic — unresolved transport/cancel/UI findings
+
+Input `Вставленный текст(20261127-202937).txt`, 0.4.94. Owner asked to investigate rare slow upload, cancellation/retry errors and disappearing error text. This section records evidence, not a new fix or release.
+
+- Attempt 2ec18523, track 128750389, 3,756,408-byte source: initial 98,304/114,688-byte progress, then slow partial transfer to 491,520 bytes (13%). Cancelled at 65.384 s. Its terminal diagnostic falls back to 10% and sent=0 because the worker records a decile counter rather than actual final progress. New attempt bce744e7 on same track/source completed HTTP 202 in 1.68 s.
+- Attempt 0849c933, track 115444644, 3,063,827-byte source: 114,688 bytes / 3%, then no progress for about 29.7 s, network_error / HTTP status 0 at 30.216 s. New attempt c0d206a3 completed HTTP 202 in 1.596 s. Backend rejection/MP3 decoder error is not reported for the failed transmission.
+- Other recent uploads completed in roughly 1.6–2.5 seconds. Historical 503 errors on 26 November are the already repaired executable-permission incident and must not be relabeled as this failure.
+- Read-only administrative audit 46064319037, job 140725839354, SUCCESS: filtered deployed application log confirms successful bce744e7 (202, 552 ms) and c0d206a3 (202, 453 ms). No application upload record matched failed/cancelled prefixes in scanned tails. This bounded audit did not establish a particular VPN/TLS/HTTP2/server-network cause; no network configuration was changed.
+
+Confirmed code issues in current upload wrapper:
+1. Offscreen watchdog returns as soon as any first byte is reported; it never detects a later idle partial transfer. Absolute 120 s XHR timeout remains. The direct path has the same first-progress-only watchdog limitation.
+2. Fresh popup suppresses terminal saved status when backgroundUploadMode is false, and opening resets the panel. Journal persists the failure, but error text cannot be recovered in the UI after closure. Existing server-authoritative pending/approved precedence must be retained when fixing this.
+3. Reproduced cancellation race in actual built offscreen worker via VM (no real HTTP): hold config fetch pending, begin succeeds, cancel before xhr exists returns ok, immediate begin returns upload_busy, resolve config, and the old cancelled operation still starts one HTTP request. execute lacks cancellation fences after preparation awaits. Do not infer that this preparation race caused the owner's already-in-flight 3% stall; it independently explains a real possible cancel/retry/continued-upload inconsistency and requires regression coverage.
+4. Cancellation acknowledgment is not a completion barrier; late old status must not overwrite a newer attempt when implementing retry/fencing. Do not automatically replay a POST or risk duplicate submissions.
+
+No production extension source changed for this investigation; owner candidate remains 0.4.94. Outstanding work: progress-idle watchdog and accurate terminal bytes, real cancellation through preparation and cleanup, recoverable last-failure UI with current server state taking precedence, and targeted race/slow-transfer tests. No evidence yet establishes the underlying intermittent transport cause. Maintenance audit request returned to safe no-op.
