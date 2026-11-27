@@ -15,7 +15,7 @@ Do not change W174 audio hook files. Do not copy W182/W183/W185 player-hook expe
 
 The active recovery work is now documented in `W188-W174-51290-RESTORE-HANDOFF-20261127.md`. The W174 audio baseline source hashes listed above remain unchanged.
 
-On branch `recovery/windows-w174-02454-known-good-20261126`, HEAD `d0de9824c5e03422a9d6f928f17715de07bb76ba`, W188 adds a live Yandex 5.129 provider discovery/argument bridge and late-attach path around the existing W174 adapter. It does not replace the W174 audio implementation.
+On branch `recovery/windows-w174-02454-known-good-20261126`, product/test code commit `d0de9824c5e03422a9d6f928f17715de07bb76ba` (documentation checkpoint HEAD `8900099c6c0e9546b8d6988067d7f8a8ccd6fab4`), W188 adds a live Yandex 5.129 provider discovery/argument bridge and late-attach path around the existing W174 adapter. It does not replace the W174 audio implementation.
 
 Official Yandex `5.129.0.r22295238` passed the isolated signature/hash, native image, byte-exact restore, ASAR hook/callgraph and compatibility contracts in workflow [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251). Exact hashes and test counts are in the active handoff document. Validation artifact ID: `15182926152`; this artifact is a candidate report/ASAR/audit bundle, not an installer.
 
