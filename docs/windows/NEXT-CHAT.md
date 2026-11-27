@@ -1,25 +1,25 @@
 # ACTIVE CELIKOM WINDOWS — W188 audio recovery / Yandex 5.129.0 (27 November 2026)
 
-**Read this active handoff first:** \`docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md\`.
+**Read this active handoff first:** `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md`.
 
 Then read:
-1. \`docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md\` — original owner diagnostic and W174 baseline.
-2. \`docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md\` — historical source/owner-accepted W174 context only; its old mainline task is not the current task.
+1. `docs/windows/W188-02461-AUDIO-BASELINE-AND-YANDEX-51290-INVESTIGATION-20261127.md` — original owner diagnostic and W174 baseline.
+2. `docs/windows/W174-MAINLINE-CONSOLIDATION-20261121.md` — historical source/owner-accepted W174 context only; its old mainline task is not the current task.
 
 ## Current exact state
 
-- Repository: \`manufact-test/nomusic\`.
-- Branch: \`recovery/windows-w174-02454-known-good-20261126\`.
-- HEAD: \`d0de9824c5e03422a9d6f928f17715de07bb76ba\`.
+- Repository: `manufact-test/nomusic`.
+- Branch: `recovery/windows-w174-02454-known-good-20261126`.
+- HEAD: `d0de9824c5e03422a9d6f928f17715de07bb76ba`.
 - Official Yandex 5.129.0 compatibility workflow [45965695251](https://github.com/manufact-test/nomusic/actions/runs/45965695251): **SUCCESS**; 32/32 Node tests, W24 20, W21 41, W15 477, GUI build 0 warnings/0 errors, official 5.129.0 signature/hash/native-image/byte-exact-restore and ASAR audits passed.
-- Exact Yandex version: \`5.129.0.r22295238\`; ASAR SHA256: \`4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1\`.
-- Validation artifact ID: \`15182926152\` (report + ASAR + audit JSON; **not an installer**).
-- Separate isolated FlokiNET/private handoff run [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job \`140394244238\`: **in progress at handoff**. Check it before doing anything else. No owner installer has been confirmed or delivered.
+- Exact Yandex version: `5.129.0.r22295238`; ASAR SHA256: `4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1`.
+- Validation artifact ID: `15182926152` (report + ASAR + audit JSON; **not an installer**).
+- Separate isolated FlokiNET/private handoff run [45965695138](https://github.com/manufact-test/nomusic/actions/runs/45965695138), job `140394244238`: **in progress at handoff**. Check it before doing anything else. No owner installer has been confirmed or delivered.
 - W174 audio baseline files remain unchanged; exact hashes and W188 changes are in the active handoff doc.
 
 ## Immediate task for the next chat
 
-Continue from the current branch and existing Actions runs. First check run \`45965695138\`; do not rerun green compatibility run \`45965695251\` or create a duplicate build. Determine whether the FlokiNET job produces a valid owner package or only stages an existing signed transfer. If a package is required, finish it through the approved path, verify the exact artifact and only then hand it to the owner.
+Continue from the current branch and existing Actions runs. First check run `45965695138`; do not rerun green compatibility run `45965695251` or create a duplicate build. Determine whether the FlokiNET job produces a valid owner package or only stages an existing signed transfer. If a package is required, finish it through the approved path, verify the exact artifact and only then hand it to the owner.
 
 **Do not claim the problem is fixed yet:** the CI proves 5.129.0 compatibility and the W188 provider bridge contracts, not audible replacement on the owner's PC. Do not merge to main, add stable catalog pin, publish OTA, or touch Android/server/extension.
 
