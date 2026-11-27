@@ -27,10 +27,10 @@ jobs:
             local job_name="$5" runner_name="$6" run_json="$RUNNER_TEMP/run-$run_id.json"
             local jobs_json="$RUNNER_TEMP/jobs-$run_id.json" status
             gh api "repos/$repo/actions/runs/$run_id/attempts/$attempt" > "$run_json"
-            jq -e --arg sha "$sha" --arg path "$workflow_path" --argjson attempt "$attempt" '
-              .id == (env.RUN_ID|tonumber) and .run_attempt == $attempt
+            jq -e --arg sha "$sha" --arg path "$workflow_path" --argjson attempt "$attempt" --argjson run_id "$run_id" '
+              .id == $run_id and .run_attempt == $attempt
               and .head_sha == $sha and .head_branch == "main" and .path == $path
-            ' --argjson RUN_ID "$run_id" "$run_json" >/dev/null
+            ' "$run_json" >/dev/null
             status=$(jq -r .status "$run_json")
             if [[ "$status" == completed ]]; then
               echo "A1_RUN_ALREADY_COMPLETED $run_id"
