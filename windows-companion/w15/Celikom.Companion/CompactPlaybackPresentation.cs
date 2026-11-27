@@ -48,6 +48,19 @@ public static class CompactPlaybackPresentation
         GrantValidator.IsTrackId(currentTrackId) &&
         string.Equals(currentTrackId, responseTrackId, StringComparison.Ordinal) &&
         currentEpoch == responseEpoch;
+
+    public const string TransientRendererGapMessage = "Проверяем состояние воспроизведения…";
+
+    // Electron can destroy the selected Yandex WebContents while the same
+    // native host is waiting for its replacement. That emits a fresh
+    // UNAVAILABLE heartbeat, unlike a real process exit which clears the
+    // heartbeat timestamp. Keep the compact UI neutral for this short handoff.
+    public static bool IsTransientRendererUnavailable(bool enabled,
+        bool heartbeatFresh, bool playerUnavailable, string? nativeStatus,
+        DateTimeOffset lastHeartbeatAt, DateTimeOffset now) =>
+        enabled && heartbeatFresh && playerUnavailable && nativeStatus == "UNAVAILABLE" &&
+        lastHeartbeatAt != DateTimeOffset.MinValue && now >= lastHeartbeatAt &&
+        now - lastHeartbeatAt <= TimeSpan.FromMilliseconds(2500);
     public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
         "Не удалось подключиться к Яндекс Музыке. Проверьте, что приложение открыто, и попробуйте ещё раз.";
