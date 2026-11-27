@@ -74,7 +74,7 @@ function createRenderer({
     setTimeout,clearTimeout
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
-  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek};
+  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals:()=>intervals.forEach(fn=>fn())};
 }
 async function tick() {
   await new Promise(resolve=>setImmediate(resolve));
@@ -180,7 +180,7 @@ test("W60 START/STOP re-requests current source through real Yandex position-pre
   assert.ok(r.window.__celikomBridgeNativeDrain);
   // Initial state on Yandex startup must not cause an unrequested second play.
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state; // Yandex UI reads its existing playback observable.
+  void player.state; r.runIntervals(); // Yandex UI reads its existing playback observable.
   await tick();
   assert.equal(player.reloadReasons.length,0);
   // The first native source is already approved and has been consumed.
@@ -226,7 +226,7 @@ test("W99 verified CELIKOM source-left schedules one bounded current-track recov
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const initial=r.window.__celikomBridgeNativeDrain();
@@ -273,7 +273,7 @@ test("W131 verified source-left invalidates stale mapping before VPN state-off",
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const initial=r.window.__celikomBridgeNativeDrain();
@@ -303,7 +303,7 @@ test("W132 VPN A-to-B revalidation keeps a source-left original track untouched"
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const initial=r.window.__celikomBridgeNativeDrain();
@@ -347,7 +347,7 @@ test("W89 unfetched signed source: exactly one current-track native reload, pres
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const original=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const job=r.window.__celikomBridgeNativeDrain();
@@ -488,7 +488,7 @@ test("W76: real missing song never schedules background reload",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"456"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"456"});
   await tick();
   const req=r.window.__celikomBridgeNativeDrain();
@@ -506,7 +506,7 @@ test("W98 VPN state transitions leave a confirmed ORIGINAL current song untouche
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"456",position:18.4});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"456"});
   await tick();
   const initial=r.window.__celikomBridgeNativeDrain();
@@ -540,7 +540,7 @@ test("W76: Stop after temporary failure cancels recovery without touching unknow
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const req=r.window.__celikomBridgeNativeDrain();
@@ -596,7 +596,7 @@ test("W77: Kishlak-style transient batch prefetch remains pending until song act
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:55.8});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
   await tick();
   const first=r.window.__celikomBridgeNativeDrain();
@@ -612,7 +612,7 @@ test("W77: Kishlak-style transient batch prefetch remains pending until song act
     "a prefetched next track must never reload while another song plays");
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
   player.snapshot.playerState.progress.value.position=18.3;
-  void player.state;
+  void player.state; r.runIntervals();
   assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),true,
     "observed Yandex current song activates the deferred retry");
   assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_RECOVERING");
@@ -641,7 +641,7 @@ test("W77: Stop clears old prefetch failure and forbids future reload",async()=>
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
   await tick();
   for(const req of r.window.__celikomBridgeNativeDrain())
@@ -652,7 +652,7 @@ test("W77: Stop clears old prefetch failure and forbids future reload",async()=>
   await tick();await tick();
   const prior=player.reloadReasons.length;
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
-  void player.state;
+  void player.state; r.runIntervals();
   assert.equal(r.window.__celikomBridgeNativeCheckDeferred(),false);
   await new Promise(resolve=>setTimeout(resolve,720));
   assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
@@ -664,7 +664,7 @@ test("W152 VPN A-to-B preserves an already-playing exact CELIKOM decoder without
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:82.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const grants=r.window.__celikomBridgeNativeDrain();
@@ -703,7 +703,7 @@ test("W157 no-kUrl VPN hold keeps only the same mapped PLAYING current track and
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const request=r.window.__celikomBridgeNativeDrain();
@@ -733,7 +733,7 @@ test("W158 track 144530503 same-source VPN burst retains mapped PAUSED track and
   const trackId="144530503";
   const player=new r.NativeYandexPlayer({trackId,status:"paused",position:64.25});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId});
   await tick();
   const request=r.window.__celikomBridgeNativeDrain();
@@ -773,7 +773,7 @@ test("W158 mapped current source diagnostic distinguishes a rejected hold withou
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const pending=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const [request]=r.window.__celikomBridgeNativeDrain();
@@ -801,7 +801,7 @@ test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const request=r.window.__celikomBridgeNativeDrain();
@@ -837,7 +837,7 @@ test("W157 no-kUrl VPN hold fails closed after Manual Stop or unavailable player
     const r=createRenderer({withPlayer:true});
     const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
     r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-    void player.state;
+    void player.state; r.runIntervals();
     const first=new r.Resource().getFileInfo({trackId:"123"});
     await tick();
     const request=r.window.__celikomBridgeNativeDrain();
@@ -872,7 +872,7 @@ test("W152/W157 no-kUrl source loss uses only one bounded current-track refresh"
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:41.5});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const grants=r.window.__celikomBridgeNativeDrain();
@@ -903,7 +903,7 @@ test("W152 My Wave track identity prevents preserving the previous song's decode
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:55.4});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void player.state;
+  void player.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const grants=r.window.__celikomBridgeNativeDrain();
@@ -912,7 +912,7 @@ test("W152 My Wave track identity prevents preserving the previous song's decode
   await first;
 
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
-  void player.state;
+  void player.state; r.runIntervals();
   r.window.__celikomBridgeNativeSetState({
     enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
   });
