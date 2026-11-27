@@ -120,6 +120,12 @@ public sealed class BridgeServer : IAsyncDisposable
         now - seenAt <= TimeSpan.FromSeconds(HeartbeatFreshnessSeconds);
     private bool IsHeartbeatFreshLocked() =>
         _enabled && IsHeartbeatFresh(_lastHeartbeatAt, DateTimeOffset.UtcNow);
+    // Contribution actions and the visible current-track UI must share the
+    // same bounded metadata lease. Heartbeat freshness alone can outlive the
+    // last valid track ID and expose a stale previous song to Suggest/Upload.
+    private bool IsTrackMetadataDisplayableLocked() =>
+        IsTrackMetadataDisplayable(_lastValidTrackAt, DateTimeOffset.UtcNow,
+            _enabled, _playerUnavailable);
     public event Action? Changed;
 
     public BridgeServer(CelikomApi api, SessionStore store)
@@ -134,10 +140,10 @@ public sealed class BridgeServer : IAsyncDisposable
     public int NativeNetworkRecoveryEpoch
     { get { lock (_gate) return _nativeNetworkRecoveryEpoch; } }
     public string PairCode { get { lock (_gate) return _code; } }
-    public string LastSong { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSong : ""; } }
-    public string LastTrackTitle { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastTitle : ""; } }
-    public string LastTrackArtist { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastArtist : ""; } }
-    public long LastTrackDurationMs { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastDurationMs : 0; } }
+    public string LastSong { get { lock (_gate) return IsTrackMetadataDisplayableLocked() ? _lastSong : ""; } }
+    public string LastTrackTitle { get { lock (_gate) return IsTrackMetadataDisplayableLocked() ? _lastTitle : ""; } }
+    public string LastTrackArtist { get { lock (_gate) return IsTrackMetadataDisplayableLocked() ? _lastArtist : ""; } }
+    public long LastTrackDurationMs { get { lock (_gate) return IsTrackMetadataDisplayableLocked() ? _lastDurationMs : 0; } }
     public string LastStatus { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastStatus : _enabled ? "UNAVAILABLE" : "OFF"; } }
     public string LastSource { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastSource : "UNKNOWN"; } }
     public string LastPlaybackState { get { lock (_gate) return IsHeartbeatFreshLocked() ? _lastPlaybackState : "UNKNOWN"; } }

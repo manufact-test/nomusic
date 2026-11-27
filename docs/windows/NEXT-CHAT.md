@@ -1,3 +1,55 @@
+# ACTIVE CELIKOM WINDOWS — W189 repairs from the latest mainline (27 November 2026)
+
+**Current canonical main at latest check:** `ec68241b3c58d87770267f0d2cde844146086de8`. The W189 branch was reconciled at `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`; two later extension-only commits are now on main, with no overlapping W189 paths. They are preserved by the PR merge.
+
+**Repair branch:** `work/windows-w189-repairs-from-main-20261127`  
+**Current PR HEAD:** `cdda5230e6386c3ffaa4ace239310117d0b62e38` (documentation-only handoff update after the code rebase).  
+**PR:** [#73 — W189 Windows repairs](https://github.com/manufact-test/nomusic/pull/73), 25 changed files, mergeable, still draft.
+
+**Windows baseline:** CELIKOM 0.24.62.0 / Update Supervisor 0.24.62.0 / Yandex Music 5.129.0. W169 adds native-host protection and advances the native module marker from 0.24.31 to 0.24.32 for this repair candidate. Do not bump the app/supervisor release version until the production stable floor and sequence are audited.
+
+Read first:
+1. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — exact implementation state, CI evidence, Floki/Hostinger publication safety and next sequence.
+2. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — original bug list and acceptance criteria.
+3. `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md` — why the W188 baseline was promoted to main.
+4. `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md` — W174 source hashes and W188 Yandex 5.129 provider bridge.
+
+## Current implementation state
+
+- W169 Electron exception guards and regression tests restored.
+- W175 initial-current-source revalidation and W178 new-current-track catch-up restored on top of the W188 provider bridge.
+- W175/W178 tests are back in the blocking Windows suite. The fixture models the Yandex 5.129 provider chain rather than the obsolete pre-W188 mock.
+- W178 resolve failure causes are recorded with privacy-safe diagnostics; only actual failure causes are incident-classified.
+- BridgeServer and compact UI share the bounded current-track metadata lease.
+- Proposal/upload presence state uses a 15-second cache, shared in-flight request, request epochs, immediate local pending state, and stale-track response rejection.
+- A late result for an old song is discarded by `CompactResult(trackId,...)`.
+- W174 audio source files remain unchanged. No W182/W183/W185 runtime experiments were transplanted.
+- Admin upload and «Предложить песню» API contracts are preserved.
+
+## Validation
+
+Latest full CI on pre-rebase source `f8f6d9b7575fe7e9cd9d72af5c460b809ac87a36`:
+- [Windows integration CI](https://github.com/manufact-test/nomusic/actions/runs/46070031881) — SUCCESS, all steps including W174/W175/W178/W188, W15, GUI warnings-as-errors, supervisor, installer and updater-safety checks.
+- [Generic CI](https://github.com/manufact-test/nomusic/actions/runs/46070031935) — SUCCESS.
+
+The current branch was reconciled with main, then received documentation-only handoff updates. Exact-head checks on `cdda5230e6386c3ffaa4ace239310117d0b62e38` both passed:
+- [Windows integration CI](https://github.com/manufact-test/nomusic/actions/runs/46071049097) — SUCCESS.
+- [Generic CI](https://github.com/manufact-test/nomusic/actions/runs/46071049046) — SUCCESS.
+
+Exact-head CI is green. PR #73 can be marked ready and merged. Green CI is not proof of audible replacement; owner runtime playback remains unconfirmed.
+
+## Release safety
+
+The Floki root-consumer spool is not a private test area: its systemd timer consumes signed packages, updates the local Floki stable pointer and owner download, and records an HTTPS verification receipt. The release workflow now requires `publish_to_production=true`, an explicit `CELIKOM_STABLE_PUBLISHER` target (`floki`, `hostinger`, or `both`), and the protected `windows-stable-production` environment for every publisher. The Floki child workflow is `workflow_call` only; no direct push/manual staging route remains.
+
+A read-only Floki route audit is queued by `.github/deploy/windows-owner-audit-trigger.txt`. It checks timer/service state, pending spool files, local stable pointer/manifest, owner receipt, public DNS/HTTP routes and Nginx mapping. It runs only after merge and does not change the server. Use its result to decide whether Hostinger and Floki are complementary targets.
+
+**No package version bump, stable publication, global rollout or owner auto-update test has occurred.** Next: merge PR #73, approve/run the read-only Floki audit, confirm the required reviewers on `windows-stable-production`, determine the correct publisher target(s) and sequence, then prepare the next signed stable release. Do not assume the next sequence; read the live stable floor first.
+
+No Android, browser-extension runtime or server/admin backend changes.
+
+---
+
 # ACTIVE CELIKOM WINDOWS — W190 baseline promotion, then W189 repair (27 November 2026)
 
 **Read first:** `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md`.

@@ -236,11 +236,22 @@ public sealed class CelikomApi : IDisposable
 
     public async Task<SourceGrant?> ResolveAsync(string id, CancellationToken ct)
     {
-        if (!GrantValidator.IsTrackId(id) || !IsLoggedIn) return null;
+        if (!GrantValidator.IsTrackId(id)) return null;
         var session = Settings;
+        if (!SessionStore.IsHexToken(session.AccessToken) ||
+            !SessionStore.IsHexToken(session.RefreshToken))
+        {
+            DiagnosticLog.Record("RESOLVE_LOCAL_SESSION_MISSING", id);
+            return null;
+        }
+
         Uri origin;
         try { origin = GrantValidator.NormalizeOrigin(session.Origin); }
-        catch { return null; }
+        catch
+        {
+            DiagnosticLog.Record("RESOLVE_LOCAL_ORIGIN_INVALID", id);
+            return null;
+        }
         var target = new Uri(origin,
             "/api/v1/resolve?service=yandex&track_id=" + Uri.EscapeDataString(id) + "&audio_formats=mp3,m4a&audio_profile=windows_gain_v1");
         JsonElement result;
@@ -250,14 +261,52 @@ public sealed class CelikomApi : IDisposable
         }
         catch (ApiFailure ex) when (ex.HttpStatus == 401)
         {
-            if (!await RefreshOnceAsync(session.AccessToken, ct)) return null;
+            bool refreshed;
+            try { refreshed = await RefreshOnceAsync(session.AccessToken, ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch
+            {
+                DiagnosticLog.Record("RESOLVE_SESSION_REFRESH_FAILED", id);
+                return null;
+            }
+            if (!refreshed)
+            {
+                DiagnosticLog.Record("RESOLVE_SESSION_REFRESH_FAILED", id);
+                return null;
+            }
             var newer = Settings;
             if (!IsLoggedIn || newer.InstallationId != session.InstallationId ||
-                newer.Origin != session.Origin) return null;
-            result = await RequestAsync(target, HttpMethod.Get, null, newer.AccessToken, ct);
+                newer.Origin != session.Origin || newer.Email != session.Email)
+            {
+                DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
+                return null;
+            }
+            session = newer;
+            result = await RequestAsync(target, HttpMethod.Get, null, session.AccessToken, ct);
         }
-        if (Settings.Origin != session.Origin || !IsLoggedIn) return null;
-        return GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
+
+        // A logout or a new login during the request invalidates this result,
+        // even when the new account happens to use the same API origin.
+        if (!ReferenceEquals(Settings, session) || !IsLoggedIn)
+        {
+            DiagnosticLog.Record("RESOLVE_SESSION_CHANGED", id);
+            return null;
+        }
+        if (result.ValueKind != JsonValueKind.Object ||
+            !result.TryGetProperty("found", out var found) ||
+            found.ValueKind != JsonValueKind.True)
+        {
+            DiagnosticLog.Record("RESOLVE_SERVER_NO_GRANT", id);
+            return null;
+        }
+        var grant = GrantValidator.FromResolve(result, id, origin, DateTimeOffset.UtcNow);
+        if (grant is null)
+        {
+            DiagnosticLog.Record("RESOLVE_GRANT_REJECTED", id);
+            return null;
+        }
+        DiagnosticLog.Record("RESOLVE_GRANT_VALID", id);
+        return grant;
     }
 
     private async Task<bool> RefreshOnceAsync(string failedAccess, CancellationToken ct)
