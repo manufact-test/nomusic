@@ -79,9 +79,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // BETA25 owner diagnostic: first-open gates stay fail-closed; export only bucketed rejection reasons.
+    // BETA25 added first-open rejection evidence; all gates remain fail-closed.
+    // BETA26 pauses the request-only MP3 rewrite until the native source is armed.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA25_FIRST_OPEN_AND_DEFERRED_ARM_REASON_DIAGNOSTICS_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA26_ORIGINAL_CODEC_PASSTHROUGH_FIRST_OPEN_DIAGNOSTICS_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3895,11 +3896,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
-                                        // BETA24 retains the owner-only MP3 preference when the exact original API request occurs;
-                                        // a cached FileInfo path does not emit this marker and is not claimed as changed.
-                                        // BEFORE the vendor builds the extractor.
-                                        // Only the owner-enabled, exact signed
-                                        // FileInfoApi and approved Ramil trial.
+                                        // BETA26: preserve the original publisher codec request until the
+                                        // CELIKOM native DataSource is actually armed. The helper is deliberately
+                                        // paused; a request-only MP3 rewrite with no alternate source can break
+                                        // normal Yandex playback without providing replacement audio.
                                         NativeOwnerControlPlane owner=nativeOwnerControl;
                                         if (NativeIssuerCodecPreference
                                                 .preferMp3ForOwnedFileInfo(
