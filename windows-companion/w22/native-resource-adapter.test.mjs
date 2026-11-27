@@ -5,12 +5,10 @@ import {createNativeResourceAdapter} from './native-resource-adapter.mjs';
 const now = 1800000000000;
 const url = 'https://api.celikom.example/api/v1/audio/22?token='+'a'.repeat(64)+'&expires='+Math.floor((now+180000)/1000);
 const nativeUrl = url + '&celikom_native_query_guard=0';
-const signedUrlFor = id => url.replace('/audio/22','/audio/'+id);
 const grant = (id='123', overrides={}) => ({
   trackId:id, approved:true, entitled:true, audioUrl:url,
   expiresAt:now+180000, mimeType:'audio/mpeg', ...overrides
 });
-const mappedGrant = id => ({...grant(id),audioUrl:signedUrlFor(id)});
 const orig = {
   downloadInfo:{trackId:'123',key:'drm',codec:'aac',
     urls:['https://official.example/native'],url:'https://official.example/native'},
@@ -21,8 +19,7 @@ function resource() {
   const proto={
     getFileInfo:async function(params) {
       stats.single++;
-      return structuredClone({...orig,downloadInfo:{...orig.downloadInfo,
-        trackId:String(params?.trackId ?? params?.id)}});
+      return structuredClone({...orig,downloadInfo:{...orig.downloadInfo,trackId:String(params.trackId)}});
     },
     getFileInfoBatch:async function() {
       stats.batch++;
@@ -36,64 +33,6 @@ const create=(resolve=async id=>grant(id), settings={})=>createNativeResourceAda
   deadlineMs:150,...settings
 });
 
-test('W181 single file-info hook reports an unrecognized argument shape without altering Yandex',async()=>{
-  const events=[];
-  const a=create(async()=>null,{onEvent:code=>events.push(code)});
-  const {proto}=resource();a.attach(proto);a.enable();
-  const value=await proto.getFileInfo({other:'123'});
-  assert.equal(value.downloadInfo.trackId,'undefined');
-  assert.equal(value.downloadInfo.url,orig.downloadInfo.url);
-  assert.ok(events.includes('NATIVE_FILEINFO_ID_UNRECOGNIZED'));
-  assert.ok(!events.includes('RESOLVE_START'));
-  a.dispose();
-});
-test('W181 batch file-info hook reports an unrecognized argument shape without altering Yandex',async()=>{
-  const events=[];
-  const a=create(async()=>null,{onEvent:code=>events.push(code)});
-  const {proto}=resource();a.attach(proto);a.enable();
-  const value=await proto.getFileInfoBatch({otherIds:['123']});
-  assert.equal(value.downloadInfos[0].trackId,'123');
-  assert.ok(events.includes('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED'));
-  assert.ok(!events.includes('RESOLVE_START'));
-  a.dispose();
-});
-test('W182 player getFileInfo({id}) is mapped',async()=>{
-  const a=create(async id=>mappedGrant(id));
-  const {proto}=resource();a.attach(proto);a.enable();
-  const value=await proto.getFileInfo({id:'123'});
-  assert.equal(value.downloadInfo.trackId,'123');
-  assert.equal(value.downloadInfo.url,signedUrlFor('123')+'&celikom_native_query_guard=0');
-  a.dispose();
-});
-test('W182 two-argument Yandex getFileInfo reads trackId from the second object',async()=>{
-  const a=create(async id=>mappedGrant(id));
-  const proto={
-    async getFileInfo(context,params) {
-      return {downloadInfo:{trackId:params.trackId,url:'https://official.yandex.example/source'}};
-    }
-  };
-  a.attach(proto);a.enable();
-  const value=await proto.getFileInfo({quality:'hq'},{trackId:'123'});
-  assert.equal(value.downloadInfo.trackId,'123');
-  assert.equal(value.downloadInfo.url,signedUrlFor('123')+'&celikom_native_query_guard=0');
-  assert.equal(value.downloadInfo.quality,'hq');
-  a.dispose();
-});
-test('W182 batch getFileInfoBatch({ids}) is mapped',async()=>{
-  const a=create(async id=>id==='123'?mappedGrant(id):null);
-  const proto={
-    async getFileInfo() {
-      return {downloadInfo:{trackId:'123',url:'https://official.yandex.example/source'}};
-    },
-    async getFileInfoBatch(params) {
-      return {downloadInfos:[{trackId:'123',url:'https://official.yandex.example/source'}]};
-    }
-  };
-  a.attach(proto);a.enable();
-  const value=await proto.getFileInfoBatch({ids:['123']});
-  assert.equal(value.downloadInfos[0].url,signedUrlFor('123')+'&celikom_native_query_guard=0');
-  a.dispose();
-});
 test('disabled is transparent: no CELIKOM request',async()=>{
   let calls=0;const a=create(async()=>{calls++;return grant()});const {proto}=resource();a.attach(proto);
   assert.deepEqual(await proto.getFileInfo({trackId:'123'}),orig);
@@ -486,72 +425,5 @@ test('W76: authoritative catalog absence remains a cached original, no transient
     'https://official.example/native');
   assert.equal(calls,1,'genuine no-replacement remains negative-cached');
   assert.ok(!events.includes('RESOLVE_TRANSIENT'));
-  a.dispose();
-});
-
-
-test("W186 live mediaProvider.getMediaSource maps the exact nested entity ID",async()=>{
-  const events=[];
-  const a=create(async id=>mappedGrant(id),{onEvent:(code,id)=>events.push([code,id])});
-  const original=async params=>({
-    downloadInfo:{trackId:params.entity.id,key:"drm",codec:"aac",
-      urls:["https://official.example/native"],url:"https://official.example/native"},
-    responseTime:41
-  });
-  const owner={getMediaSource:original};
-  a.attachMediaSource(owner);a.enable();
-  const value=await owner.getMediaSource({entity:{id:"123"},quality:"hq"});
-  assert.equal(value.responseTime,41);
-  assert.equal(value.downloadInfo.trackId,"123");
-  assert.equal(value.downloadInfo.url,signedUrlFor("123")+"&celikom_native_query_guard=0");
-  assert.equal(value.downloadInfo.codec,"mp3");
-  assert.equal(value.downloadInfo.key,undefined);
-  assert.ok(events.some(([code,id])=>code==="NATIVE_MEDIASOURCE_REQUEST"&&id==="123"));
-  assert.ok(events.some(([code,id])=>code==="NATIVE_MEDIASOURCE_OK"&&id==="123"));
-  assert.ok(events.some(([code,id])=>code==="SOURCE_MAPPED"&&id==="123"));
-  assert.equal(a.status,"SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED");
-  a.dispose();
-  assert.strictEqual(owner.getMediaSource,original,"dispose restores the exact live provider method");
-});
-
-test("W186 mediaSource no-grant and unrecognized arguments preserve original Yandex response",async()=>{
-  const events=[];
-  const a=create(async()=>null,{onEvent:(code,id)=>events.push([code,id])});
-  let calls=0;
-  const owner={async getMediaSource(params){calls++;return {downloadInfo:{trackId:params?.entity?.id||"123",
-    url:"https://official.example/native"}};}};
-  const original=owner.getMediaSource;
-  a.attachMediaSource(owner);a.enable();
-  const noGrant=await owner.getMediaSource({entity:{id:"456"}});
-  assert.equal(noGrant.downloadInfo.url,"https://official.example/native");
-  const unknown=await owner.getMediaSource({other:"789"});
-  assert.equal(unknown.downloadInfo.url,"https://official.example/native");
-  assert.equal(calls,2);
-  assert.ok(events.some(([code,id])=>code==="SOURCE_ORIGINAL"&&id==="456"));
-  assert.ok(events.some(([code])=>code==="NATIVE_MEDIASOURCE_ID_UNRECOGNIZED"));
-  assert.ok(!events.some(([code])=>code==="SOURCE_MAPPED"));
-  a.dispose();
-  assert.strictEqual(owner.getMediaSource,original);
-});
-
-test("W186 unsupported mediaSource envelope remains byte-for-byte structurally unchanged",async()=>{
-  const events=[];
-  const a=create(async id=>mappedGrant(id),{onEvent:code=>events.push(code)});
-  const original=async()=>({responseTime:37,otherMetadata:{sample:true}});
-  const owner={getMediaSource:original};
-  a.attachMediaSource(owner);a.enable();
-  const value=await owner.getMediaSource({entity:{id:"123"}});
-  assert.deepEqual(value,{responseTime:37,otherMetadata:{sample:true}});
-  assert.ok(events.includes("MEDIASOURCE_SHAPE_MISSING"));
-  assert.ok(!events.includes("SOURCE_MAPPED"));
-  a.dispose();
-  assert.strictEqual(owner.getMediaSource,original);
-});
-
-test("W186 native mediaSource errors propagate and are never hidden by a valid grant",async()=>{
-  const a=create(async id=>mappedGrant(id));
-  const owner={async getMediaSource(){throw new Error("native media source unavailable");}};
-  a.attachMediaSource(owner);a.enable();
-  await assert.rejects(()=>owner.getMediaSource({entity:{id:"123"}}),/native media source unavailable/);
   a.dispose();
 });

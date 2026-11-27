@@ -6,12 +6,12 @@ on:
         description: Exact signed Windows version
         required: true
         type: string
-        default: '0.24.57'
+        default: '0.24.62'
       sequence:
         description: Exact monotonic signed sequence
         required: true
         type: string
-        default: '4'
+        default: '9'
       source_commit:
         description: Exact source commit of the two immutable private drafts
         required: true
@@ -43,7 +43,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.57' }}
+  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.62' }}
   cancel-in-progress: false
 jobs:
   stage:
@@ -59,8 +59,8 @@ jobs:
       contents: write
     timeout-minutes: 18
     env:
-      RELEASE_VERSION: ${{ inputs.version || '0.24.57' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '4' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.62' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '9' }}
       RELEASE_COMMIT: ${{ inputs.source_commit || '28587670e9efda35c73eb3a49d9702d2d72b3b8c' }}
     steps:
       - uses: actions/checkout@v4

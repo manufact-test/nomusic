@@ -52,7 +52,10 @@ public static class OfficialYandexCatalog
             "f5fb2817e331aa0b2dd0a6c7b0a360c89b5ae96afc535ca085abe514f8de4ae4",
             "5a259722d60f746ec32c8bf6e880e375e888315080fb18e67c29b54b582c1215"),
         Known51270,
-        Known51280
+        Known51280,
+        new("5.129.0.r22295238",
+            "2134a2b8ec6b24b6cd6a6ec9facf9bf26c9bc650b1191027482c299726723118",
+            "4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1")
     };
 
     private static readonly SemaphoreSlim Gate = new(1, 1);

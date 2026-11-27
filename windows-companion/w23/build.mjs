@@ -5,7 +5,7 @@ const root=path.resolve(import.meta.dirname);
 const outdir=path.join(root,"dist");
 await fs.mkdir(outdir,{recursive:true});
 await build({
-  entryPoints:[path.join(root,"renderer-entry.mjs")],
+  entryPoints:[path.join(root,"renderer-entry-w188.mjs")],
   bundle:true,format:"iife",platform:"browser",target:"chrome120",
   minify:true,legalComments:"none",
   outfile:path.join(outdir,"renderer.js")
@@ -13,9 +13,6 @@ await build({
 await fs.copyFile(path.join(root,"host.cjs"),path.join(outdir,"host.cjs"));
 const content=await fs.readFile(path.join(outdir,"renderer.js"),"utf8");
 if(!content.includes("__celikomBridgeNativeDrain")||
-   !content.includes("getMediaSource")||
-   !content.includes("NATIVE_MEDIASOURCE_REQUEST")||
-   !content.includes("RESOURCE_HOOK_ATTACHED_LIVE_MEDIA_PROVIDER")||
-   content.length<3500)
+   !content.includes("get-file-info")||content.length<3500)
   throw Error("W23_INVALID_RENDERER_BUNDLE");
 console.log("W23_RENDERER_BUNDLE_PASS",content.length);

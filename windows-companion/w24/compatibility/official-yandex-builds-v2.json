@@ -43,6 +43,13 @@
       "asarSha256": "b50abc625d3f426aa140b17861f8075eff3e17d71b2038e48ded1b6592cb8d0b",
       "status": "verified",
       "proof": "https://github.com/manufact-test/nomusic/actions/runs/44892009619"
+    },
+    {
+      "version": "5.129.0.r22295238",
+      "exeSha256": "2134a2b8ec6b24b6cd6a6ec9facf9bf26c9bc650b1191027482c299726723118",
+      "asarSha256": "4c6623a9f7780e245ddda2e94afad7392166a05479a237e6112589d3f09275e1",
+      "status": "verified",
+      "proof": "https://github.com/manufact-test/nomusic/actions/runs/45957219250"
     }
   ]
 }

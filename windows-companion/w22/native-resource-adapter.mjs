@@ -18,42 +18,6 @@ function validId(raw) {
     ? String(raw) : typeof raw === 'string' ? raw : '';
   return exactTrackId({ id });
 }
-
-function trackIdFromArgs(args) {
-  for (const value of args) {
-    const candidates = [
-      value?.trackId, value?.id,
-      value?.entity?.id, value?.entity?.data?.meta?.id,
-      value?.data?.meta?.id,
-      value?.track?.id, value?.track?.meta?.id,
-      value?.track?.data?.meta?.id
-    ];
-    for (const candidate of candidates) {
-      const id = validId(candidate);
-      if (id) return id;
-    }
-  }
-  return null;
-}
-function trackIdsFromArgs(args) {
-  for (const value of args) {
-    const raw = Array.isArray(value?.trackIds) ? value.trackIds
-      : typeof value?.trackIds === 'string' ? value.trackIds.split(',')
-      : Array.isArray(value?.ids) ? value.ids
-      : typeof value?.ids === 'string' ? value.ids.split(',') : [];
-    const ids = [...new Set(raw.map(item =>
-      validId(item?.trackId ?? item?.id ?? item)).filter(Boolean))];
-    if (ids.length) return ids;
-  }
-  return [];
-}
-function qualityFromArgs(args) {
-  for (const value of args) {
-    if (value && typeof value === 'object' &&
-        typeof value.quality === 'string') return value.quality;
-  }
-  return undefined;
-}
 // W48 read-only structure witness. Never export field contents, URLs,
 // ciphertext, crypto material, Yandex metadata, or signed CELIKOM grants.
 // Static shape hints do not prove the native decoder accepted the source.
@@ -129,8 +93,6 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
   let enabled = false, disposed = false, revision = 0, current = null;
   let prototype = null, originalSingle = null, originalBatch = null;
   let ownSingle = null, ownBatch = null;
-  let mediaSourceOwner = null, mediaSourceDescriptor = null;
-  let originalMediaSource = null, ownMediaSource = null;
   const pending = new Map();
   const cache = new Map();
   const mappedTracks = new Set();
@@ -280,15 +242,8 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     originalBatch = typeof proto.getFileInfoBatch === 'function' ? proto.getFileInfoBatch : null;
 
     ownSingle = async function (params, ...rest) {
-      if (!enabled || disposed) return originalSingle.call(this, params, ...rest);
-      const args = [params, ...rest];
-      const id = trackIdFromArgs(args);
-      if (!id) {
-        // Keep the original Yandex call untouched, but expose that the hooked
-        // method was reached with an argument shape CELIKOM does not recognize.
-        emit('NATIVE_FILEINFO_ID_UNRECOGNIZED');
-        return originalSingle.call(this, params, ...rest);
-      }
+      const id = validId(params?.trackId);
+      if (!enabled || !id || disposed) return originalSingle.call(this, params, ...rest);
       if (id !== current) trackChanged(id);
       emit('NATIVE_FILEINFO_REQUEST', id);
       const rev = revision;
@@ -327,8 +282,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       }
       emit(field === 'fileInfo' ? 'FILEINFO_SHAPE_FILE' : 'FILEINFO_SHAPE_DOWNLOAD', id);
       observeOriginalFileInfo(value[field], emit, id);
-      const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType,
-        qualityFromArgs(args));
+      const replacement = toDownloadInfo(value[field], id, grant.signedUrl, grant.mimeType, params?.quality);
       markMapped(id);
       setClassification(id, 'ACTIVE_REPLACEMENT');
       emit('SOURCE_ACTIVE_REPLACEMENT', id);
@@ -347,13 +301,10 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
 
     if (originalBatch) {
       ownBatch = async function (params, ...rest) {
-        const args = [params, ...rest];
-        const ids = trackIdsFromArgs(args);
-        if (!enabled || disposed) return originalBatch.call(this, params, ...rest);
-        if (ids.length === 0) {
-          emit('NATIVE_FILEINFO_BATCH_IDS_UNRECOGNIZED');
-          return originalBatch.call(this, params, ...rest);
-        }
+        const raw = Array.isArray(params?.trackIds)
+          ? params.trackIds : typeof params?.trackIds === 'string' ? params.trackIds.split(',') : [];
+        const ids = [...new Set(raw.map(validId).filter(Boolean))];
+        if (!enabled || disposed || ids.length === 0) return originalBatch.call(this, params, ...rest);
         emit('SOURCE_BATCH_REQUEST', ids[0]);
         const rev = revision;
         // Batch is often requested BEFORE any single file-info. Resolve a small
@@ -400,7 +351,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
           if (index < 0 || !list[index] || typeof list[index] !== 'object') continue;
           observeOriginalFileInfo(list[index], emit, id);
           list[index] = toDownloadInfo(list[index],
-            id, grant.signedUrl, grant.mimeType, qualityFromArgs(args));
+            id, grant.signedUrl, grant.mimeType, params?.quality);
           markMapped(id);
           setClassification(id, 'ACTIVE_REPLACEMENT');
           emit('SOURCE_ACTIVE_REPLACEMENT', id);
@@ -424,115 +375,6 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     }
     return adapter;
   }
-  function attachMediaSource(owner) {
-    if (disposed || !owner || typeof owner !== 'object' && typeof owner !== 'function')
-      throw new Error('W22_UNSUPPORTED_MEDIA_SOURCE');
-    if (mediaSourceOwner) {
-      if (mediaSourceOwner === owner) return adapter;
-      throw new Error('W22_MEDIA_SOURCE_ALREADY_ATTACHED');
-    }
-    const descriptor = Object.getOwnPropertyDescriptor(owner, 'getMediaSource');
-    if (!descriptor || typeof descriptor.value !== 'function' ||
-        descriptor.get !== undefined || descriptor.set !== undefined)
-      throw new Error('W22_UNSUPPORTED_MEDIA_SOURCE');
-    const original = descriptor.value;
-
-    const wrapped = async function (params, ...rest) {
-      if (!enabled || disposed) return original.call(this, params, ...rest);
-      const args = [params, ...rest];
-      const id = trackIdFromArgs(args);
-      if (!id) {
-        emit('NATIVE_MEDIASOURCE_ID_UNRECOGNIZED');
-        return original.call(this, params, ...rest);
-      }
-      if (id !== current) trackChanged(id);
-      emit('NATIVE_MEDIASOURCE_REQUEST', id);
-      const rev = revision;
-      const native = Promise.resolve().then(() => original.call(this, params, ...rest))
-        .then(value => {
-          emit('NATIVE_MEDIASOURCE_OK', id);
-          return { value };
-        }, error => {
-          emit('NATIVE_MEDIASOURCE_ERROR', id);
-          return { error };
-        });
-      const grant = await lookup(id, rev);
-      const base = await native;
-      if ('error' in base) throw base.error;
-      if (!grant || !isLive(id, rev)) {
-        if (isLive(id, rev))
-          emit(classificationForTrack(id) === 'ORIGINAL' ? 'SOURCE_ORIGINAL' : 'SOURCE_UNKNOWN', id);
-        if (rev === revision) status = enabled ? 'ORIGINAL' : 'OFF';
-        return base.value;
-      }
-      const value = base.value;
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        emit('MEDIASOURCE_SHAPE_MISSING', id);
-        status = 'ORIGINAL';
-        return value;
-      }
-      const field = value.fileInfo && typeof value.fileInfo === 'object'
-        ? 'fileInfo' : value.downloadInfo && typeof value.downloadInfo === 'object'
-          ? 'downloadInfo' : null;
-      if (!field || Array.isArray(value[field])) {
-        emit('MEDIASOURCE_SHAPE_MISSING', id);
-        status = 'ORIGINAL';
-        return value;
-      }
-      emit(field === 'fileInfo' ? 'MEDIASOURCE_SHAPE_FILE' : 'MEDIASOURCE_SHAPE_DOWNLOAD', id);
-      const originalInfo = value[field];
-      const originalUrls = [originalInfo.url, ...(Array.isArray(originalInfo.urls) ? originalInfo.urls : [])];
-      if (originalUrls.some(url => typeof url === 'string' &&
-          url.includes(NATIVE_SIGNED_QUERY_GUARD))) {
-        emit('MEDIASOURCE_ALREADY_MAPPED', id);
-        return value;
-      }
-      observeOriginalFileInfo(originalInfo, emit, id);
-      const replacement = toDownloadInfo(originalInfo, id, grant.signedUrl,
-        grant.mimeType, qualityFromArgs(args));
-      markMapped(id);
-      setClassification(id, 'ACTIVE_REPLACEMENT');
-      emit('SOURCE_ACTIVE_REPLACEMENT', id);
-      if (Number.isFinite(grant.gainDb) && grant.gainDb >= -12 &&
-          grant.gainDb <= 12 && grant.gainDb !== 0)
-        emit(grant.gainApplied === true ? 'GAIN_OFFLINE_VARIANT_MAPPED' :
-          'GAIN_CONFIGURED_NATIVE_DSP_NOT_APPLIED', id);
-      emit('SOURCE_MAPPED', id);
-      status = 'SOURCE_MAPPING_RETURNED_NOT_AUDIO_VERIFIED';
-      return { ...value, [field]: replacement };
-    };
-
-    try {
-      Object.defineProperty(owner, 'getMediaSource', { ...descriptor, value: wrapped });
-    } catch {
-      throw new Error('W22_MEDIA_SOURCE_NOT_PATCHABLE');
-    }
-    mediaSourceOwner = owner;
-    mediaSourceDescriptor = descriptor;
-    originalMediaSource = original;
-    ownMediaSource = wrapped;
-
-    // The live media provider may also expose a batch-prefetch method. Reuse
-    // the existing bounded batch adapter, but leave its single getFileInfo
-    // method untouched: getMediaSource is the proven player-facing boundary.
-    const singleDescriptor = Object.getOwnPropertyDescriptor(owner, 'getFileInfo');
-    const batchDescriptor = Object.getOwnPropertyDescriptor(owner, 'getFileInfoBatch');
-    if (!prototype && typeof singleDescriptor?.value === 'function' &&
-        typeof batchDescriptor?.value === 'function') {
-      const originalGetFileInfo = singleDescriptor.value;
-      try {
-        attach(owner);
-        if (owner.getFileInfo === ownSingle) owner.getFileInfo = originalGetFileInfo;
-        emit('RESOURCE_MEDIA_PROVIDER_BATCH_ATTACHED');
-      } catch {
-        if (prototype && owner.getFileInfo === ownSingle) {
-          try { owner.getFileInfo = originalGetFileInfo; } catch {}
-        }
-      }
-    }
-    return adapter;
-  }
-
   function dispose() {
     if (disposed) return;
     disable(); disposed = true;
@@ -543,17 +385,9 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
       if (originalBatch && prototype.getFileInfoBatch === ownBatch)
         prototype.getFileInfoBatch = originalBatch;
     }
-    if (mediaSourceOwner &&
-        Object.getOwnPropertyDescriptor(mediaSourceOwner, 'getMediaSource')?.value === ownMediaSource) {
-      try { Object.defineProperty(mediaSourceOwner, 'getMediaSource', mediaSourceDescriptor); } catch {}
-    }
     prototype = null;
-    mediaSourceOwner = null;
-    mediaSourceDescriptor = null;
-    originalMediaSource = null;
-    ownMediaSource = null;
   }
-  const adapter = Object.freeze({ attach, attachMediaSource, prime, enable, disable, original,
+  const adapter = Object.freeze({ attach, prime, enable, disable, original,
     trackChanged, hasMappedTrack, forgetMappedTrack, classificationForTrack, dispose,
     get status() { return status; },
     get enabled() { return enabled && !disposed; }
