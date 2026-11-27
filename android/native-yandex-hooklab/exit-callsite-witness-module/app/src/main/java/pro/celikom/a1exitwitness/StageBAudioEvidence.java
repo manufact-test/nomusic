@@ -158,6 +158,46 @@ final class StageBAudioEvidence {
         new ArrayList<>();
     private boolean exactFactoryBirthsSaturated;
 
+    // BETA25: finite first-open rejection evidence. These counters never
+    // export object identities, IDs, URLs, source addresses or audio bytes.
+    private final AtomicLong firstOpenHookEntered = new AtomicLong();
+    private final AtomicLong firstOpenCandidateRejected = new AtomicLong();
+    private final AtomicLong firstOpenSourceNull = new AtomicLong();
+    private final AtomicLong firstOpenFactoryBirthsSaturated = new AtomicLong();
+    private final AtomicLong firstOpenTouchedHistorySaturated = new AtomicLong();
+    private final AtomicLong firstOpenSourceAlreadyTouched = new AtomicLong();
+    private final AtomicLong firstOpenBirthNotFound = new AtomicLong();
+    private final AtomicLong firstOpenBirthAmbiguous = new AtomicLong();
+    private final AtomicLong firstOpenBirthConflicted = new AtomicLong();
+    private final AtomicLong firstOpenFactoryWeakLost = new AtomicLong();
+    private final AtomicLong firstOpenLinkMissing = new AtomicLong();
+    private final AtomicLong firstOpenFactoryLinkMismatch = new AtomicLong();
+    private final AtomicLong firstOpenDescriptorLost = new AtomicLong();
+    private final AtomicLong firstOpenTrackLost = new AtomicLong();
+    private final AtomicLong firstOpenWrapperLost = new AtomicLong();
+    private final AtomicLong firstOpenAlreadyOpened = new AtomicLong();
+    private final AtomicLong firstOpenAlreadyTouched = new AtomicLong();
+    private final AtomicLong firstOpenReadAfterOpen = new AtomicLong();
+    private final AtomicLong firstOpenSiblingTouched = new AtomicLong();
+    private final AtomicLong firstOpenWrapperLinkMissing = new AtomicLong();
+    private final AtomicLong firstOpenWrapperLinkAmbiguous = new AtomicLong();
+    private final AtomicLong firstOpenWrapperLinkRebound = new AtomicLong();
+    private final AtomicLong firstOpenFactoryLinkMissing = new AtomicLong();
+    private final AtomicLong firstOpenFactoryLinkAmbiguous = new AtomicLong();
+    private final AtomicLong firstOpenFactoryLinkRebound = new AtomicLong();
+    private final AtomicLong firstOpenOriginalCreatorMissing = new AtomicLong();
+    private final AtomicLong firstOpenBetaCreatorMissing = new AtomicLong();
+    private final AtomicLong firstOpenCreatorTrackMismatch = new AtomicLong();
+    private final AtomicLong firstOpenCreatorTokenMissing = new AtomicLong();
+    private final AtomicLong firstOpenAlbumMismatch = new AtomicLong();
+    private final AtomicLong firstOpenCandidateAccepted = new AtomicLong();
+    private final AtomicLong firstOpenSetterMatch = new AtomicLong();
+    private final AtomicLong firstOpenSetterMissing = new AtomicLong();
+    private final AtomicLong firstOpenDeferredArmCalled = new AtomicLong();
+    private final AtomicLong firstOpenDeferredArmAccepted = new AtomicLong();
+    private final AtomicLong firstOpenDeferredArmRejected = new AtomicLong();
+    private final AtomicLong firstOpenArmExceptions = new AtomicLong();
+
     // Original iLb source anchor; child Of6 may be a different Java object.
     // No global/latest wrapper, value-based equality or vendor fields.
     private static final class OriginalMediaSourceItemLink {
@@ -1948,10 +1988,63 @@ final class StageBAudioEvidence {
      * A sibling already touched by ANY vendor open/read/close means the
      * family cannot be switched without mixing bytes: fail closed.
      */
+    synchronized void onExoFirstOpenHookEnter() {
+        mark(firstOpenHookEntered);
+    }
+    synchronized void onExoFirstOpenSetterResult(boolean matched) {
+        mark(matched?firstOpenSetterMatch:firstOpenSetterMissing);
+    }
+    synchronized void onExoFirstOpenDeferredArmCalled() {
+        mark(firstOpenDeferredArmCalled);
+    }
+    synchronized void onExoFirstOpenDeferredArmResult(boolean armed) {
+        mark(armed?firstOpenDeferredArmAccepted:firstOpenDeferredArmRejected);
+    }
+    synchronized void onExoFirstOpenArmException() {
+        mark(firstOpenArmExceptions);
+    }
+    private Object[] rejectFirstOpenCandidate(AtomicLong reason) {
+        mark(firstOpenCandidateRejected);
+        mark(reason);
+        return null;
+    }
+    private int liveWrapperLinkCount(Object wrapper) {
+        int count=0;
+        for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+            Object candidateWrapper=link.wrapper==null?null:link.wrapper.get();
+            Object candidateTrack=link.track==null?null:link.track.get();
+            if(candidateWrapper==wrapper && candidateTrack!=null)count++;
+        }
+        return count;
+    }
+    private int liveFactoryLinkCount(Object factory) {
+        int count=0;
+        for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
+            Object candidateFactory=link.factoryResult==null
+                ?null:link.factoryResult.get();
+            Object candidateTrack=link.track==null?null:link.track.get();
+            if(candidateFactory==factory && candidateTrack!=null)count++;
+        }
+        return count;
+    }
+
+    /**
+     * Called BEFORE the first actual native Exo open(), not at factory
+     * construction. The first created object can be an unopened prefetch;
+     * later factory products may be the instance that actually loads audio.
+     *
+     * This preserves every existing fail-closed condition while naming the
+     * first rejection, so a missing arm is no longer an unexplained zero.
+     */
     synchronized Object[] exactFreshCreatorOrBetaAtFirstOpen(Object source) {
-        if(source==null || exactFactoryBirthsSaturated
-                || touchedHistorySaturated || wasSourceTouched(source))
-            return null;
+        if(source==null)
+            return rejectFirstOpenCandidate(firstOpenSourceNull);
+        if(exactFactoryBirthsSaturated)
+            return rejectFirstOpenCandidate(firstOpenFactoryBirthsSaturated);
+        if(touchedHistorySaturated)
+            return rejectFirstOpenCandidate(firstOpenTouchedHistorySaturated);
+        if(wasSourceTouched(source))
+            return rejectFirstOpenCandidate(firstOpenSourceAlreadyTouched);
         ExactFactorySourceBirth found=null;
         for(int i=exactFactorySourceBirths.size()-1;i>=0;i--) {
             ExactFactorySourceBirth birth=exactFactorySourceBirths.get(i);
@@ -1961,36 +2054,73 @@ final class StageBAudioEvidence {
                 continue;
             }
             if(candidate==source) {
-                if(found!=null)return null;
+                if(found!=null)
+                    return rejectFirstOpenCandidate(firstOpenBirthAmbiguous);
                 found=birth;
             }
         }
-        if(found==null || found.conflicted || found.factory.get()==null)
-            return null;
-        NativeTrackSourceLink link=found.link;
+        if(found==null)
+            return rejectFirstOpenCandidate(firstOpenBirthNotFound);
+        if(found.conflicted)
+            return rejectFirstOpenCandidate(firstOpenBirthConflicted);
         Object factory=found.factory.get();
-        if(link==null || link.factoryResult==null
-                || link.factoryResult.get()!=factory || link.descriptor==null
-                || link.descriptor.get()==null || link.track==null
-                || link.wrapper==null || link.sourceOpened
-                || link.sourceEverTouched || link.sourceReadAfterOpen)
-            return null;
+        if(factory==null)
+            return rejectFirstOpenCandidate(firstOpenFactoryWeakLost);
+        NativeTrackSourceLink link=found.link;
+        if(link==null)
+            return rejectFirstOpenCandidate(firstOpenLinkMissing);
+        if(link.factoryResult==null || link.factoryResult.get()!=factory)
+            return rejectFirstOpenCandidate(firstOpenFactoryLinkMismatch);
+        if(link.descriptor==null || link.descriptor.get()==null)
+            return rejectFirstOpenCandidate(firstOpenDescriptorLost);
+        Object track=link.track==null?null:link.track.get();
+        if(track==null)
+            return rejectFirstOpenCandidate(firstOpenTrackLost);
+        Object wrapper=link.wrapper==null?null:link.wrapper.get();
+        if(wrapper==null)
+            return rejectFirstOpenCandidate(firstOpenWrapperLost);
+        if(link.sourceOpened)
+            return rejectFirstOpenCandidate(firstOpenAlreadyOpened);
+        if(link.sourceReadAfterOpen)
+            return rejectFirstOpenCandidate(firstOpenReadAfterOpen);
+        if(link.sourceEverTouched)
+            return rejectFirstOpenCandidate(firstOpenAlreadyTouched);
         // A previous original read/open from any member of this factory's
         // source family forbids a late alternate switch on a sibling.
         for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
             if(birth.link!=link)continue;
             Object sibling=birth.source.get();
             if(sibling!=null && sibling!=source && wasSourceTouched(sibling))
-                return null;
+                return rejectFirstOpenCandidate(firstOpenSiblingTouched);
         }
-        Object wrapper=link.wrapper.get(),track=link.track.get();
-        if(wrapper==null || track==null || findByWrapper(wrapper)!=link
-                || findByFactory(factory)!=link)return null;
-        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
-        if(creator==null || creator.length!=2 || creator[0]!=track
-                || creator[1]==null)return null;
+        NativeTrackSourceLink wrapperLink=findByWrapper(wrapper);
+        if(wrapperLink!=link) {
+            int matches=liveWrapperLinkCount(wrapper);
+            return rejectFirstOpenCandidate(matches>1
+                ?firstOpenWrapperLinkAmbiguous
+                :matches==1?firstOpenWrapperLinkRebound:firstOpenWrapperLinkMissing);
+        }
+        NativeTrackSourceLink factoryLink=findByFactory(factory);
+        if(factoryLink!=link) {
+            int matches=liveFactoryLinkCount(factory);
+            return rejectFirstOpenCandidate(matches>1
+                ?firstOpenFactoryLinkAmbiguous
+                :matches==1?firstOpenFactoryLinkRebound:firstOpenFactoryLinkMissing);
+        }
+        Object[] creator=exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        if(creator==null) {
+            mark(firstOpenOriginalCreatorMissing);
+            creator=exactBetaCreatorWithoutAlbum(wrapper);
+            if(creator==null)
+                return rejectFirstOpenCandidate(firstOpenBetaCreatorMissing);
+        }
+        if(creator.length!=2 || creator[1]==null)
+            return rejectFirstOpenCandidate(firstOpenCreatorTokenMissing);
+        if(creator[0]!=track)
+            return rejectFirstOpenCandidate(firstOpenCreatorTrackMismatch);
         if(creator[1]!=wrapper && link.albumInstance!=null
-                && link.albumInstance.get()!=creator[1])return null;
+                && link.albumInstance.get()!=creator[1])
+            return rejectFirstOpenCandidate(firstOpenAlbumMismatch);
         // The birth above proves that THIS source came from THIS exact
         // signed factory. Rebind the historical observation to the one
         // actually about to open (without ever rewinding a touched source).
@@ -1999,9 +2129,9 @@ final class StageBAudioEvidence {
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
         link.sourceAlbumReadAfterOpen=false;
+        mark(firstOpenCandidateAccepted);
         return new Object[]{wrapper,track,creator[1]};
     }
-
     private synchronized boolean sameExoSource(Object source) {
         if (source == null) return false;
         for (WeakReference<Object> item:exoSourceInstances)
@@ -2285,7 +2415,44 @@ final class StageBAudioEvidence {
             event("TCA_CREATOR_FLOW_LATER_ALBUM_OBSERVED", creatorFlowLaterAlbumObserved),
             // Strict triple-proof legacy status remains intentionally read-only;
             // separate BETA stage counters below make real audio proof explicit.
-            "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER"
+            "event=AUDIO_STAGE_B_STATUS;origin=CELIKOM_REPLACEMENT;error=NOT_CONNECTED;thread=OTHER",
+            event("FIRST_OPEN_HOOK_ENTERED",firstOpenHookEntered),
+            event("FIRST_OPEN_CANDIDATE_REJECTED",firstOpenCandidateRejected),
+            event("FIRST_OPEN_SOURCE_NULL",firstOpenSourceNull),
+            event("FIRST_OPEN_FACTORY_BIRTHS_SATURATED",firstOpenFactoryBirthsSaturated),
+            event("FIRST_OPEN_TOUCHED_HISTORY_SATURATED",firstOpenTouchedHistorySaturated),
+            event("FIRST_OPEN_SOURCE_ALREADY_TOUCHED",firstOpenSourceAlreadyTouched),
+            event("FIRST_OPEN_BIRTH_NOT_FOUND",firstOpenBirthNotFound),
+            event("FIRST_OPEN_BIRTH_AMBIGUOUS",firstOpenBirthAmbiguous),
+            event("FIRST_OPEN_BIRTH_CONFLICTED",firstOpenBirthConflicted),
+            event("FIRST_OPEN_FACTORY_WEAK_LOST",firstOpenFactoryWeakLost),
+            event("FIRST_OPEN_LINK_MISSING",firstOpenLinkMissing),
+            event("FIRST_OPEN_FACTORY_LINK_MISMATCH",firstOpenFactoryLinkMismatch),
+            event("FIRST_OPEN_DESCRIPTOR_LOST",firstOpenDescriptorLost),
+            event("FIRST_OPEN_TRACK_LOST",firstOpenTrackLost),
+            event("FIRST_OPEN_WRAPPER_LOST",firstOpenWrapperLost),
+            event("FIRST_OPEN_ALREADY_OPENED",firstOpenAlreadyOpened),
+            event("FIRST_OPEN_ALREADY_TOUCHED",firstOpenAlreadyTouched),
+            event("FIRST_OPEN_READ_AFTER_OPEN",firstOpenReadAfterOpen),
+            event("FIRST_OPEN_SIBLING_TOUCHED",firstOpenSiblingTouched),
+            event("FIRST_OPEN_WRAPPER_LINK_MISSING",firstOpenWrapperLinkMissing),
+            event("FIRST_OPEN_WRAPPER_LINK_AMBIGUOUS",firstOpenWrapperLinkAmbiguous),
+            event("FIRST_OPEN_WRAPPER_LINK_REBOUND",firstOpenWrapperLinkRebound),
+            event("FIRST_OPEN_FACTORY_LINK_MISSING",firstOpenFactoryLinkMissing),
+            event("FIRST_OPEN_FACTORY_LINK_AMBIGUOUS",firstOpenFactoryLinkAmbiguous),
+            event("FIRST_OPEN_FACTORY_LINK_REBOUND",firstOpenFactoryLinkRebound),
+            event("FIRST_OPEN_ORIGINAL_CREATOR_MISSING",firstOpenOriginalCreatorMissing),
+            event("FIRST_OPEN_BETA_CREATOR_MISSING",firstOpenBetaCreatorMissing),
+            event("FIRST_OPEN_CREATOR_TRACK_MISMATCH",firstOpenCreatorTrackMismatch),
+            event("FIRST_OPEN_CREATOR_TOKEN_MISSING",firstOpenCreatorTokenMissing),
+            event("FIRST_OPEN_ALBUM_MISMATCH",firstOpenAlbumMismatch),
+            event("FIRST_OPEN_CANDIDATE_ACCEPTED",firstOpenCandidateAccepted),
+            event("FIRST_OPEN_SETTER_MATCH",firstOpenSetterMatch),
+            event("FIRST_OPEN_SETTER_MISSING",firstOpenSetterMissing),
+            event("FIRST_OPEN_DEFERRED_ARM_CALLED",firstOpenDeferredArmCalled),
+            event("FIRST_OPEN_DEFERRED_ARM_ACCEPTED",firstOpenDeferredArmAccepted),
+            event("FIRST_OPEN_DEFERRED_ARM_REJECTED",firstOpenDeferredArmRejected),
+            event("FIRST_OPEN_ARM_EXCEPTION",firstOpenArmExceptions)
         };
     }
 }
