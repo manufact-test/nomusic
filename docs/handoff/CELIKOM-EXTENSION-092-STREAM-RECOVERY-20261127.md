@@ -25,3 +25,17 @@ Added nine targeted tests: header loss retaining the playing decoder; repeated b
 The separately deferred longer playback diagnostics are not implemented. The earlier VPN interruption is not globally declared resolved; this release addresses the now-proven transport teardown/permanent-block pathway. Server upload/proposal repair remains intact and owner-confirmed.
 
 Stage and deliver only through the existing private Floki spool, exact owner approval, trusted publisher and verified celikom.com HTTPS URLs. Record actual source/run/size/digest and delivery receipt after completion; do not promote customers or infer listening acceptance from CI.
+
+## Verified private owner delivery — 27 November 2026
+
+- Playback fix commit: `e13d837a01882bd7a6c046a2eb91967eef1162b1`.
+- Exact build source: `4e6ff1aeb8b8ad97c66ebf66ad66b6181bef4885`; Floki run `45978089929`, attempt 1. Tests/build, security, checksum and private spool steps passed. A separate earlier run was assigned to ci02 without starting steps; the existing trigger requested the next available runner rather than changing runner infrastructure.
+- Independent root-owned consumer ZIP/spool validation: administrative run `45978201734`, SUCCESS.
+- File: `celikom-extension-0.4.92.zip`, 2,502,122 bytes.
+- SHA-256: `8c7cb39ec1564ad3f063bcfd8d9c0d361fc4bbea092057598d22d68877cece0b`.
+- Approved in the existing owner-only manifest; public_stable remains null. Existing timer published the exact package and latest pointer.
+- Explicit mirror-sync invocation reported an unrelated atomic push failure for another experiment branch on the local Git destination. Read-only audit `45978587799` confirmed the authoritative GitHub mirror already contained the 0.4.92 approval and the trusted current-owner receipt was already 0.4.92. No other branch, Git credentials, mirroring policy or Android/Windows infrastructure was modified.
+- Final independent delivery verification: administrative run `45978702259`, SUCCESS. Trusted receipt matches source/run/attempt/size/hash; versioned and latest HTTPS downloads returned anonymous 401 and authorized 200 with exact bytes and digest.
+- Verified owner URL: https://celikom.com/downloads/extension/celikom-extension-0.4.92.zip
+
+No real Yandex listening acceptance or customer publication is claimed. Owner should update the existing unpacked folder, reload the extension and Yandex tab, then test interrupted connection and mid-song joining again. General expanded playback diagnostics remain deferred.
