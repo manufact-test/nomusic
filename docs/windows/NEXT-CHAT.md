@@ -1,6 +1,18 @@
-# ACTIVE CELIKOM WINDOWS — W193 owner installer build (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — W193: signed 0.24.63 ready, OTA publication pending (28 November 2026)
 
-**Latest checkpoint supersedes older release-status notes below.** W192 PR #74 merged at `5fc886e175fa5ede45c32e6571ba921117e77271`; exact head Windows integration 46076571266 passed including both Stop/catch-up regression cases. Audio baseline hashes unchanged. Public stable read-only probe 46082646485 returned HTTP 200 for manifest and signature; unsigned metadata reported 0.24.55 / sequence 2 (signature not verified by probe). Floki route audit retry 46074224389 and Windows integration retry 46076917640 were still running without steps at last check. User requested immediate next Windows installer. App, supervisor, and installer bumped to 0.24.63.0; owner-build sequence 10 follows prior owner candidate sequence 9. Main build trigger commit `9c6721fdb273fc0850213b79d339b0f47d3e83b0`; signed owner build run [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) queued. Build is on GitHub Windows, no production publication or Floki spool staging. Do not trigger another build while this one is running. Verify artifact and delivery before claiming a release. Actual owner-installed version, local Floki floor, protected reviewer config, and stable promotion remain unverified. No automatic update claim until tested on existing installation.
+**READ FIRST:** `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md`. This is the controlling current checkpoint; all older notes below are historical.
+
+**User workflow:** test/private candidate -> owner acceptance -> main -> protected GitHub publication approval -> real in-app auto-update. CI is validation, not a separate release channel. No new test feed or manual installer detour. The user wants to test automatic updating from the already installed Windows product.
+
+**Ready:** 0.24.63.0 / signed sequence 10, source main `9c6721fdb273fc0850213b79d339b0f47d3e83b0`; build [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) SUCCESS. Both publish jobs skipped; transfer artifact 15237633233, stable artifact 15238491157, expire 2026-11-28 around 23:38 UTC. Exact installer SHA256 3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f. Reuse this exact verified package rather than rebuilding by default. PRs #72/#73/#74 already merged; W174 audio and W188 Yandex 5.129 bridge preserved.
+
+**Actual blocker:** hosted audit 46083534978 SUCCESS: Floki local current is 0.24.62 sequence 9, owner HTTPS receipt verified. Public stable still serves 0.24.55 sequence 2 (metadata probe 46082646485; signature not verified by that probe). DNS points to Floki. Prepared stable Nginx snippet exists but active public route does not expose the new local current. Need minimal reversible Windows-only route cutover and exact 0.24.63 promotion under existing protected `windows-stable-production` approval. Do not publish 0.24.62 accidentally by switching routes early. Self-hosted runner remains problematic; hosted read-only audit succeeded. No route change, production promotion, or real-device OTA confirmed.
+
+**Next:** follow W193 handoff, prepare existing GitHub approval button for exact release, then after owner confirms verify public signed feed + installer hash and owner in-app detect/download/install. Do not reopen audio development, touch Android/extension, reset main, invent a test channel, or ask owner to download another manual installer. Required-reviewer configuration and actual installed version still unverified. If a necessary GitHub action cannot be performed through connector, explain the exact action rather than bypass protections.
+
+---
+
+## Historical W189 checkpoint (superseded by W193 above)
 
 **Canonical main at latest check:** `bae2553ce410d10cfea6b2eb8f9e569dbdd38538`.
 
