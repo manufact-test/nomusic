@@ -28,7 +28,7 @@ The historical W173/W170/W169 and earlier handoffs below are retained for contex
 
 ---
 
-# CURRENT WINDOWS W173 — make the latest working build canonical on main (21 November 2026)
+# HISTORICAL WINDOWS W173 — make the latest working build canonical on main (21 November 2026)
 
 Read these documents first:
 
