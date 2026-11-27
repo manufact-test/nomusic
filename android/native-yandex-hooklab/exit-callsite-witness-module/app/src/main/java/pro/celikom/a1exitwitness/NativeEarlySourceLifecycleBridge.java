@@ -14,9 +14,11 @@ import java.util.function.LongSupplier;
  * trackId/albumId/editionId, URLs, media bytes, account data or filenames.
  * Crucially it does not infer semantic IDs from a Track or a MediaItem.
  *
- * CELIKOM admission is OFF until a real owner-enabled controller and exact
- * semantic-ID + decoder pre-prepare witness are wired independently.
- * Both original source and original player always execute unchanged.
+ * Strict exact Track+Album+Edition admission remains disabled. The
+ * owner-consented limited BETA path may request a signed trackId-only grant
+ * for its allowlisted original Track/source lineage; it does not prove the
+ * selected renderer period or edition. The original player remains the only
+ * player and the original source setter/period lifecycle remains authoritative.
  */
 final class NativeEarlySourceLifecycleBridge
         implements NativeRendererStreamEvidence.EarlyOriginalSourceObserver,
