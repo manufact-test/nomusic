@@ -2,21 +2,23 @@
 set -Eeuo pipefail
 # Isolated, unprivileged build of exact extension source; existing container/config untouched.
 python3 <<'PY'
-import subprocess,json,posixpath,urllib.request,hashlib,lzma
+import subprocess,json,posixpath,urllib.request,hashlib,lzma,shutil
 source="0e28cba5221c0f345bb1e3502d186016a614f54b"
 git=["git","-c","safe.directory=/home/celikom-mirror/github-mirror.git","--git-dir=/home/celikom-mirror/github-mirror.git"]
 subprocess.run(git+["merge-base","--is-ancestor",source,"refs/heads/main"],check=True,capture_output=True,timeout=15)
 base=["docker","exec","--user","1000","celikom-floki-ci01"]
 r=subprocess.run(base+["bash","-c","find /home/runner /opt /actions-runner /runner -maxdepth 10 -type f -name node 2>/dev/null | head -30"],capture_output=True,text=True,timeout=30)
+subprocess.run(base+["bash","-c","find /tmp -maxdepth 1 -type d -name 'celikom-extension96-node.*' -user 1000 -exec rm -rf -- {} +"],capture_output=True,check=True,timeout=30)
+assert shutil.disk_usage("/srv/celikom/ci-runner/runner/celikom-build-spool").free>512*1024*1024,"PRIVATE_BUILD_FREE_SPACE"
 node=None
 for path in r.stdout.splitlines():
  if not path.startswith("/"):continue
  v=subprocess.run(base+[path,"--version"],capture_output=True,text=True,timeout=10)
  if v.returncode==0 and v.stdout.startswith("v24."):node=path;break
 if node is None:
- r=subprocess.run(base+["mktemp","-d","/tmp/celikom-extension96-node.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
+ r=subprocess.run(base+["mktemp","-d","/home/runner/celikom-build-spool/.work-extension96-node.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
  runtime=r.stdout.strip()
- assert runtime.startswith("/tmp/celikom-extension96-node.") and runtime.count("/")==2
+ assert runtime.startswith("/home/runner/celikom-build-spool/.work-extension96-node.") and runtime.count("/")==4
  name="node-v24.22.3-linux-x64.tar.xz"
  origin="https://nodejs.org/dist/v24.22.3/"
  with urllib.request.urlopen(origin+"SHASUMS256.txt",timeout=45) as response:checks=response.read(65536).decode()
@@ -25,16 +27,16 @@ if node is None:
  assert len(binary)<=80*1024*1024 and hashlib.sha256(binary).hexdigest()==expected
  plain=lzma.decompress(binary)
  assert len(plain)<256*1024*1024
- extraction=subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1"],input=plain,capture_output=True,timeout=45)
+ extraction=subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1","node-v24.22.3-linux-x64/bin/node"],input=plain,capture_output=True,timeout=45)
  if extraction.returncode:print("EXTENSION_096_RUNTIME_EXTRACTION_ERROR",extraction.stderr.decode("utf-8","replace")[:1000])
  assert extraction.returncode==0
  del binary,plain
  node=runtime+"/bin/node"
  print("EXTENSION_096_TEMPORARY_PINNED_NODE_VERIFIED",expected)
 
-r=subprocess.run(base+["mktemp","-d","/tmp/celikom-extension96-owner.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
+r=subprocess.run(base+["mktemp","-d","/home/runner/celikom-build-spool/.work-extension96-owner.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
 directory=r.stdout.strip()
-assert directory.startswith("/tmp/celikom-extension96-owner.") and directory.count("/")==2
+assert directory.startswith("/home/runner/celikom-build-spool/.work-extension96-owner.") and directory.count("/")==4
 archive=subprocess.run(git+["archive",source,"extension","scripts","package.json","package-lock.json","server/composer.json",".github/scripts/floki-private-build-spool.mjs"],capture_output=True,check=True,timeout=60).stdout
 assert len(archive)<64*1024*1024
 subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",directory],input=archive,check=True,capture_output=True,timeout=30)
