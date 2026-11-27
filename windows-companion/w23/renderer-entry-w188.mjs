@@ -465,9 +465,19 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         attached = true;
         report("RESOURCE_HOOK_ENDPOINT_FALLBACK");
         if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
-            adapter.enable();
-            if (networkRecoveryPending) sourceRecovery.setPaused(true);
-            report("RENDERER_STATE_ON");
+            const current = playerSourceRefresh.currentTrack();
+            const currentId = current?.id || "";
+            if (currentId && adapter.hasMappedTrack(currentId)) {
+              adapter.enable();
+              if (networkRecoveryPending) sourceRecovery.setPaused(true);
+              report("NATIVE_LATE_ATTACH_MAPPED_SOURCE_HELD", currentId);
+              report("RENDERER_STATE_ON");
+            } else {
+              // An unmapped current track still needs the ordinary authenticated
+              // revalidation path; a mapped source must never be reloaded merely
+              // because the provider hook attached late.
+              window.__celikomBridgeNativeSetState(lastNativeState);
+            }
           }
         console.info("[CELIKOM] Native endpoint fallback attached");
         return true;
@@ -496,9 +506,19 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           attached = true;
           report("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED");
           if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
-            adapter.enable();
-            if (networkRecoveryPending) sourceRecovery.setPaused(true);
-            report("RENDERER_STATE_ON");
+            const current = playerSourceRefresh.currentTrack();
+            const currentId = current?.id || "";
+            if (currentId && adapter.hasMappedTrack(currentId)) {
+              adapter.enable();
+              if (networkRecoveryPending) sourceRecovery.setPaused(true);
+              report("NATIVE_LATE_ATTACH_MAPPED_SOURCE_HELD", currentId);
+              report("RENDERER_STATE_ON");
+            } else {
+              // An unmapped current track still needs the ordinary authenticated
+              // revalidation path; a mapped source must never be reloaded merely
+              // because the provider hook attached late.
+              window.__celikomBridgeNativeSetState(lastNativeState);
+            }
           }
           console.info("[CELIKOM] Native live media-provider connector attached");
           return true;
