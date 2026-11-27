@@ -21,8 +21,11 @@ The earlier BETA24 repair addressed 16-entry eviction but still rejected restora
 Current branch:
 `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-Current head:
+Code/export candidate commit:
 `901a421e461311de4b2fbba42c1c7ec78f55cb93`
+
+Documentation handoff commit:
+`df60b65a3643801c03b67867bde3b57a9bfa4fc9`
 
 Changes in `StageBAudioEvidence.java`:
 
