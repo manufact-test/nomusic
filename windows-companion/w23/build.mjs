@@ -5,7 +5,7 @@ const root=path.resolve(import.meta.dirname);
 const outdir=path.join(root,"dist");
 await fs.mkdir(outdir,{recursive:true});
 await build({
-  entryPoints:[path.join(root,"renderer-entry.mjs")],
+  entryPoints:[path.join(root,"renderer-entry-w188.mjs")],
   bundle:true,format:"iife",platform:"browser",target:"chrome120",
   minify:true,legalComments:"none",
   outfile:path.join(outdir,"renderer.js")
