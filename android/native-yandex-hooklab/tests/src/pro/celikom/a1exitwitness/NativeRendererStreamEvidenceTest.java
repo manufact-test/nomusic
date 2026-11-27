@@ -1902,6 +1902,57 @@ public final class NativeRendererStreamEvidenceTest {
               "NAV47_MISSING_CHILD_CANNOT_PROMOTE");
     }
 
+    private static void testNav50AlternateSourceReadIsJoinedToLiveCurrentPeriod() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav47Setup(e);
+        Object uid=new Object(),wrapper=new Object(),renderer=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        Nav41Id id=new Nav41Id(uid,-1,5);
+        Nav41Holder holder=new Nav41Holder(id,stream);
+        holder.nested=new FakePeriod(source); // exact direct Lo96 holder path
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=
+            e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(player);}
+        e.setAlternateSourceReadEvidence(w -> w==wrapper ? 1 : -2);
+        nav41Attach(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
+        check(contains(e.exportLines(),
+            "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD;error=ONE"),
+            "NAV50_SAME_ARMED_DATASOURCE_IS_IN_LIVE_UNKNOWN_EOS_PERIOD");
+        check(contains(e.exportLines(),
+            "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_EOS_UNKNOWN;error=ONE"),
+            "NAV50_UNKNOWN_EOS_REMAINS_SEPARATE");
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        check(contains(e.exportLines(),
+            "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS;error=ONE"),
+            "NAV50_SAME_ARMED_DATASOURCE_REACHES_LIVE_NON_EOS_RENDERER_READ");
+
+        NativeRendererStreamEvidence different=new NativeRendererStreamEvidence();
+        nav47Setup(different);
+        Object otherUid=new Object(),otherWrapper=new Object();
+        Object otherRenderer=new Object(),otherStream=new Object();
+        FakeSource otherSource=new FakeSource();
+        Nav41Id otherId=new Nav41Id(otherUid,-1,6);
+        Nav41Holder otherHolder=new Nav41Holder(otherId,otherStream);
+        otherHolder.nested=new FakePeriod(otherSource);
+        Nav41Engine otherEngine=new Nav41Engine(otherHolder,otherId);
+        NativeRendererStreamEvidence.TrackPlayerScope otherPlayer=
+            different.enterTrackPlayerSource(otherWrapper);
+        try {different.onNativePlayerSourceSetter(otherSource);}
+        finally {different.exitTrackPlayerSource(otherPlayer);}
+        different.setAlternateSourceReadEvidence(w -> -1);
+        nav41Attach(different,otherEngine,otherHolder,otherRenderer,otherStream);
+        different.onRendererTypeStateRead(otherRenderer,otherStream,1,2,-4,Boolean.FALSE);
+        check(contains(different.exportLines(),
+            "origin=LIVE_RENDERER_ALT_SOURCE_DIFFERENT_CURRENT_PERIOD;error=ONE"),
+            "NAV50_PREFETCH_OR_STALE_DATASOURCE_CANNOT_CLAIM_LIVE_RENDERER");
+        check(contains(different.exportLines(),
+            "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD;error=NONE"),
+            "NAV50_DIFFERENT_DATASOURCE_NEVER_COUNTS_AS_ACTIVE_ALTERNATE");
+    }
+
     private static void testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         nav41Setup(e);
@@ -3418,6 +3469,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav47ExactAdapterAndCurrentSourceSameStartedRead();
         testNav47DifferentRendererStreamCannotMatchPeriodAdapter();
         testNav47AdapterWithoutChildCannotPromote();
+        testNav50AlternateSourceReadIsJoinedToLiveCurrentPeriod();
         testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod();
         testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition();
         testNav41NoFieldsOrNoActiveSlotCannotProduceMatch();
