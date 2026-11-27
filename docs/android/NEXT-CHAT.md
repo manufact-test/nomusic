@@ -1,3 +1,16 @@
+> **LATEST DELIVERY BLOCKER — 28.11.2026 01:10 local:** BETA30 source/export and private draft are intact, but Floki delivery is blocked by both self-hosted runner slots accepting jobs without starting any workflow steps. Do not rebuild BETA30, publish GitHub APK assets, or bypass the trusted root consumer.
+>
+> - Original Floki run `46070217462` attempt 1 failed on `celikom-floki-ci01`; GitHub job record had `steps=[]`, and the log blob was unavailable. No root receipt or owner URL was verified.
+> - Rerun attempt 2 was assigned to `celikom-floki-ci02`, also with `steps=[]`; exact cancellation completed at 22:04:45Z.
+> - Recovery push commit `84aa896b0712fd813201e8b300c124cdf966457d` changed the Floki concurrency group and request JSON to include exact draft release `461085315`. It also unintentionally triggered Windows integration CI because `.github/deploy/a1-owner-download-request.json` was missing from Windows workflow `paths-ignore`.
+> - Windows CI job `140757205584` / run `46073960759` is assigned to `celikom-floki-ci01`, no steps. Floki run `46073960828` is assigned to `celikom-floki-ci02`, no steps.
+> - Main commit `bbef018619777c203af60fc56ebc4e524eca2c41` adds the missing request JSON path-ignore to `.github/workflows/windows-w98-integration-ci.yml`. This is a CI trigger filter only; no Windows product code changed.
+> - One-shot recovery workflow `.github/workflows/android-a1-recover-stalled-spool-beta30-runners-once.yml` is temporary. First run `46074184246` failed due to a jq argument bug; fixed in commit `bae2553ce410d10cfea6b2eb8f9e569dbdd38538`. Corrected recovery runs `46074244421` and `46074559911` succeeded and issued cancel + force-cancel requests for exact no-step jobs. GitHub still reports runs `46073960759` and `46073960828` IN_PROGRESS; cancellation does not immediately clear the runner-side stuck process.
+> - Current main commit `80fbba443717e62e8fb6591cadbbd99ea3cad348` adds the exact second CI02 no-step Floki job to the temporary recovery script.
+> - Both runner rows showed Active in the owner's screenshot, but both assigned jobs remain step-less. No root receipt, HTTPS readback or owner capability URL exists yet. Do not ask the owner to click runner controls; do not change runner host, server, SSH, root, Docker or production permissions.
+>
+> **Next:** wait for exact stuck jobs to settle/runner slots to recover; then rerun the trusted Floki stage on an available runner. Ensure the Windows workflow ignores `.github/deploy/a1-owner-download-request.json` (already fixed) so Android delivery no longer starts Windows CI. Verify root receipt + HTTPS HTTP 200/content type/size/SHA + unpublished draft URL readback before sending link. Delete the temporary one-shot recovery workflow after recovery. Keep all Android app source on the experiment branch.
+
 # CURRENT HANDOFF — BETA30 NAV51 built; trusted Floki delivery queued
 
 Date: 2026-11-27  
