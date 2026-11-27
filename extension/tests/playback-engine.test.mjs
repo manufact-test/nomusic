@@ -480,19 +480,24 @@ async function remoteStreamFixture(statuses = [], onRetry = null) {
       const from = Number(requested[1]), to = Math.min(Number(requested[2]), bytesTotal - 1);
       calls.push([from, to]);
       const entry = statuses[calls.length - 1] ?? 206;
+      if(entry==="network")throw new TypeError("Failed to fetch");
       if(entry==="stall")return new Promise((_,reject)=>options.signal.addEventListener("abort",()=>reject(Object.assign(new Error("aborted"),{name:"AbortError"})),{once:true}));
-      const status = typeof entry === "object" ? entry.status : entry;
+      const status = typeof entry === "object" ? entry.status : entry === "body-error" ? 206 : entry;
       if (status !== 206) return { status, headers: new Headers(typeof entry === "object" ? {"content-type":entry.contentType} : {}), body: { cancel: async () => { cancelledBodies++; } } };
       const bytes = new Uint8Array(to - from + 1);
       return {
         status: 206,
-        headers: new Headers({ "Content-Type": "audio/mpeg", "Content-Range": "bytes " + from + "-" + to + "/" + bytesTotal }),
-        arrayBuffer: async () => bytes.buffer
+        headers: new Headers({ "Content-Type": "audio/mpeg", "Content-Range": "bytes " + from + "-" + to + "/" + bytesTotal,
+          "ETag": typeof entry==='object'&&entry.etag ? entry.etag : '"'+'a'.repeat(64)+'-1"' }),
+        arrayBuffer: async () => {
+          if(entry==="body-error")throw new TypeError("Failed to fetch response body");
+          return typeof entry==="object"&&entry.shortBody ? bytes.buffer.slice(1) : bytes.buffer;
+        }
       };
     }
   };
   const player = new ReplacementPlayer(env, (reason, detail) => fatals.push({ reason, detail }));
-  await player.prepare({ url: signed, demoLoop: false, durationMs: 180872 });
+  await player.prepare({ url: signed, demoLoop: false, durationMs: 180872, replacementId:1, version:1, mimeType:'audio/mpeg' });
   return { player, calls, chunks, fatals, source, get revoked() { return revoked; }, get cancelledBodies() { return cancelledBodies; } };
 }
 
@@ -522,6 +527,72 @@ test("transient 503 retries the SAME next range without discarding buffered audi
   assert.deepEqual(f.fatals, []);
   assert.equal(f.source.readyState, "ended");
   f.player.destroy();
+});
+
+test('temporary transport loss retries the same range and retains the playing decoder',async()=>{
+ const f=await remoteStreamFixture([206,'network',206]);
+ const audio=f.player.audio,source=f.player.mediaSource;
+ f.player.applyState({volume:1,muted:false,playbackRate:1});f.player.play();
+ await f.player.streamTask;
+ assert.deepEqual(f.calls,[[0,65535],[65536,589823],[65536,589823],[589824,599999]]);
+ assert.deepEqual(f.chunks,[65536,524288,10176]);
+ assert.equal(f.player.audio,audio);assert.equal(f.player.mediaSource,source);
+ assert.equal(audio.paused,false);assert.equal(f.player.destroyed,false);assert.deepEqual(f.fatals,[]);
+ f.player.destroy();
+});
+
+test('failed 206 bodies retry without appending partial or duplicate bytes',async()=>{
+ const f=await remoteStreamFixture([206,'body-error','body-error',206]);
+ await f.player.streamTask;
+ assert.deepEqual(f.calls,[[0,65535],[65536,589823],[65536,589823],[65536,589823],[589824,599999]]);
+ assert.deepEqual(f.chunks,[65536,524288,10176]);
+ assert.equal(f.source.readyState,'ended');assert.deepEqual(f.fatals,[]);
+ f.player.destroy();
+});
+
+test('persistent body transport failures are bounded and remain recoverable network errors',async()=>{
+ const f=await remoteStreamFixture([206,'body-error','body-error','body-error']);
+ await f.player.streamTask;
+ assert.equal(f.calls.length,4);assert.deepEqual(f.chunks,[65536]);
+ assert.equal(f.fatals.length,1);assert.equal(f.fatals[0].reason,'remote-stream-network');
+ assert.equal(f.fatals[0].detail.offset,65536);assert.equal(f.fatals[0].detail.attempts,3);
+ f.player.destroy();
+});
+
+test('Stop during a body retry prevents another signed read or late fatal callback',async()=>{
+ let player;const f=await remoteStreamFixture([206,'body-error'],()=>player.destroy());player=f.player;
+ await f.player.streamTask;
+ assert.equal(f.calls.length,2);assert.deepEqual(f.fatals,[]);assert.equal(f.revoked,true);
+});
+
+test('a short completed body remains a protocol failure and is never retried as network loss',async()=>{
+ const f=await remoteStreamFixture([206,{status:206,shortBody:true}]);await f.player.streamTask;
+ assert.equal(f.calls.length,2);assert.equal(f.fatals[0].reason,'remote-stream-range');
+ assert.deepEqual(f.chunks,[65536]);f.player.destroy();
+});
+
+test('revoked access after a transport retry still fails immediately without further reads',async()=>{
+ const f=await remoteStreamFixture([206,'body-error',403]);await f.player.streamTask;
+ assert.equal(f.calls.length,3);assert.equal(f.fatals[0].reason,'remote-stream-http');
+ assert.equal(f.fatals[0].detail.httpStatus,403);f.player.destroy();
+});
+
+test('network failure before the first range can recover without recreating the decoder',async()=>{
+ const f=await remoteStreamFixture(['network',206]);await f.player.streamTask;
+ assert.deepEqual(f.calls.slice(0,2),[[0,65535],[0,65535]]);
+ assert.deepEqual(f.chunks,[65536,524288,10176]);assert.deepEqual(f.fatals,[]);f.player.destroy();
+});
+
+test('content identity change after a failed body is rejected before committing any new bytes',async()=>{
+ const f=await remoteStreamFixture([206,'body-error',{status:206,etag:'"'+'b'.repeat(64)+'-1"'}]);
+ await f.player.streamTask;assert.equal(f.calls.length,3);
+ assert.deepEqual(f.chunks,[65536]);assert.equal(f.fatals[0].reason,'remote-stream-range');f.player.destroy();
+});
+
+test('the range deadline expiring during transport backoff remains a timeout rather than a completed stream',async()=>{
+ let player;const f=await remoteStreamFixture([206,'body-error'],()=>{player.streamState.phase='timeout';player.fetchAbort.abort();});player=f.player;
+ await f.player.streamTask;assert.equal(f.calls.length,2);
+ assert.equal(f.fatals.length,1);assert.equal(f.fatals[0].reason,'remote-stream-timeout');f.player.destroy();
 });
 
 test("persistent 503 exhausts bounded retries with sanitized status and offset", async () => {

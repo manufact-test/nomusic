@@ -114,31 +114,64 @@ function createGainChain(context, audio, db) {
         const requestSize = offset === 0 ? 64 * 1024 : chunkSize;
         const lastRequested = total === null
           ? offset + requestSize - 1 : Math.min(total - 1, offset + requestSize - 1);
-        let response;
-        Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
+        let bytes, nextOffset;
         let attempt = 0;
-        // Hosting may reject short bursts. Retry only temporary HTTP failures,
-        // with the same signed URL/range; never bypass revoked/expired access.
+        // A failed header/body read has not committed bytes to the decoder.
+        // Retry that exact signed range in place, retaining buffered playback.
+        // Validation, revoked access, decoder errors and deadlines still fail open.
         for (;;) {
+          Object.assign(this.streamState,{phase:"headers",offset,httpStatus:null,requestAt:Date.now()});
           try {
-            response = await this.environment.fetch(asset.url, {
+            const response = await this.environment.fetch(asset.url, {
               method: "GET",
               headers: { Range: "bytes=" + offset + "-" + lastRequested },
               credentials: "omit", cache: "no-store", redirect: "error", signal: abort.signal
             });
-          } catch (_error) { throw new Error(this.streamState.phase==="timeout"?"remote-stream-timeout":"remote-stream-network"); }
-          this.streamState.httpStatus=response.status;
-          if (response.status === 206) break;
-          const retry = [429, 502, 503, 504].includes(response.status) && attempt < 2;
-          // Discard the error body without buffering or exposing server text.
-          try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
-          if (!retry) {
-            const edgeBlock = [401,403,429].includes(response.status) && response.headers?.get?.("content-type")?.includes("text/html");
-            const error = new Error(edgeBlock ? "remote-stream-route-blocked" : "remote-stream-http");
-            error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
-            throw error;
+            this.streamState.httpStatus=response.status;
+            if (response.status !== 206) {
+              try { await response.body?.cancel(); } catch (_error) { /* status remains authoritative */ }
+              const edgeBlock = [401,403,429].includes(response.status) && response.headers?.get?.("content-type")?.includes("text/html");
+              const error = new Error(edgeBlock ? "remote-stream-route-blocked" : "remote-stream-http");
+              error.streamDetail = { httpStatus: response.status, offset, attempts: attempt + 1 };
+              throw error;
+            }
+            if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) {
+              throw new Error("remote-stream-format");
+            }
+            const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
+            if (!match) throw new Error("remote-stream-range");
+            const from = Number(match[1]), last = Number(match[2]), length = Number(match[3]);
+            if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
+                || from !== offset || last < from || last > lastRequested
+                || (total !== null && length !== total)) throw new Error("remote-stream-range");
+            if (total !== null && this.loadedIdentity && response.headers.get("etag") !== this.loadedIdentity.etag)
+              throw new Error("remote-stream-range");
+            if (total === null) this.rememberAssetIdentity(asset, response, length);
+            total = length;
+            this.streamState.phase="body";
+            bytes = await response.arrayBuffer();
+            if (bytes.byteLength !== last - from + 1 || bytes.byteLength > requestSize) {
+              throw new Error("remote-stream-range");
+            }
+            nextOffset = last + 1;
+            break;
+          } catch (error) {
+            if (this.destroyed || (abort.signal.aborted && this.streamState.phase!=="timeout")) return;
+            if (this.streamState.phase==="timeout") throw new Error("remote-stream-timeout");
+            const networkFailure = (error instanceof TypeError || error?.name==="TypeError" || error?.name==="AbortError")
+              && ["headers","body"].includes(this.streamState.phase);
+            const temporaryHttp = error?.message==="remote-stream-http"
+              && [429,502,503,504].includes(error.streamDetail?.httpStatus);
+            if (!networkFailure && !temporaryHttp) throw error;
+            if (attempt >= 2) {
+              if (!networkFailure) throw error;
+              const failure=new Error("remote-stream-network");
+              failure.streamDetail={...this.streamState,offset,attempts:attempt+1};
+              throw failure;
+            }
           }
           attempt++;
+          this.streamState.phase="retry-wait";
           await new Promise((resolve) => {
             const done = () => {
               this.environment.clearTimeout(timer);
@@ -149,25 +182,11 @@ function createGainChain(context, audio, db) {
             abort.signal.addEventListener("abort", done, { once: true });
             if (abort.signal.aborted) done();
           });
-          if (this.destroyed || abort.signal.aborted) return;
-        }
-        if (!(response.headers.get("content-type") || "").toLowerCase().startsWith("audio/mpeg")) {
-          throw new Error("remote-stream-format");
-        }
-        const match = /^bytes ([0-9]+)-([0-9]+)\/([0-9]+)$/.exec(response.headers.get("content-range") || "");
-        if (!match) throw new Error("remote-stream-range");
-        const from = Number(match[1]), last = Number(match[2]), length = Number(match[3]);
-        if (!Number.isSafeInteger(length) || length < 1 || length > maxSize
-            || from !== offset || last < from || last > lastRequested
-            || (total !== null && length !== total)) throw new Error("remote-stream-range");
-        if (total !== null && this.loadedIdentity && response.headers.get("etag") !== this.loadedIdentity.etag)
-          throw new Error("remote-stream-range");
-        if (total === null) this.rememberAssetIdentity(asset, response, length);
-        total = length;
-        this.streamState.phase="body";
-        const bytes = await response.arrayBuffer();
-        if (bytes.byteLength !== last - from + 1 || bytes.byteLength > requestSize) {
-          throw new Error("remote-stream-range");
+          if (this.destroyed) return;
+          if (abort.signal.aborted) {
+            if (this.streamState.phase==="timeout") throw new Error("remote-stream-timeout");
+            return;
+          }
         }
         if (this.destroyed || abort.signal.aborted) return;
         this.streamState.phase="buffering";
@@ -175,7 +194,7 @@ function createGainChain(context, audio, db) {
         // Network/source-open deadlines own transport. Start the decoder's
         // readiness deadline only once the first verified bytes were appended.
         if (offset === 0) this.initialBufferAppended?.();
-        offset = last + 1;
+        offset = nextOffset;
         Object.assign(this.streamState,{phase:"streaming",receivedBytes:offset});
         } finally { this.environment.clearTimeout(rangeTimer); }
 
