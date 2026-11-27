@@ -15,12 +15,10 @@ function createRenderer({
   hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=false
 }={}) {
   const logs=[],handlers={},intervals=[];
-  const downloadInfo = id => ({
-    trackId:String(id),key:"yandex-drm",
-    url:"https://official.yandex.example/stream",
-    urls:["https://official.yandex.example/stream"],
-    codec:"aac"
-  });
+  const downloadInfo = (id,batch=false) => {
+    const url=batch && String(id)==="456"?"https://official.yandex.example/next":"https://official.yandex.example/stream";
+    return {trackId:String(id),key:"yandex-drm",url,urls:[url],codec:"aac"};
+  };
   class Resource {
     async getFileInfo(params) {
       const id=params?.trackId ?? params?.entity?.data?.meta?.id;
@@ -29,7 +27,7 @@ function createRenderer({
     async getFileInfoBatch(params) {
       const raw=Array.isArray(params?.trackIds)?params.trackIds:
         typeof params?.trackIds==="string"?params.trackIds.split(","):[];
-      return {downloadInfos:raw.map(id=>downloadInfo(String(id)))};
+      return {downloadInfos:raw.map(id=>downloadInfo(String(id),true))};
     }
     async getFileInfoBatchRequest(params) { return this.getFileInfoBatch(params); }
     async getMediaSource(params) {

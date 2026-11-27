@@ -29,6 +29,7 @@ test("W188 follows the official 5.129 VE -> MediaController -> MediaPlayer -> ge
       const mediaPlayersStore = { value: { audio: cross } };
       this.mediaController = { currentMediaPlayer, mediaPlayersStore };
       this.playbackState = { currentMediaPlayer, mediaPlayersStore,
+        playerState: { status: { value: "playing" } },
         queueState: { currentEntity: { value: {
           entity: { data: { meta: { id: "144530503" } } }
         } } } };
