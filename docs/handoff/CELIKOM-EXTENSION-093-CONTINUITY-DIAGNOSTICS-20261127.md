@@ -19,3 +19,21 @@ Validation and exact private delivery evidence will be appended after checks and
 ## Local validation
 
 457 extension tests passed, including new regression coverage for a running half-second drift, rate correction convergence without any decoder seek, selected playback speed, stop/pause/buffering boundaries, explicit/new seeks, retained pre-teardown context, bounded sampling and normal track-change classification. Running the eight focused seek tests against the unchanged 0.4.92 synchronizer produces five failures (including the added correction instrumentation); the current implementation passes them. Full ZIP build, production manifest validation, security gate and diff whitespace checks passed. Real Yandex listening remains unverified.
+
+The initial remote commit a83c2717a5ed042cc728d1552c0256fe9c966cca contained an output-transfer truncation marker inside replacement-player.ts, despite the local source/tests being intact. Its build correctly failed before private staging. Commit eb70ee35d1be68b5dd5842d4fe6821c68ee487d0 restores the full file. Every changed blob was independently compared with git hash-object of the locally tested source; the only mismatch was that transferred file, and its repaired remote blob now matches too. No broken package was approved or delivered. Future tool-mediated file transfers must be chunked and blob-verified, not accepted merely because JSON parsing succeeds.
+
+## Verified private delivery
+
+- Exact corrected build source: `eb70ee35d1be68b5dd5842d4fe6821c68ee487d0`; Floki run `45992977800`, attempt 1.
+- Server tests: 457 passed. Build, security, checksum and private spool steps passed.
+- The independent native Chromium media gate remains **failed**, specifically `actual MP3 MSE plays` in `scripts/test-audio-gain-browser.mjs`. M4A fixture was reached before it. This is not a green browser/audio result, and its cause is not established by this release. The user previously authorized private candidate delivery without endlessly repairing the headless environment. Do not claim all acoustic defects fixed or customer acceptance.
+- Independent trusted root-owned spool/ZIP verification: administrative run `45993126623`, SUCCESS.
+- Filename: `celikom-extension-0.4.93.zip`; size **2,504,603 bytes**.
+- SHA-256: `c97ec42c4317a33fc7cd390443a72feacf12c6f17efc6393db8d532e5bfb1de8`.
+- Exact metadata approved in the existing owner-only manifest; public_stable remains null.
+- Final publication, trusted receipt and full HTTPS verification: administrative run `45993261733`, SUCCESS. Existing trusted consumer verified versioned/latest anonymous 401 and authorized 200, full size and digest. Current owner receipt exactly matches version/source/run/attempt/hash.
+- Explicit mirror service start returned 1 again, but the independently loaded trusted approval exactly matched the intended 0.4.93 approval and existing owner consumer publication/HTTPS verification succeeded. No unrelated mirror or branch repair.
+- Verified private download: https://celikom.com/downloads/extension/celikom-extension-0.4.93.zip
+- Maintenance request reset to harmless no-op in `5b69fbfb77b3fb1e30809b577ac0468c24db4e44`.
+
+Owner installation: replace contents of the existing unpacked folder, reload that extension, reload the Yandex tab, and confirm 0.4.93 in the next diagnostic. Listen through initial Start, mid-song reload/adoption, pause/resume, seek, track changes while VPN connects and steady playback. Export diagnostics promptly after a gap, before reloading: retained context survives song changes but not document reload. No Android/Windows/server-auth changes and no customer release.
