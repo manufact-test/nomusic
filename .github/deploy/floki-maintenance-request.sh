@@ -1,13 +1,20 @@
 #!/bin/bash
 set -Eeuo pipefail
-# Read-only CI01 availability check; no service/process/config changes.
+# Recover ONLY the idle CI01 listener. Never restart any active worker or CI02.
 python3 <<'PY'
-import subprocess,json
-r=subprocess.run(["docker","inspect","celikom-floki-ci01","--format","{{json .State}}"],capture_output=True,text=True,timeout=15)
-if r.returncode==0:
- d=json.loads(r.stdout);print("EXTENSION_CI01_STATE",json.dumps({k:d.get(k) for k in ["Running","Paused","Restarting","OOMKilled","Status","StartedAt"]}))
-r=subprocess.run(["docker","top","celikom-floki-ci01","-eo","pid,comm"],capture_output=True,text=True,timeout=15)
-if r.returncode==0:print("EXTENSION_CI01_PROCESS_NAMES",r.stdout[:4000])
-r=subprocess.run(["docker","exec","--user","1000","celikom-floki-ci01","bash","-c","command -v node || true; find /opt/hostedtoolcache/node /home/runner/_work/_tool/node -maxdepth 4 -type f -path '*/bin/node' 2>/dev/null | head -4"],capture_output=True,text=True,timeout=15)
-print("EXTENSION_CI01_NODE_PATHS",r.returncode,r.stdout[:1000])
+from pathlib import Path
+import subprocess,stat
+p=Path("/etc/systemd/system/celikom-ci-runner.service")
+assert p.is_file() and not p.is_symlink() and p.stat().st_uid==0
+unit=p.read_text()
+assert "celikom-floki-ci01" in unit and "docker" in unit
+r=subprocess.run(["docker","top","celikom-floki-ci01","-eo","comm"],capture_output=True,text=True,timeout=15)
+assert r.returncode==0
+if "Runner.Worker" in r.stdout:
+ print("EXTENSION_CI01_ACTIVE_WORKER_PRESERVED")
+else:
+ assert "Runner.Listener" in r.stdout
+ subprocess.run(["systemctl","restart","celikom-ci-runner.service"],check=True,capture_output=True,timeout=45)
+ subprocess.run(["systemctl","is-active","celikom-ci-runner.service"],check=True,capture_output=True,timeout=10)
+ print("EXTENSION_CI01_IDLE_LISTENER_RESTARTED_NO_WORKER_WAS_ACTIVE")
 PY
