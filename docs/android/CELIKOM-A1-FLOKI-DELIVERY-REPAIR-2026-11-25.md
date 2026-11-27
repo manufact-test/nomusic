@@ -111,3 +111,16 @@ BETA29 NAV50 owner draft:
 The trusted-main request file `.github/deploy/a1-owner-download-request.json` is updated to this run/release. A GitHub-connection commit did not start the push-triggered workflow, so the main `.github/workflows/android-a1-owner-floki-spool.yml` now also supports `workflow_dispatch`. Manual dispatch reads the same trusted request JSON and performs the same independent root-owned receipt, HTTPS, size/hash and unpublished-draft readback checks. It does not publish the release or bypass any verification.
 
 To continue, open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml), choose `main`, and click **Run workflow** with no inputs. Do not provide a GitHub APK URL to the owner; only the final verified `A1_OWNER_DOWNLOAD_URL` on `celikom.com` is acceptable.
+
+## 2026-11-27 — BETA29 delivered to owner
+
+- Manual Floki spool run `46064236455`, run number 33 — SUCCESS.
+- Job `140727455245` — SUCCESS.
+- Independent root-owned consumer verified signer/provenance, receipt ownership, live HTTPS HTTP 200, APK content type, exact size and SHA-256, and unpublished draft readback. Final marker: `A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
+- Size: `71,602,156` bytes.
+- SHA-256: `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
+- Draft release `461031098` remains unpublished. Its real `A1_OWNER_DOWNLOAD_URL` was read back and delivered directly to the owner. Never copy the capability URL into Git/docs/logs.
+- Duplicate push run `46063409036` was cancelled by concurrency; the successful manual run above is the delivery proof.
+
+Owner installs over BETA28 without uninstalling or clearing data, tests the target and second song, and exports TXT. Do not claim audio replacement until phone evidence confirms it.
