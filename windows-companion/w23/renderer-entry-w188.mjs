@@ -448,6 +448,23 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       ? "NATIVE_MAPPING_ACCEPTED" : "NATIVE_CONNECTED";
   };
 
+  function activateLateNativeState() {
+    if (!lastNativeState?.enabled || !lastNativeState?.signedIn || !apiOrigin) return;
+    // Apply bridge state without replaying a player transition: a full SetState
+    // replay can start a second QUALITY_CHANGE while Yandex resolves the same track.
+    adapter.enable();
+    sourceRecovery.setPaused(networkRecoveryPending);
+    const current = playerSourceRefresh.currentTrack();
+    const currentId = current?.id || "";
+    if (currentId && adapter.hasMappedTrack(currentId))
+      report("NATIVE_LATE_ATTACH_MAPPED_SOURCE_HELD", currentId);
+    else if (currentId)
+      report("NATIVE_LATE_ATTACH_WAITING_FOR_FILEINFO", currentId);
+    lastReported = "NATIVE_CONNECTED";
+    report("RENDERER_STATE_ON");
+    console.info("[CELIKOM] Native bridge state received");
+  }
+
   function attachEndpointFallback(webpackRequire) {
     if (attached || stopped) return attached;
     for (const id in webpackRequire.m) {
@@ -464,21 +481,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         if (!adapter.attach(klass.prototype)) continue;
         attached = true;
         report("RESOURCE_HOOK_ENDPOINT_FALLBACK");
-        if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
-            const current = playerSourceRefresh.currentTrack();
-            const currentId = current?.id || "";
-            if (currentId && adapter.hasMappedTrack(currentId)) {
-              adapter.enable();
-              if (networkRecoveryPending) sourceRecovery.setPaused(true);
-              report("NATIVE_LATE_ATTACH_MAPPED_SOURCE_HELD", currentId);
-              report("RENDERER_STATE_ON");
-            } else {
-              // An unmapped current track still needs the ordinary authenticated
-              // revalidation path; a mapped source must never be reloaded merely
-              // because the provider hook attached late.
-              window.__celikomBridgeNativeSetState(lastNativeState);
-            }
-          }
+        activateLateNativeState();
         console.info("[CELIKOM] Native endpoint fallback attached");
         return true;
       }
@@ -498,34 +501,15 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     if (!webpackRequire?.m || typeof webpackRequire !== "function") return false;
     playerSourceRefresh.attach(webpackRequire);
     liveMediaProviderHook.attach(webpackRequire);
-    const livePrototype = liveMediaProviderHook.findProviderPrototype();
-    if (livePrototype) {
-      try {
-        if (adapter.attach(livePrototype) &&
-            liveMediaProviderHook.normalizeAdapterArguments(livePrototype)) {
-          attached = true;
-          report("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED");
-          if (lastNativeState?.enabled && lastNativeState?.signedIn && apiOrigin) {
-            const current = playerSourceRefresh.currentTrack();
-            const currentId = current?.id || "";
-            if (currentId && adapter.hasMappedTrack(currentId)) {
-              adapter.enable();
-              if (networkRecoveryPending) sourceRecovery.setPaused(true);
-              report("NATIVE_LATE_ATTACH_MAPPED_SOURCE_HELD", currentId);
-              report("RENDERER_STATE_ON");
-            } else {
-              // An unmapped current track still needs the ordinary authenticated
-              // revalidation path; a mapped source must never be reloaded merely
-              // because the provider hook attached late.
-              window.__celikomBridgeNativeSetState(lastNativeState);
-            }
-          }
-          console.info("[CELIKOM] Native live media-provider connector attached");
-          return true;
-        }
-        adapter.dispose();
-      } catch { adapter.dispose(); }
-    }
+    try {
+      if (liveMediaProviderHook.attachAdapter(adapter)) {
+        attached = true;
+        report("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED");
+        activateLateNativeState();
+        console.info("[CELIKOM] Native live media-provider connector attached");
+        return true;
+      }
+    } catch {}
     // Wait for the current player/mediaProvider instance. Do not bind the
     // unrelated endpoint wrapper while the pinned player class is present.
     if (typeof webpackRequire.m[7123] === "function") return false;
@@ -546,7 +530,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           window.webpackChunk_N_E.push([[tag], {}, r => { webpackRequire = r; }]);
           window.webpackChunk_N_E.pop();
         } catch {}
-        if (webpackRequire?.m) attachEndpointFallback(webpackRequire);
+        if (webpackRequire?.m && typeof webpackRequire.m[7123] !== "function")
+          attachEndpointFallback(webpackRequire);
       }
       if (!attached) { report("RESOURCE_HOOK_MISSING"); clearInterval(finder); }
     }
