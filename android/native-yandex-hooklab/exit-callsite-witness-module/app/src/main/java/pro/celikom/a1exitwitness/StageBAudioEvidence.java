@@ -1193,6 +1193,7 @@ final class StageBAudioEvidence {
         if(!wasNativeTrackFlowItem(track) && !creatorOnlyAtBirth)return;
         NativeTrackSourceLink link=null;
         boolean sameTrackSibling=false;
+        boolean existingSameWrapperConflict=false;
         for (int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
             NativeTrackSourceLink candidate=nativeTrackSourceLinks.get(i);
             Object candidateTrack=candidate.track==null?null:candidate.track.get();
@@ -1203,20 +1204,12 @@ final class StageBAudioEvidence {
             }
             if(candidateWrapper==wrapper) {
                 if(wrapperBirthIdentityConflict || candidateTrack!=track) {
-                    // The same wrapper object cannot safely change Track or
-                    // creator-birth identity. Invalidate its old chain.
-                    candidate.track=null;
-                    candidate.wrapper=null;
-                    candidate.albumInstance=null;
-                    candidate.descriptor=null;
-                    candidate.factoryResult=null;
-                    candidate.sourceInstance=null;
-                    candidate.sourceOpened=false;
-                    candidate.sourceEverTouched=true;
-                    candidate.sourceReadAfterOpen=false;
-                    candidate.sourceAlbumReadAfterOpen=false;
+                    // Preserve both conflicting identities in the bounded
+                    // registry. findByWrapper() will now see two exact wrapper
+                    // entries and reject them as ambiguous (status 3).
+                    existingSameWrapperConflict=true;
                     mark(nativeTrackWrapperIdentityConflict);
-                    return;
+                    continue;
                 }
                 // A duplicate observation of the SAME wrapper is not a new
                 // lineage generation. Preserve its descriptor/factory/source
@@ -1226,15 +1219,9 @@ final class StageBAudioEvidence {
                 Object priorAlbum=candidate.albumInstance==null
                     ?null:candidate.albumInstance.get();
                 if(priorAlbum!=null && album!=null && priorAlbum!=album) {
-                    candidate.track=null;
-                    candidate.wrapper=null;
-                    candidate.albumInstance=null;
-                    candidate.descriptor=null;
-                    candidate.factoryResult=null;
-                    candidate.sourceInstance=null;
-                    candidate.sourceEverTouched=true;
+                    existingSameWrapperConflict=true;
                     mark(nativeTrackWrapperIdentityConflict);
-                    return;
+                    continue;
                 }
                 if(candidate.albumInstance==null && album!=null)
                     candidate.albumInstance=new WeakReference<>(album);
@@ -1243,7 +1230,7 @@ final class StageBAudioEvidence {
             }
             if(candidateTrack==track)sameTrackSibling=true;
         }
-        if(wrapperBirthIdentityConflict) {
+        if(wrapperBirthIdentityConflict && !existingSameWrapperConflict) {
             mark(nativeTrackWrapperIdentityConflict);
             return;
         }
