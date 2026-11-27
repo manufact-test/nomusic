@@ -1,27 +1,5 @@
-name: CELIKOM Windows private signed FlokiNET handoff
+name: CELIKOM Windows approval-gated Floki stable promotion
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Exact signed Windows version
-        required: true
-        type: string
-        default: '0.24.62'
-      sequence:
-        description: Exact monotonic signed sequence
-        required: true
-        type: string
-        default: '9'
-      source_commit:
-        description: Exact source commit of the two immutable private drafts
-        required: true
-        type: string
-        default: '28587670e9efda35c73eb3a49d9702d2d72b3b8c'
-      send_to_private_intake:
-        description: Legacy compatibility input; safe Floki spool only
-        required: true
-        default: false
-        type: boolean
   workflow_call:
     inputs:
       version:
@@ -33,25 +11,18 @@ on:
       source_commit:
         required: true
         type: string
-      send_to_private_intake:
-        required: true
-        type: boolean
-  push:
-    branches: [main]
-    paths:
-      - '.github/ci/celikom-windows-private-stage-trigger.txt'
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-private-floki-stage-${{ inputs.version || '0.24.62' }}
+  group: celikom-windows-stable-floki-promotion-${{ inputs.version || '0.24.62' }}
   cancel-in-progress: false
 jobs:
   stage:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
     runs-on: celikom-ci-smoke-only
-    # Data-only transfer: no deployment environment, SSH, signing secret or
-    # publication permission. The VPS root consumer independently verifies
-    # the P-256 signature, sequence and complete payload before owner promotion.
+    environment: windows-stable-production
+    # This transfer is consumed by the Floki root timer, which updates the
+    # local stable feed and owner download. Public route reach is verified separately.
     # GitHub draft-release asset reads require contents:write for GITHUB_TOKEN.
     # This token is exposed only to the exact-asset GET downloader below; no
     # release mutation, signing secret, SSH credential or production publish.
@@ -83,7 +54,7 @@ jobs:
         with:
           name: CELIKOM-Windows-P256-transfer-${{ inputs.version }}-${{ inputs.source_commit }}
           path: ${{ runner.temp }}/celikom-windows-private-stage
-      - name: Persist verified signed transfer in isolated Floki runner spool
+      - name: Persist approved signed transfer for Floki root stable promotion
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -92,4 +63,4 @@ jobs:
           test -f "$bundle" && test ! -L "$bundle"
           python3 .github/scripts/floki-windows-signed-spool.py --bundle "$bundle" \
             --version "$RELEASE_VERSION" --sequence "$RELEASE_SEQUENCE"
-          echo CELIKOM_WINDOWS_IMMUTABLE_SIGNED_DATA_STAGED_NO_GITHUB_RELEASE_NO_SSH_NO_PUBLICATION
+          echo CELIKOM_WINDOWS_APPROVED_SIGNED_DATA_STAGED_FOR_ROOT_STABLE_PROMOTION

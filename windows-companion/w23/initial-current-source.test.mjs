@@ -8,23 +8,47 @@ const origin="https://api.celikom.example";
 const tick=()=>new Promise(r=>setImmediate(r));
 function harness() {
  const clock={now:Date.now()},handlers={},intervals=[];
- class Resource {
-   async getMediaSource(params){
-     const id=params?.entity?.id ?? params?.trackId ?? params?.id;
+ class FileInfoProvider {
+   async getFileInfo(params){
+     const id=params?.trackId ?? params?.entity?.data?.meta?.id ??
+       params?.entity?.id ?? params?.id;
      return {downloadInfo:{trackId:String(id),url:"https://yandex.example/old"}};
    }
-   async getFileInfo(p){return this.getMediaSource({entity:{id:p.trackId}});}
+   async getMediaSource(params){return this.getFileInfo(params);}
+   async getFileInfoBatchRequest(params){return {fileInfos:[],trackIds:params?.trackIds};}
+ }
+ class MediaProvider {
+   constructor(){this.getFileInfoProvider=new FileInfoProvider();}
+   async getMediaSource(params){return this.getFileInfoProvider.getFileInfo(params);}
+ }
+ class YandexMediaPlayer {
+   constructor(){this.mediaProvider=new MediaProvider();}
+ }
+ class CrossMediaPlayer {
+   constructor(){
+     this.firstMediaPlayer=new YandexMediaPlayer();
+     this.secondMediaPlayer=new YandexMediaPlayer();
+     this.currentMediaPlayer=this.firstMediaPlayer;
+   }
  }
  class Player {
    reasons=[];urls=[];
-   mediaProvider=new Resource();
-   snapshot={queueState:{currentEntity:{value:{entity:{data:{meta:{id:"123"}}}}}},
-     playerState:{status:{value:"playing"},progress:{value:{position:77}}}};
-   get state(){return this.snapshot;}
+   constructor(){
+     const cross=new CrossMediaPlayer();
+     const currentMediaPlayer={value:cross};
+     const mediaPlayersStore={value:{audio:cross}};
+     this.mediaController={currentMediaPlayer,mediaPlayersStore};
+     this.snapshot={queueState:{currentEntity:{value:{entity:{data:{meta:{id:"123"}}}}}},
+       playerState:{status:{value:"playing"},progress:{value:{position:77}}},
+       currentMediaPlayer,mediaPlayersStore};
+     this.playbackState=this.snapshot;
+   }
+   get state(){return this.playbackState;}
    async reloadEntity(reason) {
      this.reasons.push(reason);
      const currentId=String(this.snapshot.queueState.currentEntity.value.entity.data.meta.id);
-     const data=await this.mediaProvider.getMediaSource({entity:{id:currentId}});
+     const cross=this.mediaController.currentMediaPlayer.value;
+     const data=await cross.currentMediaPlayer.mediaProvider.getMediaSource({entity:{id:currentId}});
      this.urls.push(data.downloadInfo.url);
    }
  }
