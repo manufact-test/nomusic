@@ -92,20 +92,24 @@ Interpretation:
   - Persistent owner signer verified; install mode is update-existing.
   - `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`. This is a native stability/signing gate, not audio/product proof.
 - Clone-alone run `46060063402` — SUCCESS, verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only.
-- BETA29 diagnostic export run `46061697450`, run number 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — IN_PROGRESS at last checkpoint. It is the only intended BETA29 export candidate: marker, README, artifact name and workflow expectations all say BETA29.
+- BETA29 owner export run `46061697450`, run number 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — SUCCESS.
+- Private draft release: `461031098`, still unpublished, target `main`.
+- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`, 71,602,156 bytes, SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
+- Owner signer verified; install mode `UPDATE_EXISTING`; fresh clone install was not authorized.
+- Native verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`, `diagnostic_only_not_product_or_releasable=true`.
+- Trusted-main request `.github/deploy/a1-owner-download-request.json` has been updated to `run_id=46061697450`, `attempt=1`, `release_id=461031098`.
 
-Several intermediate export-trigger commits were made while changing the artifact name. They may create older-name private drafts. Do not deliver or reference any draft from those intermediate runs. Only use run `46061697450` if it completes SUCCESS and its draft contains exactly `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
+Several intermediate export-trigger commits were made while changing the artifact name. They may have produced older-name private drafts. Do not deliver or reference them. Only BETA29 release `461031098` is the intended candidate.
 
-Do not create any more `[export-beta-audio]` commits; run 500 is already active.
+## Next action — start the existing Floki root-verification workflow
 
-## Next action after run 500
+The request-file commit made through the GitHub connection did not start Actions automatically. The main Floki workflow now has a manual `workflow_dispatch` fallback; this runs the same existing validation and root-owned spool path and does not publish the draft.
 
-1. Wait for run `46061697450` and all its jobs to complete. Confirm the ARM13 75s gate, persistent owner signer, update-existing mode, and BETA29 artifact checks.
-2. Read the actual unpublished draft release ID from the completed run/logs or the exact tag created by that run. Verify the release contains the BETA29 APK, `BUILD-PROVENANCE.json`, `SHA256SUMS.txt`, and BETA29 `README-RU.txt`.
-3. Update the trusted-main request `.github/deploy/a1-owner-download-request.json` with `run_id=46061697450`, `attempt=1`, and that exact draft `release_id`. This push triggers `.github/workflows/android-a1-owner-floki-spool.yml`.
-4. Wait for independent root receipt and live `celikom.com` HTTPS verification. Confirm HTTP 200, APK content type, exact size and SHA-256, and unpublished draft readback.
-5. Read the actual `A1_OWNER_DOWNLOAD_URL` from the draft. Send only that verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
-6. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
+1. Open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml).
+2. Select branch `main` and click **Run workflow**. No inputs are required; the trusted request file already points to BETA29 release `461031098`.
+3. Wait for the run to complete. Confirm independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact size/hash, and unpublished draft readback.
+4. Read the actual `A1_OWNER_DOWNLOAD_URL` from the draft. Send only that verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
+5. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
 
 The BETA29 phone test remains narrow:
 - Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
