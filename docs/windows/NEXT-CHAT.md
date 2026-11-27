@@ -1,4 +1,6 @@
-# ACTIVE CELIKOM WINDOWS — W189 repairs merged into main (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — W193 owner installer build (28 November 2026)
+
+**Latest checkpoint supersedes older release-status notes below.** W192 PR #74 merged at `5fc886e175fa5ede45c32e6571ba921117e77271`; exact head Windows integration 46076571266 passed including both Stop/catch-up regression cases. Audio baseline hashes unchanged. Public stable read-only probe 46082646485 returned HTTP 200 for manifest and signature; unsigned metadata reported 0.24.55 / sequence 2 (signature not verified by probe). Floki route audit retry 46074224389 and Windows integration retry 46076917640 were still running without steps at last check. User requested immediate next Windows installer. App, supervisor, and installer bumped to 0.24.63.0; owner-build sequence 10 follows prior owner candidate sequence 9. Main build trigger commit `9c6721fdb273fc0850213b79d339b0f47d3e83b0`; signed owner build run [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) queued. Build is on GitHub Windows, no production publication or Floki spool staging. Do not trigger another build while this one is running. Verify artifact and delivery before claiming a release. Actual owner-installed version, local Floki floor, protected reviewer config, and stable promotion remain unverified. No automatic update claim until tested on existing installation.
 
 **Canonical main at latest check:** `bae2553ce410d10cfea6b2eb8f9e569dbdd38538`.
 
@@ -56,7 +58,7 @@ The release workflow now defaults `publish_to_production=false`, requires an exp
 
 The read-only route audit is queued from `.github/deploy/windows-owner-audit-trigger.txt`. It inspects timer/service state, pending spool files, local stable pointer/manifest, owner receipt, DNS/HTTP routes and Nginx mapping. It does not publish, clean the spool or alter the server. Use its result to determine whether Hostinger and Floki are complementary targets.
 
-**No new installer, package version bump, stable publication, global rollout or owner OTA test has occurred.** The owner's currently installed version must be confirmed from fresh diagnostics. Next: finish post-merge CI, inspect the route audit, verify environment reviewers and publisher target, read the live signed stable floor, then prepare the next signed release from main. Production publication must pause for the owner's explicit approval; do not infer rollout scope.
+**Historical W189 checkpoint (superseded by the W193 status above): no new installer, package version bump, stable publication, global rollout or owner OTA test had occurred.** The owner's currently installed version must be confirmed from fresh diagnostics. Next: finish post-merge CI, inspect the route audit, verify environment reviewers and publisher target, read the live signed stable floor, then prepare the next signed release from main. Production publication must pause for the owner's explicit approval; do not infer rollout scope.
 
 No Android, browser-extension runtime or server/admin backend changes.
 
