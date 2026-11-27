@@ -1,3 +1,5 @@
+> **Historical BETA28 handoff.** BETA28 was subsequently delivered through Floki and tested; BETA29 NAV50 has since been built and delivered. The section below titled “BETA28 delivery status” records the earlier checkpoint before that delivery and is not the current project state. For current work, follow `docs/android/NEXT-CHAT.md` and the NAV50 correlation report.
+
 # CELIKOM Android A1 — BETA28 owner session recovery
 
 Date: 2026-11-27  
@@ -74,7 +76,7 @@ Owner APK:
 
 The private draft has the exact APK asset, provenance, README and SHA256SUMS. It must remain unpublished.
 
-## BETA28 delivery status — NOT YET COMPLETE
+## BETA28 delivery status — historical snapshot (superseded)
 
 Trusted-main request JSON on `main` was updated by commit `64a1f36a5d3fb6951f327e28864fd5a10440203b` and read back as:
 ```json
