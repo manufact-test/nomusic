@@ -15,3 +15,26 @@ Returned prepared Blob already flows through both direct and background upload a
 Retained: 0.4.95 cancellation fences, partial-upload idle detection and persistent failure UI; existing duration tolerance, subscription/auth, moderation and file size limits. No Android, Windows, server authorization, decoder deployment or playback-engine changes. No supplied audio is committed to Git.
 
 Exact private build/spool and owner HTTPS delivery evidence will be appended after independent verification. Do not infer an actual owner-account upload or real Yandex listening acceptance from these tests.
+
+## Verified private owner delivery
+
+- Exact archived extension build source: `0e28cba5221c0f345bb1e3502d186016a614f54b`. All 10 changed blobs were verified against local git hash-object before main advanced.
+- Ordinary extension run `46068278275`, job `140738782873`, became assigned to ci01 but did not start any steps during this work. It is NOT claimed as the producer or a passed browser check.
+- Delivery therefore used a controlled isolated build through the already authorized administrative workflow, **actual successful build run `46070419007`, job `140745763863`**, wrapper commit `0d847d439a99050eb12f52696388102379c46adb`. The wrapper extracted only required files from the exact archived source above into a private temporary workspace in the existing CI container, then executed build/unpacked, all 471 tests (concurrency 2), ZIP build, manifest validation and security as the existing unprivileged spool owner **UID 1001**. No repository code ran as root. Successful execution used the existing Node 24.22.3 toolcache. The resulting ZIP exactly matched the locally verified size and digest.
+- This is explicitly administrative-workflow isolated-build provenance, not a fictional successful ordinary extension workflow. Receipt run_id is the ACTUAL successful build run `46070419007`; source_commit is the actual Git-archived source `0e28cba...`.
+- Existing `floki-private-build-spool.mjs --extension-only` staged those exact checked bytes without changing receipt schema, delivery consumer or public channel. Independent root-owned consumer ZIP/spool verification: run `46070646863`, job `140746519238`, SUCCESS.
+- Package `celikom-extension-0.4.96.zip`, **2,506,160 bytes**.
+- SHA256 `2503ea6f3a2326394dbd3e67859064a051db30125a035f44cff22c35aefc1379`.
+- Exact metadata approved in existing owner-only manifest; public_stable remains null.
+- Final trusted receipt and full HTTPS verification: administrative run `46070788054`, job `140746963567`, SUCCESS. Both versioned/latest downloads returned anonymous 401 and authorized 200 with matching complete size/hash. Receipt exactly matches version/source/actual build run/attempt/hash.
+- Verified private URL: https://celikom.com/downloads/extension/celikom-extension-0.4.96.zip
+- Only the exact isolated build directory was removed after publication. Maintenance request reset to harmless no-op in `00048628ffc921127b1641fb77568926b58fe49a`.
+- Explicit mirror service invocation again returned 1, but trusted approval matched exactly and existing publisher/HTTPS verification succeeded. No unrelated mirror changes.
+
+### Delivery troubleshooting limits
+
+Earlier 0.4.95 native run `46066362165` ended cancelled. Two exact old-process probes found no matching process and terminated nothing; an idle-unit verification failed before restart, and a same-user listener signal attempt failed. No runner service/container configuration, active worker, CI02 or Chrome setup was changed.
+
+The first isolated-build attempts incorrectly assumed UID 1000, missed the existing Node cache and hit temporary-file limits. Those failed attempts were never approved/staged as a release. Only task-owned failed Node temp folders were cleaned. After deriving actual existing spool UID 1001, the existing Node cache was accessible and all checks passed; the successful build required no shared runtime install. This UID assumption caused avoidable delay and must not be repeated.
+
+No separate native Chromium/Yandex listening acceptance is claimed. The actual supplied cleaned audio did pass strict local FFmpeg decode with unchanged MPEG bytes and matching complete decodable PCM. Owner should reload the updated unpacked extension and retry the original untouched Trapflow MP3.
