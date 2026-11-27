@@ -1,4 +1,4 @@
-# CURRENT HANDOFF — BETA28 ready; finish trusted delivery, then send owner APK
+# CURRENT HANDOFF — BETA28 tested; NAV50 live-renderer correlation added
 
 Date: 2026-11-27  
 Repository: `manufact-test/nomusic`  
@@ -6,95 +6,118 @@ Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
 ## What the next chat must do first
 
-**Do not rebuild BETA28 and do not start another code experiment.** BETA28 is already built, signed and passed its required source/JVM/native-launch workflows. The owner is waiting for the installable version.
-
-The only outstanding step is to finish the existing trusted Floki delivery, independently verify the direct `celikom.com` HTTPS URL, and send that exact URL to the owner. Do not send a GitHub download link. Do not reuse the BETA27 URL or guess a capability URL.
-
-## Required reading
+Read these documents in order:
 
 1. `docs/android/NEXT-CHAT.md` (this handoff)
 2. `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md`
 3. `docs/android/CELIKOM-A1-BETA28-OWNER-SESSION-RECOVERY-2026-11-27.md`
+4. `docs/android/CELIKOM-A1-BETA28-ALT-DATASOURCE-LIVE-RENDERER-CORRELATION-2026-11-27.md`
 
-The older BETA26 diagnostic plan is superseded for the current build. BETA27's descriptor-lifetime fix remains part of BETA28; see the BETA27 handoff document referenced in the delivery repair record if historical detail is needed.
+BETA28 delivery is complete and the owner has tested it. Do not repeat its delivery workflow or ask for another diagnostic now. The owner reports no audible replacement on BETA28. The latest TXT is already available in the conversation as `CELIKOM-A1-Diagnostics-1795806916651.txt`.
 
-## BETA28 source and successful checks
+The immediate engineering task is to finish the NAV50 owner/clone CI gates. If they pass, prepare a diagnostic-only BETA29 with the new exact DataSource-to-live-renderer counters. Do not change audio behavior before those counters identify the failing boundary.
 
-- Source commit: `895306cee0934e245aeda7aaa0ce95f3b609eff2`.
-- Owner build/export + JVM issuer/proxy contract: run `46049315766`, attempt 1 — SUCCESS.
-- Separate clone-alone Android 13 ARM13 differential: run `46049315771`, attempt 1 — SUCCESS.
-- Renderer/observer JVM regression: run `46049315695`, attempt 1 — SUCCESS.
-- Android 13 publisher-first / clone-second native launch completed for 75 seconds.
-- Exact verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
-- The report says `audio_or_account_tested=false`, `stage_a=NO_GO`, `stage_b_current_player_album_edition_attested=false`, `acoustic_replacement_proven=false`. No MediaDataSource readAt candidate was observed.
+## BETA28 delivery and phone result
 
-## Exact BETA28 APK identity
-
-- Filename: `CELIKOM-A1-RAMIL-AU-BETA28-HONOR50-20261127.apk`.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA28-HONOR50-20261127.apk`.
 - Size: `71,602,156` bytes.
 - SHA-256: `2c5dee053f2634224f929113e94b5aafe5ca5492160ed16f8e267020b394555c`.
 - Persistent owner signer SHA-256: `048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf`.
 - Private unpublished owner draft release ID: `460950166`.
-- Draft tag: `celikom-a1-owner-46049315766-1`.
-- Draft has the exact APK, provenance, README and SHA256SUMS assets. Keep it unpublished.
+- Trusted Floki spool workflow: `46052141389`, attempt 2 — SUCCESS.
+- Independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact size and SHA-256, and unpublished draft readback were verified.
+- The real owner URL was read from the draft and delivered in the previous chat. Do not reuse, reconstruct, or store its capability URL in Git/docs/logs.
 
-## Delivery checkpoint — must resume here
+Phone result: BETA28 installed over BETA27 without uninstalling or clearing data. Owner reports that audible replacement still does not occur.
 
-Trusted-main request JSON on `main` was updated by commit `64a1f36a5d3fb6951f327e28864fd5a10440203b`; readback was:
-```json
-{
-  "run_id": 46049315766,
-  "attempt": 1,
-  "release_id": 460950166
-}
-```
+## BETA28 source and prior successful checks
 
-- Floki spool workflow: `46052141389`.
-- Job: `140685817495`, `stage-verified-signed-apk`.
-- Last verified state: workflow `in_progress`; job `in_progress`; job logs/steps were not yet available through the GitHub API.
-- Regular HTTPS delivery workflow `46052140482` was `skipped` at that checkpoint.
-- No independent root-owned receipt or verified `A1_OWNER_DOWNLOAD_URL` was yet confirmed.
-- BETA27 remains the latest delivered APK until this completes.
+- Source commit: `895306cee0934e245aeda7aaa0ce95f3b609eff2`.
+- Owner build/JVM: run `46049315766` — SUCCESS.
+- Separate ARM13 clone-alone: run `46049315771` — SUCCESS.
+- Renderer JVM: run `46049315695` — SUCCESS.
+- Native launch verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- The CI verdict was explicitly not audio replacement proof.
 
-Poll `46052141389` and inspect job `140685817495`. Follow only the existing `.github/workflows/android-a1-owner-floki-spool.yml` trusted-main route. Require:
-1. source run/release/provenance, exact APK size/hash and signer checks;
-2. immutable staging;
-3. independent root-owned receipt;
-4. live `celikom.com` HTTPS readback: HTTP 200, expected APK content type, exactly 71,602,156 bytes and SHA-256 `2c5dee...`;
-5. unpublished draft update/readback containing exactly the actual `A1_OWNER_DOWNLOAD_URL`.
+## What the BETA28 phone diagnostic proves
 
-Only after all five pass, retrieve the URL from the draft and send it directly to the owner. Do not put the capability URL/token in Git, docs, logs, summaries or public messages. Do not publish the draft, bypass root receipt, use direct SSH, or fabricate a URL. If the spool run fails or stalls, diagnose/retry the existing trusted path without changing APK bytes or bypassing the root consumer.
+The diagnostic includes:
+- `OWNER_ENABLED=ONE`
+- `SIGNED_MPEG_READY=ONE`
+- `OWNER_RESOLVE_APPROVED=ONE`
+- `SIGNED_AUDIO_READY=ONE`
+- `OWNER_AUDIO_RANGE_VALID=ONE`
+- `DATASOURCE_ARMED=ONE`
+- `AUDIO_OPEN=ONE`
+- `AUDIO_READ=MANY`
 
-## What BETA28 changes
+In the actual source, `AUDIO_READ` is incremented only when the approved alternate Exo DataSource read returns a positive byte count. Therefore alternate bytes were returned through the original Exo DataSource hook.
 
-BETA28 is a narrow owner-session recovery change on top of BETA27:
-- Fixed categories for configuration, refresh/session and activation failures.
-- HTTP 401 on refresh/activation and malformed saved-token state map to `login_required`.
-- No raw secrets, tokens, response bodies or exception messages in diagnostics.
-- Short press on the CELIKOM diagnostic control still exports TXT.
-- Long press opens recovery menu with `Проверить` and `Войти`.
-- Competing login/activation operations are guarded.
-- After refresh failure/session rejection, require explicit re-login rather than replaying a possibly rotated refresh token on activity resume.
-- This guard is process-local, not persisted across process restarts.
+This still does not prove that the exact DataSource which returned alternate bytes belongs to the MediaPeriod currently rendered by Yandex. The pre-prepare hook can run for a period being prepared or prefetched. Codec and AudioTrack counters are process-wide and are not tied to that DataSource; do not conclude that the asset is broken or that MPEG/AAC mismatch is the cause.
 
-Do not change Yandex auth, server, catalogue, signed-grant authorization, original codecs, BETA27 audio identity guards, Windows, stable Android or OTA.
+The renderer diagnostic sees live SLOT_B audio reads and direct Lo96 period/source evidence, but BETA28 did not join the live period's Track wrapper to the exact DataSource object that the alternate route armed. See the NAV50 investigation document for the precise evidence and missing link.
 
-## Owner instructions after delivery
+## NAV50 diagnostic-only source change
 
-Send the verified direct `celikom.com` URL and tell the owner:
-1. Install BETA28 over BETA27. Do not uninstall CELIKOM and do not clear app data/cache.
-2. Check the top CELIKOM status. If it is not `ВКЛ`, long-press the diagnostic control.
-3. Choose `Войти` for a session failure; complete normal CELIKOM login/verification. Use `Проверить` only if the existing session is believed valid.
-4. Confirm `ВКЛ`. If it still fails, note the visible status and export TXT.
-5. In original Yandex Music test Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
-6. Test the second song that previously had leading gaps.
-7. Short-press the diagnostic control to export a fresh TXT after both tracks.
+Current source commit before the latest documentation-only handoff update:
+`466eb2cd8b8de6ca6c6d3cff4cc1553cbe268f1d`.
 
-For the next diagnostic inspect owner config/refresh/login/activation first, then resolve/grant admission and:
-`FIRST_OPEN_HOOK_ENTERED` → `FIRST_OPEN_CANDIDATE_ACCEPTED` → `FIRST_OPEN_SETTER_MATCH` → `FIRST_OPEN_DEFERRED_ARM_CALLED` → `DEFERRED_ARM_ENTER` → `DEFERRED_ARM_ACCEPTED` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+NAV50 does not change the audio route, player, Yandex codecs, server, authorization, Windows, stable Android or OTA. It adds a read-only identity join:
 
-Keep events separated by exact track and selection generation. Require the owner to confirm that the alternative sound is actually audible. CI success is not audio replacement proof.
+1. `NativeExoAlternateByteRoute` tracks positive alternate reads per exact DataSource object and exposes a read-only identity status.
+2. `StageBAudioEvidence.linkedSourceInstanceForCreatorOrBeta(wrapper)` resolves the exact DataSource already linked to the original Track wrapper, even after open/read. It cannot nominate or arm a source.
+3. `NativeRendererStreamEvidence` checks the same live SLOT_B audio-renderer read callback, current PlaybackInfo PeriodID, holder source, and DataSource identity against the route that returned alternate bytes.
+4. `ExitCallsiteWitness` wires the observer and exports counters only. No URLs, tokens, track IDs or source objects are logged.
 
-## Owner communication
+New counters include:
+- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS`
+- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_EOS_UNKNOWN`
+- `LIVE_RENDERER_ALT_SOURCE_DIFFERENT_CURRENT_PERIOD`
+- `LIVE_RENDERER_ALT_SOURCE_ARMED_NO_READ_CURRENT_PERIOD`
+- `LIVE_RENDERER_ALT_SOURCE_NO_ROUTE_CURRENT_PERIOD`
+- `LIVE_RENDERER_ALT_SOURCE_DATASOURCE_UNRESOLVED_CURRENT_PERIOD`
+- `LIVE_RENDERER_ALT_SOURCE_SLOT_OR_PERIOD_CHANGED`
 
-The owner asked to save this work for the next chat and expects that chat to deliver the BETA28 install link once the trusted HTTPS route is verified. Do not ask the owner to resend information already in this handoff. Do not ask for a new diagnostic before BETA28 has been delivered and installed.
+Interpretation:
+- Exact same DataSource + current non-EOS period: alternate bytes reached the active Exo source path; investigate extractor/decoder/output next.
+- Different DataSource: likely prefetch/stale generation or wrong source binding; fix selection binding only.
+- Unresolved/no route: repair the identity link, not codecs or assets.
+
+## CI checkpoint — finish these existing runs
+
+- Renderer observer JVM run `46060063393`, run number 256 — SUCCESS. It compiled and ran `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest`; NAV50 same-source/current-period and mismatch assertions passed.
+- Owner workflow `46060063423`:
+  - `jvm-issuer-proxy-contract` job `140711877640` — SUCCESS.
+  - Private Android 13 ARM13 owner build/native test was still in progress at the last checkpoint.
+- Clone-alone workflow `46060063402` was still in progress at the last checkpoint.
+
+Before exporting BETA29, recheck both run conclusions and all jobs. Do not assume the owner ARM13 native gate passed just because the JVM job passed.
+
+## Next action after CI
+
+If owner ARM13 and clone-alone both finish SUCCESS:
+
+1. Dispatch the existing owner workflow with its diagnostic APK export opt-in to build BETA29. Do not create a new architecture or change audio behavior.
+2. Keep the owner draft unpublished.
+3. Follow the existing trusted Floki/root delivery process:
+   - owner signer/provenance checks;
+   - immutable spool;
+   - independent root-owned receipt;
+   - live `celikom.com` HTTPS verification;
+   - exact size/hash readback;
+   - read the real `A1_OWNER_DOWNLOAD_URL` from the unpublished draft.
+4. Send only the verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
+5. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
+
+The BETA29 phone test remains narrow:
+- Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
+- The second song that previously had leading gaps.
+- Export TXT after both tests.
+
+## Guardrails
+
+- No second player.
+- No audio transcoding or codec changes without evidence.
+- No changes to server, catalogue, signed-grant authorization, Windows, stable Android or OTA.
+- Do not infer audible replacement from `AUDIO_READ` alone or from CI.
+- Do not ask the owner to resend BETA28 diagnostics or details already in this handoff.
