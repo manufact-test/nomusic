@@ -478,7 +478,7 @@ public final class StageBAudioEvidenceTest {
         bucket(accepted.exportLines(),0,"FIRST_OPEN_SETTER_MATCH","ONE");
         bucket(accepted.exportLines(),0,"FIRST_OPEN_DEFERRED_ARM_CALLED","ONE");
         bucket(accepted.exportLines(),0,"FIRST_OPEN_DEFERRED_ARM_REJECTED","ONE");
-        String report=String.join("\n",accepted.exportLines());
+        String report=String.join("\\n",accepted.exportLines());
         check(!report.contains("144530503") && !report.contains("http"),
             "FIRST_OPEN_REPORT_MUST_NOT_LEAK_PRIVATE_VALUES");
 
