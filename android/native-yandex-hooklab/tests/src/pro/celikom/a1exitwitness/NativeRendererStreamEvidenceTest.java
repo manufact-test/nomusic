@@ -3237,11 +3237,25 @@ public final class NativeRendererStreamEvidenceTest {
         check(!router.isArmed(exoSource),
             "NO_BYTES_BEFORE_ACTUAL_PUBLISHER_PREPARE");
         bridge.beforeOriginalPeriodPrepare(1,track,album,originalSource,
-            period,exoSource);
+            period,null);
+        check(!router.isArmed(exoSource),
+            "DEFERRED_APPROVAL_WAITS_FOR_EXACT_FIRST_OPEN");
+        check(!bridge.armDeferredOriginalDataSource(2,track,album,
+                originalSource,exoSource),
+            "WRONG_FIRST_OPEN_GENERATION_REJECTED");
+        check(contains(bridge.exportLines(),
+                "origin=DEFERRED_ARM_GENERATION_MISMATCH;error=ONE"),
+            "DEFERRED_GENERATION_REJECTION_REASON");
+        check(bridge.armDeferredOriginalDataSource(1,track,album,
+                originalSource,exoSource),
+            "EXACT_FIRST_OPEN_INSTALLS_DEFERRED_NATIVE_EXO_SOURCE");
         check(router.isArmed(exoSource)
             && bridge.chosenSource()
                 ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ALTERNATE,
-            "ACTUAL_ORIGINAL_PREPREPARE_INSTALLS_ONE_NATIVE_EXO_SOURCE");
+            "DEFERRED_ORIGINAL_PREPREPARE_INSTALLS_ONE_NATIVE_EXO_SOURCE");
+        check(contains(bridge.exportLines(),
+                "origin=DEFERRED_ARM_ACCEPTED;error=ONE"),
+            "DEFERRED_ARM_ACCEPTED_SUMMARY");
         check(!router.isArmed(prefetch)
                 && router.openIfApproved(prefetch,0)==null,
             "OTHER_ORIGINAL_DATASOURCE_NEVER_SEES_ALT_BYTES");
@@ -3277,6 +3291,12 @@ public final class NativeRendererStreamEvidenceTest {
         check(noGrant.chosenSource()
             ==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
             "NO_VERIFIED_ISSUER_TRACK_ID_MEANS_ORIGINAL_EXO");
+        check(!noGrant.armDeferredOriginalDataSource(
+                2,track,album,originalSource,new Object()),
+            "NO_PENDING_GRANT_CANNOT_ARM_FIRST_OPEN");
+        check(contains(noGrant.exportLines(),
+                "origin=DEFERRED_ARM_NO_PENDING_APPROVED;error=ONE"),
+            "DEFERRED_NO_PENDING_REASON");
     }
 
 
