@@ -1,3 +1,30 @@
+# ACTIVE CELIKOM WINDOWS — W189 repairs from the promoted W188 mainline baseline
+
+**Current canonical main:** `48812d33d60f05ce833e253589b4110064f34179` (six later extension-only commits preserved). The Windows baseline remains CELIKOM 0.24.62.0 / native 0.24.31 / Yandex 5.129.0.
+
+**Current repair branch:** `work/windows-w189-repairs-from-main-20261127`, rebased directly onto the latest main SHA.
+
+Read first:
+1. `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md` — promotion result, retained backup, CI evidence and sequence.
+2. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — required fixes and acceptance criteria.
+3. `docs/windows/W188-W174-51290-RESTORE-HANDOFF-20261127.md` — exact W188 provider bridge, W174 hashes and Yandex 5.129.0 evidence.
+
+## Immediate work
+
+The 0.24.62.0 / native 0.24.31 / Yandex 5.129.0 baseline is now canonical on main. Do not rebase from or continue work on the old recovery branch.
+
+1. Restore W169 Electron main-process exception guards and regression tests.
+2. Restore W175 initial current-source revalidation and W178 new-current-track catch-up on top of `renderer-entry-w188.mjs`, preserving the W188 provider bridge.
+3. Restore detailed privacy-safe resolve diagnostics and make the four W175/W178 tests blocking again.
+4. Fix stale «Загрузить версию» state, proposal-status flash and measured UI latency without changing the working admin upload or «Предложить песню» flows.
+5. Keep W174 source hashes and do not transplant W182/W183/W185 experiments.
+6. Run all Windows/Node tests and real owner playback acceptance. Do not equate green CI with audible replacement.
+7. Only after fixes and acceptance, determine the next version/sequence from the live stable floor, then complete the protected stable OTA process under W189.
+
+No Android, browser-extension or server changes. No production publish until the Hostinger/Floki split, feed scope and protected approval are verified.
+
+---
+
 # ACTIVE CELIKOM WINDOWS — W190 baseline promotion, then W189 repair (27 November 2026)
 
 **Read first:** `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md`.

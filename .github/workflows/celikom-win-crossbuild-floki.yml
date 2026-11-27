@@ -46,7 +46,7 @@ jobs:
           set -euo pipefail
           npm install --no-audit --no-fund --no-package-lock
           npm run build
-          node --test ../w22/native-resource-adapter.test.mjs ../w60/current-source-refresh.test.mjs initial-current-source.test.mjs native-host.test.mjs renderer-relay.test.mjs
+          node --test ../w22/native-resource-adapter.test.mjs ../w60/current-source-refresh.test.mjs initial-current-source.test.mjs native-host.test.mjs renderer-relay.test.mjs live-media-provider-hook.test.mjs
           echo CELIKOM_W186_LIVE_MEDIA_SOURCE_REGRESSION_PASS
       - name: Cross-compile Windows WinForms companion and updater on Linux
         shell: bash

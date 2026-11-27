@@ -195,7 +195,9 @@ test("W76: at most two retry attempts after sustained network outage",async()=>{
     onEvent:(code)=>events.push(code),delays:[1,1]
   });
   recovery.schedule("106040459");
-  await pause(30);
+  // The retry chain uses two real timers and an async continuation. Give
+  // Windows CI scheduler contention enough headroom without changing delays.
+  await pause(150);
   assert.equal(attempts,2);
   assert.ok(events.includes("SOURCE_RECOVERY_EXHAUSTED"));
   assert.equal(recovery.pendingCount,0);

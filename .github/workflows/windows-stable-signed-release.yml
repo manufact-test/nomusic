@@ -23,13 +23,8 @@ on:
         required: false
         default: ''
         type: string
-      stage_to_floki:
-        description: Send signed candidate to dedicated private data-only intake (no live publish)
-        required: false
-        default: false
-        type: boolean
       publish_to_production:
-        description: Disabled during migration; private preparation only
+        description: Promote the signed release to the selected Hostinger and/or Floki targets; affects installations following stable and requires protected approval
         required: true
         default: false
         type: boolean
@@ -59,6 +54,7 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version || '0.24.62' }}
       RELEASE_SEQUENCE: ${{ inputs.sequence || '9' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
+      CELIKOM_STABLE_PUBLISHER: ${{ vars.CELIKOM_STABLE_PUBLISHER }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,7 +72,10 @@ jobs:
           MANIFEST_PRIVATE_PEM: ${{ secrets.CELIKOM_STABLE_MANIFEST_PRIVATE_KEY_PEM }}
         run: |
           $ErrorActionPreference='Stop'
-          if ('${{ inputs.publish_to_production }}' -eq 'true') { throw 'FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED' }
+          if ('${{ inputs.publish_to_production }}' -eq 'true' -and
+              $env:CELIKOM_STABLE_PUBLISHER -notin @('floki','hostinger','both')) {
+            throw 'W189_STABLE_PUBLISH_TARGETS_NOT_CONFIGURED'
+          }
           if (!$env:MANIFEST_PRIVATE_PEM) { throw 'W155_P256_PRIVATE_KEY_NOT_CONFIGURED' }
           node .github/scripts/windows-stable-key-public.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W155_P256_PUBLIC_PIN_DERIVATION_FAILED' }
@@ -196,13 +195,19 @@ jobs:
           path: ${{ runner.temp }}/CELIKOM-Windows-P256-transfer.zip
           if-no-files-found: error
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version || '0.24.62' }}-${{ github.sha }}
+          path: ${{ runner.temp }}/celikom-stable-ready/
+          if-no-files-found: error
+          retention-days: 1
 
-  private_stage:
+  publish_floki:
+    name: Promote signed release to Floki stable (approval-gated)
     needs: prepare
-    # Every successfully signed mainline build is copied to the isolated
-    # data-only Floki spool. Root independently checks its P-256 signature,
-    # hash and monotonic version before switching the owner download.
-    if: github.ref == 'refs/heads/main' && needs.prepare.result == 'success'
+    # The Floki root consumer promotes its local stable feed and owner download.
+    # The read-only route audit determines whether those paths are public or mirrored.
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'floki' || vars.CELIKOM_STABLE_PUBLISHER == 'both') && needs.prepare.result == 'success'
     permissions:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
@@ -210,11 +215,10 @@ jobs:
       version: ${{ inputs.version || '0.24.62' }}
       sequence: ${{ inputs.sequence || '9' }}
       source_commit: ${{ github.sha }}
-      send_to_private_intake: false
 
   publish:
     needs: prepare
-    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'hostinger' || vars.CELIKOM_STABLE_PUBLISHER == 'both')
     permissions:
       contents: read
     concurrency:

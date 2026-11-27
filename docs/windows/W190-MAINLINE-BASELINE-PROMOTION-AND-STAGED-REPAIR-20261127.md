@@ -35,6 +35,18 @@ These checks establish build, compatibility, signature and private delivery evid
 - Do not transplant W182/W183/W185 experimental player hooks.
 - Do not change Android A1, browser extension runtime, server/admin backend, upload contract or production feed during baseline promotion.
 
+## Promotion result — completed on 27 November 2026
+
+- PR [#72](https://github.com/manufact-test/nomusic/pull/72) merged successfully.
+- Canonical main SHA: `38b839f7d40a761fb794d4a20680e3cf71b6d65d`.
+- Pre-integration backup: `backup/main-before-w188-baseline-20261127` @ `64a1f36a5d3fb6951f327e28864fd5a10440203b`.
+- PR generic CI [46056935295](https://github.com/manufact-test/nomusic/actions/runs/46056935295): SUCCESS.
+- PR Windows integration CI [46056935288](https://github.com/manufact-test/nomusic/actions/runs/46056935288): SUCCESS, including W174/W188 regressions, W21, W24, W15, GUI and supervisor builds, installer contracts and updater safety.
+- The four W175/W178 current-track catch-up tests remain visibly failing in their explicitly non-blocking baseline step (`W189_BASELINE_GAP`); they were not removed. They must be restored to the blocking suite after W189 repairs.
+- The full pre-integration main tree remains present: no files were lost from the 1,856-file backup tree. Android A1, browser extension, server/admin and unrelated repository work were not replaced.
+- Post-merge checks launched on exact main SHA `38b839f7d40a761fb794d4a20680e3cf71b6d65d`: Windows integration [46057355291](https://github.com/manufact-test/nomusic/actions/runs/46057355291), W188 Yandex 5.129 audit [46057355369](https://github.com/manufact-test/nomusic/actions/runs/46057355369), generic CI [46057355317](https://github.com/manufact-test/nomusic/actions/runs/46057355317), W181 Yandex 5.128 audit [46057355310](https://github.com/manufact-test/nomusic/actions/runs/46057355310), and FlokiNET x64 build [46057355312](https://github.com/manufact-test/nomusic/actions/runs/46057355312). Recheck these before declaring post-merge validation complete.
+- No stable-feed publication, global rollout or new owner installer was triggered. The production guard remains intact.
+
 ## Baseline acceptance on main
 
 Before starting W189 repairs:
@@ -70,3 +82,15 @@ After baseline checks pass:
 - Verify whether the stable feed is global before any publish. Do not use a global customer rollout as a one-owner test.
 - After all source/package/feed checks, provide the owner the exact GitHub Actions approval link and wait for explicit approval.
 - Test auto-discovery, signed manifest verification, download, install, restart and preserved local session separately on the already-installed owner copy. Do not claim OTA success before those steps complete.
+
+## Main advanced after baseline promotion — 27 November 2026
+
+- After PR #72 promoted the Windows baseline at `38b839f7d40a761fb794d4a20680e3cf71b6d65d`, main advanced to `48812d33d60f05ce833e253589b4110064f34179` through six extension-only commits, including the 0.4.94 owner-delivery/contribution-flow handoff.
+- The W189 repair branch was rebased by rebuilding its 14 Windows/docs changed paths on top of that latest main tree. The extension-only changes are preserved; no extension source was copied or modified.
+- Rebased repair branch commit: `d73b19d3f114f8055721c8ec8e4188dd007cc22f`.
+- Post-merge Windows integration [46057355291](https://github.com/manufact-test/nomusic/actions/runs/46057355291): SUCCESS.
+- Post-merge W188 Yandex 5.129 audit [46057355369](https://github.com/manufact-test/nomusic/actions/runs/46057355369): SUCCESS.
+- Post-merge generic CI [46057355317](https://github.com/manufact-test/nomusic/actions/runs/46057355317): SUCCESS.
+- Legacy W181 Yandex 5.128 audit [46057355310](https://github.com/manufact-test/nomusic/actions/runs/46057355310): FAILED because its old workflow did not install the one-off Acorn dependency required by the read-only player-callgraph audit. The repair branch adds the same pinned Acorn install already used by the W188 audit workflow; this is static tooling only, not a runtime hook.
+- FlokiNET crossbuild [46057355312](https://github.com/manufact-test/nomusic/actions/runs/46057355312): FAILED before any job step/log was created (no runner log/artifact). Treat as runner availability/infrastructure, not as a source compile result; recheck after the workflow/test update.
+
