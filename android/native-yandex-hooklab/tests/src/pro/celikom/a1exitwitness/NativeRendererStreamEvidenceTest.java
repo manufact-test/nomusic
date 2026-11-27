@@ -2625,6 +2625,18 @@ public final class NativeRendererStreamEvidenceTest {
             e.finishEarlyOriginalSourceSet(first,true);
             check(bridge.isSuccessfulOriginalSource(first.generation,track,album,source),
                 "AFTER_SUCCESSFUL_ORIGINAL_SETTER_SAME_REFERENCES");
+            Object[] freshSetter=e.exactSetterForFreshSourceCreator(wrapper,track,album);
+            check(freshSetter!=null && freshSetter[0].equals(first.generation)
+                    && freshSetter[1]==source,
+                "FIRST_OPEN_EXACT_SETTER_SOURCE_GENERATION");
+            check(e.exactSetterForFreshSourceCreator(new Object(),track,album)==null,
+                "FIRST_OPEN_WRONG_WRAPPER_REJECTED");
+            check(contains(e.exportLines(),
+                    "origin=FIRST_OPEN_SETTER_ACCEPTED;error=ONE"),
+                "FIRST_OPEN_SETTER_ACCEPTED_BUCKET");
+            check(contains(e.exportLines(),
+                    "origin=FIRST_OPEN_SETTER_WRAPPER_MISMATCH;error=ONE"),
+                "FIRST_OPEN_SETTER_WRAPPER_REJECTION_REASON");
             check(!bridge.replacementEnabled()
                     && bridge.chosenSource()==pro.celikom.yandex.nativehooklab.NativeSourceGate.Choice.ORIGINAL,
                 "UNKNOWN_SEMANTIC_ID_NEVER_ENABLES_ALTERNATE");
