@@ -1,0 +1,64 @@
+name: CELIKOM A1 one-shot stuck Floki runner recovery BETA30
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/android-a1-recover-stalled-spool-beta30-runners-once.yml'
+permissions:
+  contents: read
+jobs:
+  cancel-exact-stalled-runner-jobs:
+    if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Cancel only exact no-step BETA30 CI01 and CI02 jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          repo=manufact-test/nomusic
+          cancel_exact() {
+            local run_id="$1" attempt="$2" sha="$3" workflow_path="$4"
+            local job_name="$5" runner_name="$6" run_json="$RUNNER_TEMP/run-$run_id.json"
+            local jobs_json="$RUNNER_TEMP/jobs-$run_id.json" status
+            gh api "repos/$repo/actions/runs/$run_id/attempts/$attempt" > "$run_json"
+            jq -e --arg sha "$sha" --arg path "$workflow_path" --argjson attempt "$attempt" '
+              .id == (env.RUN_ID|tonumber) and .run_attempt == $attempt
+              and .head_sha == $sha and .head_branch == "main" and .path == $path
+            ' --argjson RUN_ID "$run_id" "$run_json" >/dev/null
+            status=$(jq -r .status "$run_json")
+            if [[ "$status" == completed ]]; then
+              echo "A1_RUN_ALREADY_COMPLETED $run_id"
+              return 0
+            fi
+            [[ "$status" == in_progress ]] || { echo "A1_RUN_NOT_IN_PROGRESS $run_id" >&2; return 1; }
+            gh api "repos/$repo/actions/runs/$run_id/attempts/$attempt/jobs?per_page=100" > "$jobs_json"
+            jq -e --arg name "$job_name" --arg runner "$runner_name" '
+              .total_count == 1
+              and .jobs[0].name == $name
+              and .jobs[0].status == "in_progress"
+              and .jobs[0].runner_name == $runner
+              and (.jobs[0].steps | length) == 0
+            ' "$jobs_json" >/dev/null
+            gh api --method POST "repos/$repo/actions/runs/$run_id/cancel" >/dev/null
+            for i in {1..6}; do
+              sleep 4
+              status=$(gh api "repos/$repo/actions/runs/$run_id/attempts/$attempt" --jq .status)
+              [[ "$status" == completed ]] && break
+            done
+            if [[ "$status" != completed ]]; then
+              gh api --method POST "repos/$repo/actions/runs/$run_id/force-cancel" >/dev/null
+            fi
+            echo "A1_EXACT_STALLED_RUN_CANCELLED_OR_FORCE_REQUESTED $run_id"
+          }
+          cancel_exact 46070217462 2 fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c \
+            .github/workflows/android-a1-owner-floki-spool.yml \
+            stage-verified-signed-apk celikom-floki-ci02
+          cancel_exact 46073960759 1 84aa896b0712fd813201e8b300c124cdf966457d \
+            .github/workflows/windows-w98-integration-ci.yml \
+            "Linux extension and server package build" celikom-floki-ci01

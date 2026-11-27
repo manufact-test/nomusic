@@ -25,6 +25,8 @@ on:
       - '.github/workflows/extension-build.yml'
       - '.github/workflows/windows-w98-integration-ci.yml'
       - 'scripts/test-audio-gain-browser.mjs'
+      # A1 owner APK delivery is Android-only; do not occupy Floki runners for it.
+      - '.github/deploy/a1-owner-download-request.json'
       - '.github/deploy/floki-maintenance-request.sh'
       - '.github/workflows/celikom-win-portable-floki-preflight.yml'
       # Signed data-only Floki release handoff has its own pinned-contract CI.
