@@ -97,3 +97,17 @@ This is only an APK delivery result. The Android CI verdict remains `METRICA_REA
 For the current diagnostic and code handoff, see:
 - `docs/android/NEXT-CHAT.md`
 - `docs/android/CELIKOM-A1-BETA26-OWNER-DIAGNOSTIC-NEXT-STEPS-2026-11-27.md`
+
+
+## 2026-11-27 — BETA29 manual trigger fallback
+
+BETA29 NAV50 owner draft:
+- Owner run: `46061697450`, attempt `1`.
+- Draft release: `461031098` (unpublished).
+- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
+- Size: `71,602,156` bytes.
+- SHA-256: `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
+
+The trusted-main request file `.github/deploy/a1-owner-download-request.json` is updated to this run/release. A GitHub-connection commit did not start the push-triggered workflow, so the main `.github/workflows/android-a1-owner-floki-spool.yml` now also supports `workflow_dispatch`. Manual dispatch reads the same trusted request JSON and performs the same independent root-owned receipt, HTTPS, size/hash and unpublished-draft readback checks. It does not publish the release or bypass any verification.
+
+To continue, open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml), choose `main`, and click **Run workflow** with no inputs. Do not provide a GitHub APK URL to the owner; only the final verified `A1_OWNER_DOWNLOAD_URL` on `celikom.com` is acceptable.
