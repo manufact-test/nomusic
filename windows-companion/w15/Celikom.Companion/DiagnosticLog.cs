@@ -257,6 +257,8 @@ public static class DiagnosticLog
             code.StartsWith("NATIVE_UNKNOWN_SOURCE_", StringComparison.Ordinal) ||
             code.StartsWith("NATIVE_REPLACEMENT_SOURCE_", StringComparison.Ordinal) ||
             (code is "NATIVE_CURRENT_SOURCE_REVALIDATE" or "NATIVE_CURRENT_SOURCE_REVALIDATE_STALE") ||
+          (code is "RESOLVE_LOCAL_SESSION_MISSING" or "RESOLVE_LOCAL_ORIGIN_INVALID" or
+              "RESOLVE_SESSION_CHANGED" or "RESOLVE_GRANT_REJECTED") ||
             code.StartsWith("ACTIVE_ENTITLEMENT_", StringComparison.Ordinal) ||
             code.StartsWith("LOGIN_", StringComparison.Ordinal) ||
             code.Contains("ERROR", StringComparison.Ordinal) ||

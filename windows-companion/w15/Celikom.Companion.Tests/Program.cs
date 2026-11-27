@@ -2933,9 +2933,17 @@ try
          DiagnosticLog.IsIncidentCode("LOGIN_TARGET_FLOKI") &&
          DiagnosticLog.IsIncidentCode("LOGIN_HTTP_401") &&
          DiagnosticLog.IsIncidentCode("LOGIN_TIMEOUT") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_LOCAL_SESSION_MISSING") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_LOCAL_ORIGIN_INVALID") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_SESSION_REFRESH_FAILED") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_SESSION_CHANGED") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_GRANT_REJECTED") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_SERVER_NO_GRANT") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_GRANT_VALID") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_QUEUED") &&
          !DiagnosticLog.IsIncidentCode("NATIVE_CONNECTED") &&
          !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
-        "W135 source decisions and actual decoder proof are durable incidents, ordinary connection status is not");
+        "W135/W178 failure causes are durable incidents while normal grant/no-grant/queue events remain ordinary");
     var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
     var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
     Directory.CreateDirectory(fixtureLogsDirectory);
