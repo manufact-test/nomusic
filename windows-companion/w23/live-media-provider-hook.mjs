@@ -28,9 +28,10 @@ export function createLiveMediaProviderHook({onEvent = () => {}} = {}) {
     if (!descriptor?.configurable || typeof descriptor.get !== "function" || descriptor.set !== undefined) return false;
     const getter = function() {
       const state = descriptor.get.call(this);
-      if (!disposed && state?.queueState && state?.playerState) {
-        // Capture the player before the first track is selected; 5.129 already
-        // exposes its media-controller/provider chain at this point.
+      if (!disposed && state?.queueState && state?.playerState &&
+          currentPlayer?.deref() !== this) {
+        // Capture the player once, before the first track is selected; do not
+        // flood the bounded diagnostic queue on every UI state read.
         currentPlayer = new WeakRef(this);
         note("LIVE_PLAYER_INSTANCE_SEEN");
       }
