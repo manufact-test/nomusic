@@ -15,44 +15,75 @@ function createRenderer({
   hostname="desktop",protocol="musicapplication:",originValue="null",withPlayer=false
 }={}) {
   const logs=[],handlers={},intervals=[];
+  const downloadInfo = id => ({
+    trackId:String(id),key:"yandex-drm",
+    url:id==="456"?"https://official.yandex.example/next":"https://official.yandex.example/stream",
+    urls:[id==="456"?"https://official.yandex.example/next":"https://official.yandex.example/stream"],
+    codec:"aac"
+  });
   class Resource {
     async getFileInfo(params) {
-      return {
-        responseTime:13,
-        downloadInfo:{trackId:String(params.trackId),key:"yandex-drm",
-          url:"https://official.yandex.example/stream",codec:"aac"}
-      };
+      const id=params?.trackId ?? params?.entity?.data?.meta?.id;
+      return {responseTime:13,downloadInfo:downloadInfo(String(id))};
     }
-    async getFileInfoBatch() {
-      return {downloadInfos:[
-        {trackId:"123",key:"drm",url:"https://official.yandex.example/stream"},
-        {trackId:"456",key:"drm",url:"https://official.yandex.example/next"}
-      ]};
+    async getFileInfoBatch(params) {
+      const raw=Array.isArray(params?.trackIds)?params.trackIds:
+        typeof params?.trackIds==="string"?params.trackIds.split(","):[];
+      return {downloadInfos:raw.map(id=>downloadInfo(String(id)))};
     }
-    getMediaSource() { return Promise.resolve("Yandex source"); }
+    async getFileInfoBatchRequest(params) { return this.getFileInfoBatch(params); }
+    async getMediaSource(params) {
+      const result=await this.getFileInfo(params);
+      return {src:result.downloadInfo.urls[0],url:result.downloadInfo.url};
+    }
+    async getMediaSourceBatch(params) {
+      const ids=(params?.entities||[]).map(entity=>String(entity?.data?.meta?.id||""));
+      const result=await this.getFileInfoBatchRequest({trackIds:ids.join(",")});
+      return result.downloadInfos.map(item=>({src:item.urls[0]}));
+    }
     pause() {return "YANDEX_PAUSED"}
     seek() {return "YANDEX_SEEKED"}
+  }
+  class MediaProvider {
+    constructor() { this.getFileInfoProvider=new Resource(); }
+    getMediaSource(params) { return this.getFileInfoProvider.getMediaSource(params); }
+    getMediaSourceBatch(params) { return this.getFileInfoProvider.getMediaSourceBatch(params); }
+  }
+  class YandexMediaPlayer {
+    constructor() { this.mediaProvider=new MediaProvider(); }
+    getMediaSource(params) { return this.mediaProvider.getMediaSource(params); }
+    reload(entity) { return this.getMediaSource({entity,disableCache:true}); }
+  }
+  class CrossMediaController {
+    constructor() {
+      this.firstMediaPlayer=new YandexMediaPlayer();
+      this.secondMediaPlayer=new YandexMediaPlayer();
+      this.currentMediaPlayer=this.firstMediaPlayer;
+    }
   }
   const originalPause=Resource.prototype.pause,originalSeek=Resource.prototype.seek;
   class NativeYandexPlayer {
     constructor({trackId="123",status="playing",position=57.1}={}) {
       this.reloadReasons=[];
       this.mediaSources=[];
-      this.currentMediaPlayer={mediaProvider:new Resource()};
-      this.firstMediaPlayer=this.currentMediaPlayer;
-      this.secondMediaPlayer=this.currentMediaPlayer;
-      this.snapshot={
+      const cross=new CrossMediaController();
+      const currentMediaPlayer={value:cross};
+      const mediaPlayersStore={value:{audio:cross}};
+      this.mediaController={currentMediaPlayer,mediaPlayersStore};
+      this.playbackState={
         queueState:{currentEntity:{value:{entity:{data:{meta:{id:trackId}}}}}},
-        playerState:{status:{value:status},progress:{value:{position}}}
+        playerState:{status:{value:status},progress:{value:{position}}},
+        currentMediaPlayer,mediaPlayersStore
       };
     }
-    get state() { const value=this.snapshot; Promise.resolve().then(()=>intervals.forEach(fn=>fn())); return value; }
+    get state() { return this.playbackState; }
     async reloadEntity(reason) {
       this.reloadReasons.push(reason);
-      const id=this.snapshot.queueState.currentEntity.value.entity.data.meta.id;
-      const response=await this.currentMediaPlayer.mediaProvider.getFileInfo({trackId:id});
-      this.mediaSources.push(response.downloadInfo.url);
-      return response;
+      const entity=this.playbackState.queueState.currentEntity.value.entity;
+      const cross=this.mediaController.currentMediaPlayer.value;
+      const source=await cross.currentMediaPlayer.reload(entity);
+      this.mediaSources.push(source.src);
+      return source;
     }
   }
   const requireFn=id=>id==="native-resource"?{Resource}:
@@ -74,7 +105,9 @@ function createRenderer({
     setTimeout,clearTimeout
   };
   vm.runInNewContext(bundle,context,{timeout:2000});
-  return {window,Resource,NativeYandexPlayer,logs,handlers,originalPause,originalSeek,runIntervals:()=>intervals.forEach(fn=>fn())};
+  return {window,Resource,MediaProvider,YandexMediaPlayer,CrossMediaController,
+    NativeYandexPlayer,logs,handlers,originalPause,originalSeek,
+    runIntervals:()=>intervals.forEach(fn=>fn())};
 }
 async function tick() {
   await new Promise(resolve=>setImmediate(resolve));
@@ -126,7 +159,7 @@ test("native batch-first request performs exact-ID source injection",async()=>{
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin
   });
-  const pending=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
+  const pending=new r.Resource().getFileInfoBatchRequest({trackIds:["123","456"]});
   await tick();
   const req=r.window.__celikomBridgeNativeDrain();
   assert.deepEqual([...req.map(x=>x.trackId)],["123","456"]);
@@ -380,7 +413,7 @@ test("W60 paused native Yandex reload retains pause and position without auto-pl
   const r=createRenderer({withPlayer:true});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   const p=new r.NativeYandexPlayer({trackId:"123",status:"paused",position:99.2});
-  void p.state;
+  void p.state; r.runIntervals();
   const pending=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const request=r.window.__celikomBridgeNativeDrain();
@@ -456,7 +489,7 @@ test("W76: local bridge timeout recovers already-playing Yandex source without r
   const r=createRenderer({withPlayer:true});
   const nativePlayer=new r.NativeYandexPlayer({trackId:"123",position:67.4});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void nativePlayer.state;
+  void nativePlayer.state; r.runIntervals();
   const first=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
   const initial=r.window.__celikomBridgeNativeDrain();
@@ -563,7 +596,7 @@ test("W76: expired signed media 403 callback checks current ID and honestly repo
   const r=createRenderer({withPlayer:true});
   const p=new r.NativeYandexPlayer({trackId:"123",position:24.5});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
-  void p.state;
+  void p.state; r.runIntervals();
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("456"),false,
     "stale prefetched previous song must not force player reload");
   assert.equal(r.window.__celikomBridgeNativeRecoverExpired("123"),true);
@@ -598,7 +631,7 @@ test("W77: Kishlak-style transient batch prefetch remains pending until song act
   const player=new r.NativeYandexPlayer({trackId:"123",position:55.8});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   void player.state; r.runIntervals();
-  const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
+  const batch=new r.Resource().getFileInfoBatchRequest({trackIds:["123","456"]});
   await tick();
   const first=r.window.__celikomBridgeNativeDrain();
   assert.equal(first.length,2);
@@ -643,7 +676,7 @@ test("W77: Stop clears old prefetch failure and forbids future reload",async()=>
   const player=new r.NativeYandexPlayer({trackId:"123"});
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   void player.state; r.runIntervals();
-  const batch=new r.Resource().getFileInfoBatch({trackIds:["123","456"]});
+  const batch=new r.Resource().getFileInfoBatchRequest({trackIds:["123","456"]});
   await tick();
   for(const req of r.window.__celikomBridgeNativeDrain())
     r.window.__celikomBridgeNativeReceive(
