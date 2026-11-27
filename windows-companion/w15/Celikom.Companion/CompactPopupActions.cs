@@ -204,32 +204,81 @@ public sealed partial class MainWindow
         }
     }
 
+    private bool IsCompactCurrentTrack(string trackId)
+    {
+        if (!GrantValidator.IsTrackId(trackId) || _compactHoldingTrackTransition)
+            return false;
+        var current = _bridge.GetPlaybackSnapshot();
+        return string.Equals(current.TrackId, trackId, StringComparison.Ordinal);
+    }
+
+    private void EnsureCompactPresenceTrack(string trackId)
+    {
+        if (string.Equals(_compactPresenceTrack, trackId, StringComparison.Ordinal))
+            return;
+        _compactPresenceTrack = trackId;
+        _compactPresenceStatus = _api.IsLoggedIn ? "checking" : "";
+        _compactPresenceChecked = DateTimeOffset.MinValue;
+        ++_compactPresenceEpoch;
+    }
+
+    // An authoritative mutation invalidates any older GET that may still be
+    // in flight. Its epoch can no longer overwrite the newer local status.
+    private bool SetCompactPresenceStatus(string trackId, string status)
+    {
+        if (!IsCompactCurrentTrack(trackId)) return false;
+        EnsureCompactPresenceTrack(trackId);
+        ++_compactPresenceEpoch;
+        _compactPresenceStatus = status;
+        _compactPresenceChecked = DateTimeOffset.UtcNow;
+        return true;
+    }
+
     private async Task<string> ReadCompactPresenceAsync(string trackId, bool force)
     {
         if (!GrantValidator.IsTrackId(trackId) || !_api.IsLoggedIn)
-            throw new ApiFailure(401, "INVALID_SESSION");
-        if (!force && _compactPresenceTrack == trackId &&
-            _compactPresenceStatus is "approved" or "pending" or "none" &&
-            DateTimeOffset.UtcNow - _compactPresenceChecked < TimeSpan.FromSeconds(15))
+            throw new ApiFailure(401, "not_logged_in");
+
+        var requestEpoch = _compactPresenceEpoch;
+        var now = DateTimeOffset.UtcNow;
+        if (!force && string.Equals(_compactPresenceTrack, trackId, StringComparison.Ordinal) &&
+            CompactPlaybackPresentation.PresenceCacheFresh(
+                _compactPresenceStatus, _compactPresenceChecked, now))
             return _compactPresenceStatus;
+
         if (_compactPresencePending is { IsCompleted: false } &&
-            _compactPresencePendingTrack == trackId)
+            string.Equals(_compactPresencePendingTrack, trackId, StringComparison.Ordinal) &&
+            _compactPresencePendingEpoch == requestEpoch)
             return await _compactPresencePending;
+
         async Task<string> Read()
         {
-            var result = await _api.GetTrackVersionStatusAsync(trackId);
-            var status = JsonText(result, "status");
-            if (status is not ("none" or "pending" or "approved"))
-                throw new ApiFailure(502, "UPLOAD_STATUS_UNAVAILABLE");
-            return status;
+            try
+            {
+                var response = await _api.GetTrackVersionStatusAsync(trackId);
+                return JsonText(response, "status") switch
+                {
+                    "approved" => "approved",
+                    "pending" => "pending",
+                    _ => "none"
+                };
+            }
+            catch
+            {
+                return "error";
+            }
         }
+
         var task = Read();
         _compactPresencePending = task;
         _compactPresencePendingTrack = trackId;
+        _compactPresencePendingEpoch = requestEpoch;
         try
         {
             var status = await task;
-            if (_compactPresenceTrack == trackId && _api.IsLoggedIn && !_closing)
+            if (CompactPlaybackPresentation.PresenceResponseMatchesCurrent(
+                    _compactPresenceTrack, _compactPresenceEpoch, trackId, requestEpoch) &&
+                IsCompactCurrentTrack(trackId) && _api.IsLoggedIn && !_closing)
             {
                 _compactPresenceStatus = status;
                 _compactPresenceChecked = DateTimeOffset.UtcNow;
@@ -244,37 +293,29 @@ public sealed partial class MainWindow
             {
                 _compactPresencePending = null;
                 _compactPresencePendingTrack = "";
+                _compactPresencePendingEpoch = 0;
             }
         }
     }
 
     private async Task RefreshCompactPresenceAsync(string trackId)
     {
-        try { await ReadCompactPresenceAsync(trackId, force: false); }
+        var requestEpoch = _compactPresenceEpoch;
+        try
+        {
+            await ReadCompactPresenceAsync(trackId, force: false);
+        }
         catch
         {
-            if (_compactPresenceTrack == trackId && !_closing)
+            if (CompactPlaybackPresentation.PresenceResponseMatchesCurrent(
+                    _compactPresenceTrack, _compactPresenceEpoch, trackId, requestEpoch) &&
+                IsCompactCurrentTrack(trackId) && _api.IsLoggedIn && !_closing)
             {
                 _compactPresenceStatus = "error";
+                _compactPresenceChecked = DateTimeOffset.MinValue;
                 RenderCompact();
                 LayoutCompact();
             }
-        }
-    }
-
-    private void CompactResult(bool upload, string title, string details)
-    {
-        if (upload)
-        {
-            _compactUploadView = "result";
-            _compactUploadResultTitle.Text = title;
-            _compactUploadResultNote.Text = details;
-        }
-        else
-        {
-            _compactSuggestView = "result";
-            _compactSuggestResultTitle.Text = title;
-            _compactSuggestResultNote.Text = details;
         }
     }
 
@@ -299,13 +340,22 @@ public sealed partial class MainWindow
         LayoutCompact();
         ScrollCompactTo(upload ? _compactUploadButton : _compactSuggestButton);
 
-        var id = _bridge.LastSong;
+        var playback = _bridge.GetPlaybackSnapshot();
+        var id = playback.TrackId;
         try
         {
-            if (!GrantValidator.IsTrackId(id) || !_api.IsLoggedIn)
-                throw new ApiFailure(400, "TRACK_REQUIRED");
-            var status = await ReadCompactPresenceAsync(id, force: true);
-            if (generation != _compactOpenEpoch || _bridge.LastSong != id || !_api.IsLoggedIn)
+            if (!GrantValidator.IsTrackId(id))
+                throw new ApiFailure(409,
+                    playback.HeartbeatFresh && !playback.PlayerUnavailable
+                        ? "TRACK_RESOLVING" : "TRACK_REQUIRED");
+            if (!_api.IsLoggedIn)
+                throw new ApiFailure(401, "not_logged_in");
+
+            EnsureCompactPresenceTrack(id);
+            // Reuse the fresh 15-second cache or an in-flight request. Opening
+            // the same song window must not force another network round-trip.
+            var status = await ReadCompactPresenceAsync(id, force: false);
+            if (generation != _compactOpenEpoch || !IsCompactCurrentTrack(id) || !_api.IsLoggedIn)
                 return;
             if (status == "approved")
                 CompactResult(upload, "Версия уже доступна",
@@ -313,11 +363,13 @@ public sealed partial class MainWindow
             else if (status == "pending")
                 CompactResult(upload, upload ? "Трек уже добавлен" : "Версия уже на проверке",
                     "Альтернативная версия ожидает проверки. Повторная отправка не требуется.");
+            else if (status == "error")
+                CompactResult(upload, "Не удалось проверить статус",
+                    "Не удалось получить состояние песни. Проверь интернет и повтори.");
             else if (upload)
             {
                 _compactPinnedUploadTrack = id;
                 _compactUploadView = "form";
-                // No permanent placeholder under Send: feedback only appears on demand.
                 _compactUploadNote.Text = "";
                 _compactUploadNote.ForeColor = Secondary;
                 _compactFileName.Text = "";
@@ -337,7 +389,9 @@ public sealed partial class MainWindow
             if (generation != _compactOpenEpoch) return;
             var message = ex is ApiFailure a && a.Category == "TRACK_REQUIRED"
                 ? "Сначала запусти песню в Яндекс.Музыке."
-                : DescribeAccountError(ex);
+                : ex is ApiFailure b && b.Category == "TRACK_RESOLVING"
+                    ? "Яндекс подключён, но данные текущей песни ещё обновляются. Подожди немного."
+                    : DescribeAccountError(ex);
             if (upload)
             {
                 _compactUploadView = "error";
@@ -382,6 +436,9 @@ public sealed partial class MainWindow
             "invalid_mp3" => "MP3 повреждён или содержит неподдерживаемые данные. Служебные теги очищаются автоматически; выбери другой исходный файл.",
             "invalid_m4a" => "M4A не поддерживается или повреждён. Нужен M4A с кодеком AAC без защиты DRM.",
             "upload_too_large" => "Файл превышает допустимый размер 30 МиБ.",
+            "TRACK_REQUIRED" => "Сначала запусти песню в Яндекс.Музыке.",
+            "TRACK_RESOLVING" => "Яндекс подключён, но данные текущей песни ещё обновляются. Подожди немного.",
+            "TRACK_CHANGED" => "Песня сменилась. Открой действие заново.",
             "UPLOAD_NOT_CONFIRMED" => "Сервер не подтвердил отправку. Проверь статус трека перед повторной загрузкой.",
             "INVALID_FILE" => "Выбери MP3 или M4A размером до 30 МиБ.",
             "INVALID_DURATION" => "Проверь длительность.",
@@ -537,7 +594,7 @@ public sealed partial class MainWindow
             LayoutCompact();
             return;
         }
-        if (song && !GrantValidator.IsTrackId(_bridge.LastSong))
+        if (song && !GrantValidator.IsTrackId(_bridge.GetPlaybackSnapshot().TrackId))
         {
             _compactSupportMessage.Text = "Запусти песню в Яндексе и повтори.";
             LayoutCompact();
@@ -560,7 +617,7 @@ public sealed partial class MainWindow
                 var categories = new[] { "not_replacing", "wrong_version", "audio_issue", "other" };
                 var selected = Math.Clamp(_compactSupportCategory.SelectedIndex, 0, categories.Length - 1);
                 await _api.SendSongSupportAsync(message, _compactSupportKey,
-                    _bridge.LastSong, categories[selected], _bridgeStarted, _bridge.Enabled,
+                    _bridge.GetPlaybackSnapshot().TrackId, categories[selected], _bridgeStarted, _bridge.Enabled,
                     windowsDiagnostics: _compactSupportDiagnostics);
             }
             else await _api.SendSupportAsync(message, _compactSupportKey,
@@ -586,7 +643,9 @@ public sealed partial class MainWindow
 
     private long? GetCompactOriginalDuration()
     {
-        var known = _bridge.LastTrackDurationMs;
+        var playback = _bridge.GetPlaybackSnapshot();
+        var known = string.Equals(playback.TrackId, _compactPinnedUploadTrack,
+            StringComparison.Ordinal) ? playback.DurationMs : 0;
         if (known >= 1000) return known;
         if (double.TryParse(_compactUploadDuration.Text.Trim().Replace(',', '.'),
                 NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var seconds) &&
@@ -619,7 +678,7 @@ public sealed partial class MainWindow
         LayoutCompact();
         if (debounceMs > 0) await Task.Delay(debounceMs);
         if (generation != _compactFilePreflightGeneration || _closing ||
-            trackId != _bridge.LastSong || _compactSelectedAudio != path) return;
+            !IsCompactCurrentTrack(trackId) || _compactSelectedAudio != path) return;
         AudioPreflight.Result result;
         try
         {
@@ -631,7 +690,7 @@ public sealed partial class MainWindow
                 "Файл не удалось проверить. Выберите другой MP3 или M4A.");
         }
         if (generation != _compactFilePreflightGeneration || _closing ||
-            trackId != _bridge.LastSong || _compactSelectedAudio != path) return;
+            !IsCompactCurrentTrack(trackId) || _compactSelectedAudio != path) return;
         _compactFileChecking = false;
         _compactAudioPreflight = result;
         _compactPreflightTrack = trackId;
@@ -672,9 +731,9 @@ public sealed partial class MainWindow
     {
         if (_compactContributionBusy || !_api.IsLoggedIn || _compactSuggestView != "form") return;
         var track = _compactPinnedSuggestTrack;
-        if (!GrantValidator.IsTrackId(track) || track != _bridge.LastSong)
+        if (!IsCompactCurrentTrack(track))
         {
-            _compactSuggestNote.Text = "Песня сменилась. Открой предложение заново.";
+            _compactSuggestNote.Text = "Песня сменилась или её данные обновляются. Открой предложение заново.";
             return;
         }
         _compactContributionBusy = true;
@@ -685,21 +744,36 @@ public sealed partial class MainWindow
             var status = JsonText(current, "status");
             if (status is "approved" or "pending")
             {
+                SetCompactPresenceStatus(track, status);
                 CompactResult(false, status == "approved" ? "Версия уже доступна" : "Версия на проверке",
                     "Песня уже в CELIKOM. Повторное предложение не требуется.");
                 return;
             }
-            if (status != "none" || track != _bridge.LastSong)
+            if (status != "none" || !IsCompactCurrentTrack(track))
                 throw new ApiFailure(400, "TRACK_CHANGED");
-            await _api.SuggestTrackAsync(track, _bridge.LastTrackTitle, _bridge.LastTrackArtist);
-            if (_bridge.LastSong == track)
+
+            var playback = _bridge.GetPlaybackSnapshot();
+            if (!string.Equals(playback.TrackId, track, StringComparison.Ordinal))
+                throw new ApiFailure(400, "TRACK_CHANGED");
+            await _api.SuggestTrackAsync(track, playback.Title, playback.Artist);
+            if (IsCompactCurrentTrack(track))
+            {
+                SetCompactPresenceStatus(track, "pending");
                 CompactResult(false, "Предложение отправлено",
                     "Песня отправлена на рассмотрение. Повторное предложение не требуется.");
+            }
             else
             {
                 _compactSuggestView = "error";
                 _compactSuggestNote.Text = "Предложение по предыдущей песне отправлено.";
             }
+        }
+        catch (ApiFailure ex) when (ex.Category is "track_pending" or "track_already_approved")
+        {
+            var status = ex.Category == "track_pending" ? "pending" : "approved";
+            SetCompactPresenceStatus(track, status);
+            CompactResult(false, status == "pending" ? "Версия уже на проверке" : "Версия уже доступна",
+                "Песня уже в CELIKOM. Повторное предложение не требуется.");
         }
         catch (Exception ex) { _compactSuggestNote.Text = DescribeAccountError(ex); }
         finally
@@ -722,10 +796,9 @@ public sealed partial class MainWindow
         }
         if (_compactUploadView != "form") return;
         var track = _compactPinnedUploadTrack;
-        if (!_api.IsLoggedIn || !GrantValidator.IsTrackId(track) ||
-            track != _bridge.LastSong)
+        if (!_api.IsLoggedIn || !IsCompactCurrentTrack(track))
         {
-            CompactUploadError("Песня изменилась. Открой загрузку заново.");
+            CompactUploadError("Песня сменилась или её данные обновляются. Открой загрузку заново.");
             return;
         }
         if (!_compactRights.Checked)
@@ -763,18 +836,17 @@ public sealed partial class MainWindow
             var status = JsonText(version, "status");
             if (status is "approved" or "pending")
             {
+                SetCompactPresenceStatus(track, status);
                 CompactResult(true, status == "approved" ? "Версия уже доступна" : "Трек уже добавлен",
                     "Повторно загружать эту песню не требуется.");
                 return;
             }
-            if (status != "none" || track != _bridge.LastSong)
+            if (status != "none" || !IsCompactCurrentTrack(track))
                 throw new ApiFailure(400, "TRACK_CHANGED");
             var upload = _compactSelectedAudio;
             if (upload is null) throw new ApiFailure(400, "INVALID_FILE");
-            // Independent preflight immediately before multipart body transmission:
-            // never upload when the file changed after initial selection.
             var checkedAgain = await AudioPreflight.CheckAsync(upload, durationMs, token.Token);
-            if (checkedAgain.Blocked || track != _bridge.LastSong)
+            if (checkedAgain.Blocked || !IsCompactCurrentTrack(track))
             {
                 _compactAudioPreflight = checkedAgain;
                 _compactFileChecking = false;
@@ -782,6 +854,9 @@ public sealed partial class MainWindow
                     "Трек изменился. Повторите загрузку.");
                 return;
             }
+            var currentTrack = _bridge.GetPlaybackSnapshot();
+            if (!string.Equals(currentTrack.TrackId, track, StringComparison.Ordinal))
+                throw new ApiFailure(400, "TRACK_CHANGED");
             var progress = new Progress<int>(percent =>
             {
                 if (_compactUploadCancellation != token || _closing) return;
@@ -789,17 +864,16 @@ public sealed partial class MainWindow
                 _compactUploadNote.Text = percent >= 100
                     ? "Файл передан. Ждём ответа сервера…"
                     : "Загружаем: " + percent + "%";
-                LayoutCompact(); // show dynamic feedback only during actual transfer
+                LayoutCompact();
             });
             await _api.UploadTrackAsync(track, upload, durationMs.Value,
-                _bridge.LastTrackTitle, _bridge.LastTrackArtist,
+                currentTrack.Title, currentTrack.Artist,
                 _compactUploadRequestId, progress, token.Token);
-            if (_bridge.LastSong == track && _compactPresenceTrack == track)
+            if (IsCompactCurrentTrack(track))
             {
+                SetCompactPresenceStatus(track, "pending");
                 CompactResult(true, "Отправлено на проверку",
                     "Версия ожидает модерации. Повторная загрузка не требуется.");
-                _compactPresenceStatus = "pending";
-                _compactPresenceChecked = DateTimeOffset.UtcNow;
             }
             else
             {
@@ -815,7 +889,9 @@ public sealed partial class MainWindow
         catch (OperationCanceledException) { CompactUploadError("Загрузка отменена."); }
         catch (ApiFailure ex) when (ex.Category is "track_pending" or "track_already_approved")
         {
-            CompactResult(true, ex.Category == "track_pending" ? "Трек уже добавлен" : "Версия уже доступна",
+            var status = ex.Category == "track_pending" ? "pending" : "approved";
+            SetCompactPresenceStatus(track, status);
+            CompactResult(true, status == "pending" ? "Трек уже добавлен" : "Версия уже доступна",
                 "Эта версия уже есть в CELIKOM, повторная отправка не нужна.");
         }
         catch (Exception ex) { CompactUploadError(DescribeAccountError(ex)); }
@@ -827,4 +903,5 @@ public sealed partial class MainWindow
             LayoutCompact();
         }
     }
+
 }

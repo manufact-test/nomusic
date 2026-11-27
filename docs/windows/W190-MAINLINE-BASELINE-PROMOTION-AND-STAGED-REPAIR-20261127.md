@@ -35,6 +35,18 @@ These checks establish build, compatibility, signature and private delivery evid
 - Do not transplant W182/W183/W185 experimental player hooks.
 - Do not change Android A1, browser extension runtime, server/admin backend, upload contract or production feed during baseline promotion.
 
+## Promotion result — completed on 27 November 2026
+
+- PR [#72](https://github.com/manufact-test/nomusic/pull/72) merged successfully.
+- Canonical main SHA: `38b839f7d40a761fb794d4a20680e3cf71b6d65d`.
+- Pre-integration backup: `backup/main-before-w188-baseline-20261127` @ `64a1f36a5d3fb6951f327e28864fd5a10440203b`.
+- PR generic CI [46056935295](https://github.com/manufact-test/nomusic/actions/runs/46056935295): SUCCESS.
+- PR Windows integration CI [46056935288](https://github.com/manufact-test/nomusic/actions/runs/46056935288): SUCCESS, including W174/W188 regressions, W21, W24, W15, GUI and supervisor builds, installer contracts and updater safety.
+- The four W175/W178 current-track catch-up tests remain visibly failing in their explicitly non-blocking baseline step (`W189_BASELINE_GAP`); they were not removed. They must be restored to the blocking suite after W189 repairs.
+- The full pre-integration main tree remains present: no files were lost from the 1,856-file backup tree. Android A1, browser extension, server/admin and unrelated repository work were not replaced.
+- Post-merge checks launched on exact main SHA `38b839f7d40a761fb794d4a20680e3cf71b6d65d`: Windows integration [46057355291](https://github.com/manufact-test/nomusic/actions/runs/46057355291), W188 Yandex 5.129 audit [46057355369](https://github.com/manufact-test/nomusic/actions/runs/46057355369), generic CI [46057355317](https://github.com/manufact-test/nomusic/actions/runs/46057355317), W181 Yandex 5.128 audit [46057355310](https://github.com/manufact-test/nomusic/actions/runs/46057355310), and FlokiNET x64 build [46057355312](https://github.com/manufact-test/nomusic/actions/runs/46057355312). Recheck these before declaring post-merge validation complete.
+- No stable-feed publication, global rollout or new owner installer was triggered. The production guard remains intact.
+
 ## Baseline acceptance on main
 
 Before starting W189 repairs:

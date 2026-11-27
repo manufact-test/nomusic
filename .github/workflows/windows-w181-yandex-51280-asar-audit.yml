@@ -56,6 +56,9 @@ jobs:
             throw 'W181_VENDOR_PROVENANCE_OR_RETAINED_ASAR_INVALID'
           }
           Write-Host "W181_OFFICIAL_YANDEX_51280_VERIFIED exeVersion=$($vendor.exeVersion)"
+      - name: Install parser for read-only player call-graph audit
+        shell: pwsh
+        run: npm install --no-save --no-package-lock --ignore-scripts --prefix windows-companion/w23 acorn@8.15.0
       - name: Inspect actual 5.128.0 webpack resource API candidates without exposing vendor source
         shell: pwsh
         run: |
