@@ -21,6 +21,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         window.location.hostname.toLowerCase() === "desktop")) return;
 
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
+  let lastNativeState = null;
   let stateTransitionGeneration = 0;
   let networkRecoveryPending = false;
   let pendingCount = 0, sequence = 0, lastReported = "";
@@ -270,6 +271,14 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
 
   window.__celikomBridgeNativeSetState = next => {
     if (stopped) return;
+    lastNativeState = next && typeof next === "object" ? {
+      apiOrigin: next.apiOrigin,
+      enabled: next.enabled === true,
+      signedIn: next.signedIn === true,
+      preserveCurrentSource: next.preserveCurrentSource === true,
+      preserveCurrentTrackId: typeof next.preserveCurrentTrackId === "string" ? next.preserveCurrentTrackId : "",
+      networkRecoveryPending: next.networkRecoveryPending === true
+    } : null;
     const previousActive = adapter.enabled;
     const currentTrack = playerSourceRefresh.currentTrack();
     const currentTrackId = currentTrack?.id || "";
@@ -455,6 +464,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         if (!adapter.attach(klass.prototype)) continue;
         attached = true;
         report("RESOURCE_HOOK_ENDPOINT_FALLBACK");
+        if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
         console.info("[CELIKOM] Native endpoint fallback attached");
         return true;
       }
@@ -481,6 +491,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
             liveMediaProviderHook.normalizeAdapterArguments(livePrototype)) {
           attached = true;
           report("RESOURCE_HOOK_LIVE_MEDIA_PROVIDER_ATTACHED");
+          if (lastNativeState) window.__celikomBridgeNativeSetState(lastNativeState);
           console.info("[CELIKOM] Native live media-provider connector attached");
           return true;
         }
