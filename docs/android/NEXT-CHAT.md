@@ -1,3 +1,5 @@
+> **Delivery update (27.11.2026):** BETA27 Floki spool run `46048173341` completed SUCCESS. Independent root-owned receipt and live HTTPS readback passed; unpublished owner draft readback contains exactly one verified `celikom.com` URL. Direct owner link has been delivered privately and is intentionally not stored in Git/docs. BETA27 is now the latest delivered APK. APK size/hash/signer are listed below. Acoustic replacement remains unproven until the owner tests and hears it.
+
 # CURRENT HANDOFF — 27.11.2026 (BETA27 CI passed; owner HTTPS delivery pending root receipt)
 
 ## Current code and APK
