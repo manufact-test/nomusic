@@ -83,12 +83,14 @@ public final class ExitCallsiteWitness extends XposedModule {
     // BETA26 pauses the request-only MP3 rewrite until the native source is armed.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA27_EXACT_DESCRIPTOR_FIRST_OPEN_LIFETIME_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA28_OWNER_SESSION_RECOVERY_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
     private boolean diagnosticUiReady;
     private boolean ownerAutoStartInFlight;
+    private boolean ownerManualLoginInFlight;
+    private boolean ownerStartRequiresLogin;
     private long ownerAutoStartRetryAfterMs;
     private volatile String ownerAutoStartStatus = "ОЖИДАНИЕ";
     // Limit high-volume MUSIC_APP exception witness records: never change the
@@ -6173,8 +6175,12 @@ public final class ExitCallsiteWitness extends XposedModule {
             button.setElevation(diagnosticDp(activity,8));
             button.setClickable(true);
             button.setFocusable(true);
-            button.setContentDescription("Сохранить диагностику CELIKOM");
+            button.setContentDescription("Сохранить диагностику CELIKOM. Удержание — вход и повторная проверка");
             button.setOnClickListener(view->exportDiagnosticReport(activity));
+            button.setOnLongClickListener(view->{
+                showOwnerRecovery(activity,button);
+                return true;
+            });
 
             FrameLayout.LayoutParams params=new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -6247,6 +6253,10 @@ public final class ExitCallsiteWitness extends XposedModule {
     private synchronized void autoStartOwnerIfSession(Activity activity) {
         if(activity==null || !PACKAGE.equals(activity.getPackageName()))return;
         NativeOwnerControlPlane control=ownerControl(activity);
+        if(ownerManualLoginInFlight || ownerStartRequiresLogin) {
+            updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
+            return;
+        }
         if(control.enabled()) {
             ownerAutoStartStatus="ВКЛ";
             updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
@@ -6273,9 +6283,16 @@ public final class ExitCallsiteWitness extends XposedModule {
                 :"login_required".equals(code)?"НЕТ СЕССИИ"
                 :"not_entitled".equals(code)?"НЕТ ДОСТУПА"
                 :"service_unavailable".equals(code)?"СЕРВЕР"
+                :"config_failed".equals(code)?"СБОЙ СЕТИ"
+                :"refresh_failed".equals(code)?"СБОЙ СЕССИИ"
+                :"activation_failed".equals(code)?"СБОЙ АКТИВАЦИИ"
                 :"ОШИБКА";
             synchronized(ExitCallsiteWitness.this) {
                 ownerAutoStartInFlight=false;
+                // A failed refresh may already have rotated the token on the
+                // server. Never automatically replay it from an activity resume.
+                ownerStartRequiresLogin="login_required".equals(code)
+                    || "refresh_failed".equals(code);
                 ownerAutoStartStatus=status;
                 ownerAutoStartRetryAfterMs="ВКЛ".equals(status)?0L
                     :System.currentTimeMillis()+15000L;
@@ -6284,26 +6301,44 @@ public final class ExitCallsiteWitness extends XposedModule {
             String event="enabled".equals(code)?"ENABLED"
                 :"login_required".equals(code)?"LOGIN_REQUIRED"
                 :"not_entitled".equals(code)?"NOT_ENTITLED"
-                :"service_unavailable".equals(code)?"SERVICE_UNAVAILABLE":"FAILED";
+                :"service_unavailable".equals(code)?"SERVICE_UNAVAILABLE"
+                :"config_failed".equals(code)?"CONFIG_FAILED"
+                :"refresh_failed".equals(code)?"REFRESH_FAILED"
+                :"activation_failed".equals(code)?"ACTIVATION_FAILED":"FAILED";
             emit("BETA_OWNER_AUTO_START","CELIKOM_SESSION",event);
         });
     }
 
+    private void showOwnerRecovery(Activity activity,TextView button) {
+        if(activity.isFinishing() || activity.isDestroyed())return;
+        if(ownerAutoStartInFlight || ownerManualLoginInFlight) {
+            Toast.makeText(activity,"Проверка CELIKOM уже выполняется",Toast.LENGTH_SHORT).show();
+            return;
+        }
+        NativeOwnerControlPlane control=ownerControl(activity);
+        new android.app.AlertDialog.Builder(activity)
+            .setTitle("CELIKOM")
+            .setMessage(ownerStartRequiresLogin
+                ?"Сессия не подтверждена. Войди снова в CELIKOM."
+                :"Можно повторить проверку CELIKOM или войти заново.")
+            .setNegativeButton("Отмена",null)
+            .setNeutralButton("Проверить",(dialog,which)->{
+                if(ownerStartRequiresLogin || !control.hasSession())
+                    showOwnerLogin(activity,control,button);
+                else {
+                    ownerAutoStartRetryAfterMs=0L;
+                    autoStartOwnerIfSession(activity);
+                }
+            })
+            .setPositiveButton("Войти",(dialog,which)->showOwnerLogin(activity,control,button))
+            .show();
+    }
+
     private void activateOwnerAudio(Activity activity,
             NativeOwnerControlPlane control,TextView button) {
-        button.setText("CELIKOM · ПРОВЕРКА");
-        control.start(code->{
-            if(activity.isFinishing() || activity.isDestroyed())return;
-            button.setText("CELIKOM · НАСТРОЙКИ");
-            String message="enabled".equals(code)
-                ?"CELIKOM включён. Проверяем Ramil Ау":
-                "not_entitled".equals(code)?"Нет доступа CELIKOM":
-                "login_required".equals(code)?"Нужно войти в CELIKOM":
-                "service_unavailable".equals(code)?"CELIKOM временно недоступен":
-                "Не удалось подтвердить доступ CELIKOM";
-            Toast.makeText(activity,message,Toast.LENGTH_SHORT).show();
-            if("login_required".equals(code))showOwnerLogin(activity,control,button);
-        });
+        ownerStartRequiresLogin=false;
+        ownerAutoStartRetryAfterMs=0L;
+        autoStartOwnerIfSession(activity);
     }
     private void showOwnerLogin(Activity activity,
             NativeOwnerControlPlane control,TextView button) {
@@ -6333,10 +6368,20 @@ public final class ExitCallsiteWitness extends XposedModule {
                 String address=email.getText().toString();
                 String secret=password.getText().toString();
                 password.setText("");
-                button.setText("CELIKOM · ВХОД");
+                if(ownerAutoStartInFlight || ownerManualLoginInFlight)return;
+                ownerManualLoginInFlight=true;
+                ownerStartRequiresLogin=true;
+                ownerAutoStartStatus="ВХОД";
+                updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
                 control.login(address,secret,code->{
+                    ownerManualLoginInFlight=false;
+                    ownerAutoStartStatus="НЕТ СЕССИИ";
+                    if("signed_in".equals(code)) {
+                        ownerStartRequiresLogin=false;
+                        ownerAutoStartRetryAfterMs=0L;
+                    }
                     if(activity.isFinishing() || activity.isDestroyed())return;
-                    button.setText("CELIKOM · НАСТРОЙКИ");
+                    updateDiagnosticButtonStatus(activity,ownerAutoStartStatus);
                     if("signed_in".equals(code))
                         activateOwnerAudio(activity,control,button);
                     else if("verification_required".equals(code))
@@ -6356,7 +6401,14 @@ public final class ExitCallsiteWitness extends XposedModule {
             .setView(code)
             .setNegativeButton("Отмена",null)
             .setPositiveButton("Подтвердить",(dialog,which)->{
+                if(ownerAutoStartInFlight || ownerManualLoginInFlight)return;
+                ownerManualLoginInFlight=true;
                 control.verify(address,code.getText().toString(),status->{
+                    ownerManualLoginInFlight=false;
+                    if("signed_in".equals(status)) {
+                        ownerStartRequiresLogin=false;
+                        ownerAutoStartRetryAfterMs=0L;
+                    }
                     if(activity.isFinishing() || activity.isDestroyed())return;
                     if("signed_in".equals(status))
                         activateOwnerAudio(activity,control,button);

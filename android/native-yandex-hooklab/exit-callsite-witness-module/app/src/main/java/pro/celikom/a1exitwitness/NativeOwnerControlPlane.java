@@ -150,18 +150,41 @@ final class NativeOwnerControlPlane {
             return "signed_in";
         });
     }
+    // Only fixed outcome categories leave the owner control plane. Never
+    // expose response text, credentials, token values, or exception messages.
+    private static final class HttpRejected extends IOException {
+        final int status;
+        HttpRejected(int status) {super("http_rejected");this.status=status;}
+    }
+    private static final class SessionRequired extends IOException {
+        SessionRequired() {super("login_required");}
+    }
+    private static boolean sessionRejected(Exception failure) {
+        return failure instanceof SessionRequired
+            || failure instanceof HttpRejected && ((HttpRejected)failure).status==401;
+    }
     void start(Status callback) {
         action(callback,g->{
             if(!hasSession())return "login_required";
-            JSONObject config=request("config",null,null);
+            JSONObject config;
+            try {config=request("config",null,null);}
+            catch(Exception failure) {return "config_failed";}
             if(config.optInt("api_version")!=1 || config.optBoolean("maintenance",true)
                     || config.optJSONObject("features")==null
                     || !config.getJSONObject("features").optBoolean("replacements")
                     || config.optJSONObject("incident")!=null
                         && config.optJSONObject("incident").optBoolean("active"))
                 return "service_unavailable";
-            String bearer=access(g);
-            JSONObject activated=request("auth/activate",new JSONObject(),bearer);
+            String bearer;
+            try {bearer=access(g);}
+            catch(Exception failure) {
+                return sessionRejected(failure)?"login_required":"refresh_failed";
+            }
+            JSONObject activated;
+            try {activated=request("auth/activate",new JSONObject(),bearer);}
+            catch(Exception failure) {
+                return sessionRejected(failure)?"login_required":"activation_failed";
+            }
             JSONObject entitlement=activated.optJSONObject("entitlement");
             if(entitlement==null || !entitlement.optBoolean("allowed"))
                 return "not_entitled";
@@ -191,7 +214,7 @@ final class NativeOwnerControlPlane {
         if(generation!=epoch.get())throw new IOException("owner_changed");
         JSONObject stored=session.read();
         String refresh=stored.optString("refresh_token");
-        if(!refresh.matches("[a-f0-9]{64}"))throw new IOException("login_required");
+        if(!refresh.matches("[a-f0-9]{64}"))throw new SessionRequired();
         if(stored.optLong("access_until_ms")<System.currentTimeMillis()+30000) {
             JSONObject newSession=request("auth/refresh",
                 new JSONObject().put("refresh_token",refresh)
@@ -201,7 +224,7 @@ final class NativeOwnerControlPlane {
             stored=newSession;
         }
         String token=stored.optString("access_token");
-        if(!token.matches("[a-f0-9]{64}"))throw new IOException("login_required");
+        if(!token.matches("[a-f0-9]{64}"))throw new SessionRequired();
         return token;
     }
     private JSONObject request(String path,JSONObject body,String bearer) throws Exception {
@@ -225,7 +248,7 @@ final class NativeOwnerControlPlane {
                 try(java.io.OutputStream out=c.getOutputStream()){out.write(payload);}
             }
             int status=c.getResponseCode();
-            if(status<200 || status>=300)throw new IOException("http_rejected");
+            if(status<200 || status>=300)throw new HttpRejected(status);
             String mime=c.getContentType();
             if(mime==null || !mime.toLowerCase(java.util.Locale.ROOT)
                     .startsWith("application/json"))throw new IOException("not_json");
