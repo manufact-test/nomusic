@@ -21,8 +21,8 @@ jobs:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
     runs-on: celikom-ci-smoke-only
     environment: windows-stable-production
-    # This transfer is consumed by the root timer and promotes the shared
-    # stable feed plus owner download. The protected approval is mandatory.
+    # This transfer is consumed by the Floki root timer, which updates the
+    # local stable feed and owner download. Public route reach is verified separately.
     # GitHub draft-release asset reads require contents:write for GITHUB_TOKEN.
     # This token is exposed only to the exact-asset GET downloader below; no
     # release mutation, signing secret, SSH credential or production publish.

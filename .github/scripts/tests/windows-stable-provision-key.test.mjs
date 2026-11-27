@@ -39,10 +39,10 @@ test("W155 release derives the public pin from the protected private key", () =>
   assert.ok(sequence && Number(sequence) >= 2, "signed release sequence stays monotonic");
   assert.ok(releaseWorkflow.includes("default: '" + sequence + "'"));
   assert.doesNotMatch(releaseWorkflow, /FLOKI_PRODUCTION_PUBLISH_NOT_YET_APPROVED/);
-  assert.match(releaseWorkflow, /W189_STABLE_PUBLISHER_NOT_CONFIGURED/);
+  assert.match(releaseWorkflow, /W189_STABLE_PUBLISH_TARGETS_NOT_CONFIGURED/);
   assert.match(releaseWorkflow, /CELIKOM_STABLE_PUBLISHER:\s*\$\{\{\s*vars\.CELIKOM_STABLE_PUBLISHER\s*\}\}/);
-  assert.match(releaseWorkflow, /publish_floki:[\s\S]*?inputs\.publish_to_production == true[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'floki'/);
-  assert.match(releaseWorkflow, /publish:[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'hostinger'/);
+  assert.match(releaseWorkflow, /publish_floki:[\s\S]*?inputs\.publish_to_production == true[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'floki'[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'both'/);
+  assert.match(releaseWorkflow, /publish:[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'hostinger'[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'both'/);
   assert.match(releaseWorkflow, /Pack exact signed six-file Floki transfer/);
   assert.match(releaseWorkflow, /actions\/upload-artifact@v4/);
   assert.match(releaseWorkflow, /Leave blank to use an automatic 7-day UTC expiry/);
