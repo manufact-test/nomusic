@@ -1455,7 +1455,7 @@ try
          BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_RECOVERING", "PAUSED") &&
          !BridgeServer.IsTransientTrackMetadataGap(false, "UNAVAILABLE", "PLAYING") &&
          !BridgeServer.IsTransientTrackMetadataGap(false, "NATIVE_CONNECTED", "STOPPED"),
-         "W163 a brief ID-less playing transition keeps metadata, while stop/unavailable and expired grace clear it");
+         "W163/W189 current-track identity expires consistently for UI, upload and proposal after the same 9-second metadata grace");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
              false, false, true, true) == "Подключитесь к Яндекс Музыке" &&
          UserFacingPlaybackHealth.CurrentTrack("UNAVAILABLE", true,
@@ -1531,9 +1531,28 @@ try
          CompactPlaybackPresentation.TrackTitle("Новая песня", "Предыдущая песня", true) ==
              "Новая песня" &&
          CompactPlaybackPresentation.PresenceStatusMessage("") == "" &&
+         CompactPlaybackPresentation.PresenceStatusMessage("checking") ==
+             "Проверяем статус версии песни…" &&
          CompactPlaybackPresentation.PresenceStatusMessage("approved") ==
              CompactPlaybackPresentation.VersionAvailableMessage,
-         "W164 track transition keeps the previous title only during metadata handoff and hides transient presence-check copy");
+         "W189 track transition shows neutral presence-check copy instead of stale action state");
+
+     var presenceNow = DateTimeOffset.UtcNow;
+     Test(CompactPlaybackPresentation.PresenceCacheFresh("pending",
+              presenceNow.AddSeconds(-14), presenceNow) &&
+          CompactPlaybackPresentation.PresenceCacheFresh("none",
+              presenceNow.AddSeconds(-1), presenceNow) &&
+          !CompactPlaybackPresentation.PresenceCacheFresh("pending",
+              presenceNow.AddSeconds(-15), presenceNow) &&
+          !CompactPlaybackPresentation.PresenceCacheFresh("checking",
+              presenceNow.AddSeconds(-1), presenceNow) &&
+          !CompactPlaybackPresentation.PresenceCacheFresh("error",
+              presenceNow.AddSeconds(-1), presenceNow),
+          "W189 presence cache is bounded to 15 seconds and only authoritative states are cacheable");
+     Test(CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 7, "123", 7) &&
+          !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("456", 7, "123", 7) &&
+          !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 8, "123", 7),
+          "W189 stale presence responses cannot overwrite a newer track or mutation epoch");
     Test(CompactPlaybackPresentation.TrackPlaceholder(true, false, "PLAYING",
              false, false, true) == "Музыка продолжает играть." &&
          CompactPlaybackPresentation.TrackPlaceholder(true, false, "UNKNOWN",
@@ -2914,9 +2933,17 @@ try
          DiagnosticLog.IsIncidentCode("LOGIN_TARGET_FLOKI") &&
          DiagnosticLog.IsIncidentCode("LOGIN_HTTP_401") &&
          DiagnosticLog.IsIncidentCode("LOGIN_TIMEOUT") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_LOCAL_SESSION_MISSING") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_LOCAL_ORIGIN_INVALID") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_SESSION_REFRESH_FAILED") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_SESSION_CHANGED") &&
+         DiagnosticLog.IsIncidentCode("RESOLVE_GRANT_REJECTED") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_SERVER_NO_GRANT") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_GRANT_VALID") &&
+         !DiagnosticLog.IsIncidentCode("RESOLVE_QUEUED") &&
          !DiagnosticLog.IsIncidentCode("NATIVE_CONNECTED") &&
          !DiagnosticLog.IsIncidentCode("WEB_CONTENTS_PRESENT"),
-        "W135 source decisions and actual decoder proof are durable incidents, ordinary connection status is not");
+        "W135/W178 failure causes are durable incidents while normal grant/no-grant/queue events remain ordinary");
     var fixtureLogsDirectory = Path.Combine(folder, "owner-export-isolated");
     var nativeFixture = Path.Combine(fixtureLogsDirectory, "native-events.log");
     Directory.CreateDirectory(fixtureLogsDirectory);

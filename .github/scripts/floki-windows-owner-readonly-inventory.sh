@@ -19,4 +19,80 @@ for root in /etc/nginx/sites-enabled /etc/nginx/conf.d /root/celikom-cutover-pre
     grep -RnE -m 4 'downloads/windows|CELIKOM-Windows-0\.24\.55\.exe|windows/stable/current' "$root" 2>/dev/null | grep -v -E 'password|secret|htpasswd' | head -n 24 || true
   fi
 done
+
+ROOT=/srv/celikom-releases/windows/stable
+OWNER=/srv/celikom-releases/owner-downloads
+SPOOL=/srv/celikom/ci-runner/runner/celikom-windows-signed-spool
+echo WINDOWS_ROOT_CONSUMER_STATE_BEGIN
+for unit in celikom-windows-signed-owner.timer celikom-windows-signed-owner.service; do
+  printf 'WIN_SYSTEMD %s ' "$unit"
+  systemctl show "$unit" -p LoadState -p ActiveState -p UnitFileState --no-pager 2>/dev/null | tr '\n' ' ' || true
+  echo
+done
+if [[ -L "$ROOT/current" ]]; then
+  printf 'WIN_STABLE_CURRENT_TARGET='
+  readlink "$ROOT/current" || true
+  printf 'WIN_STABLE_CURRENT_REALPATH='
+  readlink -f "$ROOT/current" || true
+else
+  echo WIN_STABLE_CURRENT=missing
+fi
+if [[ -f "$ROOT/current/manifest.json" && ! -L "$ROOT/current/manifest.json" ]]; then
+  python3 - "$ROOT/current/manifest.json" <<'PY'
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding="utf-8"))
+    print("WIN_STABLE_CURRENT_MANIFEST",
+          "version="+str(d.get("version","")),
+          "sequence="+str(d.get("sequence","")),
+          "sha256="+str(d.get("sha256","")),
+          "packageSize="+str(d.get("packageSize","")))
+except Exception:
+    print("WIN_STABLE_CURRENT_MANIFEST_PARSE_FAILED")
+PY
+else
+  echo WIN_STABLE_CURRENT_MANIFEST=missing
+fi
+for f in "$ROOT/owner-verified.json" "$OWNER/CELIKOM-Windows-latest.exe"; do
+  if [[ -f "$f" && ! -L "$f" ]]; then
+    stat -c 'WIN_OWNER_RELEASE_FILE %n %U:%a %s' "$f"
+    if [[ "$f" == "$ROOT/owner-verified.json" ]]; then
+      python3 - "$f" <<'PY'
+import json,sys
+try:
+    d=json.load(open(sys.argv[1],encoding="utf-8"))
+    print("WIN_OWNER_VERIFIED_RECEIPT",
+          "version="+str(d.get("version","")),
+          "sequence="+str(d.get("sequence","")),
+          "sha256="+str(d.get("sha256","")),
+          "https_verified="+str(d.get("https_verified","")))
+except Exception:
+    print("WIN_OWNER_VERIFIED_RECEIPT_PARSE_FAILED")
+PY
+    fi
+  else
+    echo "WIN_OWNER_RELEASE_FILE_MISSING $f"
+  fi
+done
+if [[ -d "$SPOOL" && ! -L "$SPOOL" ]]; then
+  find "$SPOOL" -maxdepth 1 -type f -printf 'WIN_SPOOL_FILE %f %s bytes\n' | sort
+else
+  echo WIN_SPOOL_DIRECTORY=missing
+fi
+echo WIN_PUBLIC_DNS_BEGIN
+getent ahostsv4 celikom.com 2>/dev/null | awk '{print "WIN_CELIKOM_DNS "$1}' | sort -u || true
+echo WIN_PUBLIC_STABLE_HTTP_BEGIN
+curl -sS -I --max-time 12 https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json 2>&1 | sed -n '1,12p' || true
+echo WIN_PUBLIC_OWNER_ROUTE_HTTP_BEGIN
+curl -sS -I --max-time 12 https://celikom.com/downloads/windows/CELIKOM-Windows-latest.exe 2>&1 | sed -n '1,12p' || true
+echo WIN_NGINX_WINDOWS_ROUTE_CONFIG_BEGIN
+for root in /etc/nginx/sites-enabled /etc/nginx/conf.d /root/celikom-cutover-prepared; do
+  if [[ -d "$root" ]]; then
+    grep -RnE -m 8 'CELIKOM/Windows/Updates/stable|downloads/windows|/srv/celikom-releases/windows/stable|owner-downloads|proxy_pass' "$root" 2>/dev/null |
+      grep -v -E 'password|secret|htpasswd|authorization|basic_auth' | head -n 40 || true
+  fi
+done
+echo WIN_NGINX_WINDOWS_ROUTE_CONFIG_END
+echo WINDOWS_ROOT_CONSUMER_STATE_END
+
 echo WINDOWS_OWNER_DELIVERY_INVENTORY_END

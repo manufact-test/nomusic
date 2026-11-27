@@ -1,3 +1,5 @@
+> **Current execution branch (27 November 2026):** `work/windows-w189-repairs-from-main-20261127`, rebased onto canonical `main` @ `48812d33d60f05ce833e253589b4110064f34179` after six extension-only commits; all extension files are preserved unchanged by this branch. Follow W190 for promotion evidence and execution order. The old recovery branch is now a source reference only; do not make fixes there.
+
 > **Execution order update (27 November 2026):** Follow W190 first. Promote the exact W188 / 0.24.62 baseline to `main` before applying W169/W175/W178 or UI/latency fixes. After baseline CI and source checks pass on `main`, create a fresh Windows repair branch from that `main` and implement the W189 tasks there. Do not repair on the old recovery branch and then attempt a large late transplant.
 
 # W189 — owner UI state, latency, playback recovery and stable auto-update (27 November 2026)
@@ -193,4 +195,31 @@ Important distinction:
 4. Profile and fix the real UI latency source.
 5. Run all relevant Node/W15/W20/W21/W24/Windows build and install/upgrade regression checks.
 6. Only after owner runtime acceptance, execute the main/stable release and auto-update plan above. The user expects a protected approval step and must be invited to approve; do not stop at another test/private package.
+
+## W189 implementation status — 27 November 2026
+
+Implementation is on PR [#73](https://github.com/manufact-test/nomusic/pull/73), reconciled onto main at `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`. Main has since advanced to `ec68241b3c58d87770267f0d2cde844146086de8` with two extension-only commits and no overlapping paths. Current PR HEAD is `cdda5230e6386c3ffaa4ace239310117d0b62e38`.
+
+- W169 Electron main-process error protection restored; native module marker is 0.24.32 for this repair candidate.
+- W175 initial already-playing-song revalidation and W178 new-current-song catch-up restored over the W188 Yandex 5.129 provider bridge.
+- The four W175/W178 assertions are blocking again and pass in the last full Windows run.
+- W178 resolve diagnostics distinguish local session/origin failure, refresh failure, session replacement and rejected grants without recording tokens, URLs or grant contents.
+- UI state fixes include one bounded metadata lease, cached/shared presence reads, epoch-based stale-response rejection, immediate local pending status, and a current-track guard before painting async results.
+- The working admin upload and proposal contracts are unchanged.
+- Exact-head CI on current PR HEAD `cdda5230e6386c3ffaa4ace239310117d0b62e38` passed: Windows integration [46071049097](https://github.com/manufact-test/nomusic/actions/runs/46071049097) and generic CI [46071049046](https://github.com/manufact-test/nomusic/actions/runs/46071049046).
+- W174 baseline source files remain unchanged; W188 provider bridge remains the build base. No W182/W183/W185 experiments were imported.
+
+### Production workflow correction
+
+The Floki root-consumer timer consumes the signed spool and promotes its local stable feed plus owner download. It is therefore a production-capable path, not a harmless private stage. The workflow now:
+- requires explicit `publish_to_production=true`;
+- fails closed if `CELIKOM_STABLE_PUBLISHER` is not `floki`, `hostinger`, or `both`;
+- gates Floki and Hostinger publishers separately through `windows-stable-production`;
+- removes direct push/manual triggers from the Floki child workflow;
+- uploads the stable artifact needed by the Hostinger publisher;
+- adds a read-only Floki route audit; no server changes or publication were made.
+
+The Hostinger publisher writes the public stable feed path under Hostinger's `public_html/CELIKOM/Windows/Updates/stable`. The Floki root consumer writes its local stable pointer and owner download. Their public routing relationship is not yet proven; the read-only audit must decide whether one or both targets are required.
+
+Do not bump version/sequence or publish until the exact-head CI, route audit, stable monotonic floor and protected environment reviewers are verified. Audible playback and end-to-end auto-update on the owner's installed Windows copy are still unconfirmed.
 

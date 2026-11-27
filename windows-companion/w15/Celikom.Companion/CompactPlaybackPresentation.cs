@@ -11,6 +11,7 @@ public static class CompactPlaybackPresentation
     public const int TrackStatusBottomSpacingPx = 18;
     public const int ActiveTrackStatusHeightPx = 28;
     public const int ActiveTrackStatusBottomSpacingPx = 2;
+    public static readonly TimeSpan PresenceCacheLifetime = TimeSpan.FromSeconds(15);
 
     public const string ConnectingMessage = "Подождите, идёт подключение\nк Яндекс Музыке.";
 
@@ -28,12 +29,25 @@ public static class CompactPlaybackPresentation
 
     public static string PresenceStatusMessage(string? presenceStatus) => presenceStatus switch
     {
+        "checking" => "Проверяем статус версии песни…",
         "approved" => VersionAvailableMessage,
         "pending" => "Версия песни CELIKOM на проверке",
         "none" => "Версия песни CELIKOM ещё не загружена",
         "error" => "Не удалось проверить версию песни CELIKOM",
         _ => ""
     };
+
+    public static bool PresenceCacheFresh(string? presenceStatus,
+        DateTimeOffset checkedAt, DateTimeOffset now) =>
+        presenceStatus is ("approved" or "pending" or "none") &&
+        checkedAt != DateTimeOffset.MinValue && now >= checkedAt &&
+        now - checkedAt < PresenceCacheLifetime;
+
+    public static bool PresenceResponseMatchesCurrent(string? currentTrackId,
+        int currentEpoch, string? responseTrackId, int responseEpoch) =>
+        GrantValidator.IsTrackId(currentTrackId) &&
+        string.Equals(currentTrackId, responseTrackId, StringComparison.Ordinal) &&
+        currentEpoch == responseEpoch;
     public const string NetworkRecoveryMessage = "Связь с сервером восстанавливается.";
     public const string StartupTimeoutMessage =
         "Не удалось подключиться к Яндекс Музыке. Проверьте, что приложение открыто, и попробуйте ещё раз.";

@@ -78,8 +78,10 @@ jobs:
       - name: W113/W148 signed stable release and production trust contract
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-stable-signed-release.yml"); puts "W155_RELEASE_WORKFLOW_YAML_PASS"'
+          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-stable-floki-private-stage.yml"); puts "W189_FLOKI_PROMOTION_WORKFLOW_YAML_PASS"'
           node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           bash -n .github/scripts/windows-stable-publish-hostinger.sh
+          bash -n .github/scripts/floki-windows-owner-readonly-inventory.sh
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hostinger-deploy.yml"); puts "W98_HOSTINGER_WORKFLOW_YAML_PASS"'
@@ -249,7 +251,7 @@ jobs:
             $detachHandler.Contains('decoderPlayers.clear()'),
             $nativeHostText.Contains('NATIVE_ELECTRON_CPU_HIGH'),
             $nativeHostText.Contains('}, 300);'),
-            $nativeHostText.Contains('CELIKOM_NATIVE_VERSION = "0.24.31"'),
+            $nativeHostText.Contains('CELIKOM_NATIVE_VERSION = "0.24.32"'),
             $rendererText.Contains('__celikomBridgeNativeRecoverSourceLeft'),
             $rendererSource.Contains('SOURCE_LEFT_CURRENT_RECOVERY_SCHEDULED'),
             $recoverySource.Contains('confirmationDelayMs = 150'),
@@ -297,21 +299,11 @@ jobs:
           if ($guardChecks -contains $false) {
             throw 'W103_W23_INTEGRATION_GUARDS_MISSING'
           }
-      - name: W22/W23/W60 W174 and W188 source, VPN, 403 and audio regressions
+      - name: W174/W175/W178/W188 source, VPN, 403 and audio regressions
         shell: pwsh
         run: |
-          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/live-media-provider-hook.test.mjs windows-companion/w60/current-source-refresh.test.mjs
+          node --test windows-companion/w22/native-resource-adapter.test.mjs windows-companion/w23/transient-source-recovery.test.mjs windows-companion/w23/deferred-track-recovery.test.mjs windows-companion/w23/renderer-relay.test.mjs windows-companion/w23/initial-current-source.test.mjs windows-companion/w23/native-host.test.mjs windows-companion/w23/live-media-provider-hook.test.mjs windows-companion/w60/current-source-refresh.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'W98_AUDIO_REGRESSION' }
-      - name: W175/W178 current-track catch-up tests — visible known gap until W189 repair
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          node --test windows-companion/w23/initial-current-source.test.mjs
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning 'W189_BASELINE_GAP: W175 initial attach and W178 next-current-track catch-up are intentionally pending; restore them on a branch created from the promoted main baseline.'
-          } else {
-            Write-Output 'W175_W178_CURRENT_TRACK_CATCHUP_PASS'
-          }
       - name: W21 crash rollback and unknown updater refusal
         run: dotnet run --project windows-companion/w21/Celikom.Recovery.Tests/Celikom.Recovery.Tests.csproj -c Release
       - name: W24 reviewed catalog and ASAR builder
