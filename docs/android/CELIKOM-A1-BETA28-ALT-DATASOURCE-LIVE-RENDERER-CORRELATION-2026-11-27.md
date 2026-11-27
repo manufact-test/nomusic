@@ -128,3 +128,18 @@ The trusted-main request file `.github/deploy/a1-owner-download-request.json` ha
 - No audio transcoding or codec changes without evidence.
 - No changes to server, catalogue, signed-grant authorization, Windows, stable Android or OTA.
 - Do not claim audible replacement from CI or from `AUDIO_READ` alone.
+
+## BETA29 delivery completed — 2026-11-27
+
+- Floki spool manual run: `46064236455`, run number 33, event `workflow_dispatch` — SUCCESS.
+- Job: `140727455245` (`stage-verified-signed-apk`) — SUCCESS.
+- Earlier push-triggered duplicate run `46063409036` was cancelled by the workflow concurrency group; it is not the delivery run.
+- Independent root-owned consumer verified owner signer/package, exact provenance, private spool receipt and live external HTTPS download. It requires HTTP 200, APK content type, exact 71,602,156-byte size and SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`; it completed with `A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`.
+- Private draft release `461031098` remains unpublished. Its actual `A1_OWNER_DOWNLOAD_URL` was read back and delivered directly to the owner in chat. Do not copy the capability URL into Git/docs/logs.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`. Owner may install over BETA28; do not uninstall or clear data.
+- BETA29 is diagnostic-only. It does not claim audible replacement. Wait for the owner's phone test and fresh TXT before choosing the next engineering change.
+
+The phone test remains:
+1. Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
+2. The second song that previously had leading gaps.
+3. Export TXT after both tests and inspect the NAV50 live renderer counters.
