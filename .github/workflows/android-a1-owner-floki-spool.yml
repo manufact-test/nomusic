@@ -19,7 +19,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: celikom-a1-verified-private-spool-recovery-beta30-20261127
+  group: celikom-a1-verified-private-spool-recovery-beta30-ci01-20261128
   cancel-in-progress: true
 jobs:
   stage-verified-signed-apk:
