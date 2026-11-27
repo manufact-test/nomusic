@@ -1,3 +1,29 @@
+# CURRENT HANDOFF — 27.11.2026 (BETA27 code committed, CI pending, not yet delivered)
+
+## Current checkpoint
+
+- Branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- BETA27 source commit: `2b755397b577202de5879b81a71b1a51cce5e711`.
+- Owner-source/export workflow: `46028046471`, attempt 1; JVM issuer/proxy, artifact contract, descriptor-lifetime and original-codec tests passed; publisher-first ARM13 and APK export not yet verified.
+- Separate ARM13 clone-alone differential `46028046465` and renderer JVM regression `46028046520` started; results not yet verified.
+- **No BETA27 APK/URL has yet been confirmed.** Do not reuse the BETA26 URL or deliver a GitHub download.
+- Expected filename: `CELIKOM-A1-RAMIL-AU-BETA27-HONOR50-20261127.apk`. Size/hash unknown until the actual successful run.
+- BETA26 remains the last delivered APK.
+
+## BETA26 actual owner result and reason for BETA27
+
+Owner reports «Ау» plays normally again, but no audible replacement. The diagnostic confirmed the BETA26 marker, `ISSUER_CODEC_MP3_REQUESTED=NONE`, approved resolve, signed audio/range, alternate decision, exact descriptor→factory→source witness, original source open/read. No CELIKOM arm/open/read. Key new candidate rejection: `FIRST_OPEN_DESCRIPTOR_LOST=ONE`; candidate accepted, first-open setter match, deferred arm enter and audio counters were all NONE. The aggregate export cannot prove which individual track/generation caused every rejection; the remaining touched/missing-birth counters must not be ignored.
+
+Source inspection: `StageBAudioEvidence.NativeTrackSourceLink.descriptor` is weakly held; after a verified descriptor→factory handoff the original descriptor may be garbage-collected before the first source OPEN. The current patch pins only that already verified descriptor at the exact handoff within the existing bounded lineage table. The pin is cleared on matching source touch (including siblings), descriptor rebind, or an already touched/saturated source birth. Identity/track/album/creator/setter/generation/entitlement/fresh-source gates are unchanged. No server, original-codec rewrite, Windows, stable, OTA, or permission changes.
+
+The JVM harness checks exact retention, rejection of unrelated sources, release on OPEN and sibling close, and release/rejection on descriptor rebind. It is not a phone playback proof.
+
+## Next action
+
+Finish existing source CI and obtain the exact unpublished draft release ID from run 46028046471 only after SUCCESS and export. Use the existing trusted-main Floki spool JSON and independent root receipt/live HTTPS verification. Never invent or expose the capability URL in documentation. After verified delivery, owner installs over BETA26 and tests «Ау» at 00:43–00:54 plus the previous second track. Inspect `FIRST_OPEN_DESCRIPTOR_LOST` and the existing candidate→setter→deferred arm→DATASOURCE_ARMED→AUDIO_OPEN→AUDIO_READ chain. Do not claim acoustic success without owner confirmation.
+
+---
+
 # CURRENT HANDOFF — 27.11.2026 (BETA26 delivered; waiting for owner diagnostic TXT)
 
 ## Current checkpoint — do not start a new build before reading the phone diagnostic
