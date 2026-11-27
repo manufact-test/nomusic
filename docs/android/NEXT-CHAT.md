@@ -1,4 +1,41 @@
-# CURRENT HANDOFF — 27.11.2026 (BETA23 delivered; owner acoustic test pending)
+# CURRENT HANDOFF — 27.11.2026 (BETA25 delivered; owner phone test pending)
+
+## Exact owner build and verified delivery
+
+- Source branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+- APK source commit: `54e61c9e88b1953d87211aff469d4f1908cfe714`.
+- Source/export run: `46002222383`, attempt 1 — **SUCCESS** (JVM issuer/proxy contract and publisher-first Android 13 native gate passed).
+- Clone-alone differential ARM13 run: `46002222408` — **SUCCESS**.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA25-HONOR50-20261127.apk`, size `71602156` bytes, SHA-256 `29eec91b086a4c09597637d731e481c13bef5f50a788c54dc50412e84fefaf8c`.
+- Unpublished owner draft: `460609800`.
+- Trusted-main Floki spool run `46003916671` / job `140522187673` — **SUCCESS**. Root receipt, original signer/package, exact size/SHA, external HTTPS verification and unpublished-draft URL readback all passed. The direct `celikom.com` capability link has been sent privately in chat; never store it in Git, docs, Actions logs or summaries.
+- Current manual delivery request: source run `46002222383`, attempt `1`, draft release `460609800`. Replace these IDs only for a new build.
+
+## Why BETA25 is diagnostic, not an audio-fix claim
+
+BETA24 had positive owner resolve, signed audio, Range validation, grant admission, original prepare and alternate decision. But no successful first-open arm and no CELIKOM DataSource `DATASOURCE_ARMED / AUDIO_OPEN / AUDIO_READ`. The precise rejection point was not present in the exported TXT.
+
+BETA25 adds privacy-safe bucketed reasons for the exact first-open candidate, renderer setter and deferred native DataSource admission. It retains fail-closed checks and does not export raw IDs, URLs, object identities, source addresses or audio bytes. Server, original signed Yandex package, codec negotiation, Windows, stable Android and OTA remain unchanged.
+
+`acoustic_replacement_proven=false`. A successful build, native launch, grant or byte read is not proof of audible substitution.
+
+## Next step — owner test
+
+1. Install BETA25 over BETA24 without uninstalling CELIKOM or clearing app data/cache.
+2. In the original Yandex Music app, play Ramil / 10AGE «Ау» directly from album `38902809`, track ID `144530503`; do not use MyWave. Listen at `00:43–00:54`.
+3. Note any «Невозможно воспроизвести» error.
+4. Then play another track that previously had gaps at the beginning. Do not restart the app between checks.
+5. Export one fresh CELIKOM diagnostic TXT from that same session and attach it privately, whether or not the audio changed.
+
+Read the first missing stage:
+`FIRST_OPEN_HOOK_ENTERED` → `FIRST_OPEN_CANDIDATE_ACCEPTED` → `FIRST_OPEN_SETTER_MATCH` → `FIRST_OPEN_DEFERRED_ARM_CALLED` → `DEFERRED_ARM_ENTER` → `DEFERRED_ARM_ACCEPTED` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+Use the associated `FIRST_OPEN_*`, `FIRST_OPEN_SETTER_*` and `DEFERRED_ARM_*` buckets to identify the first rejection. If arm/open/read pass but Yandex still errors, investigate downstream decoder/player failure; BETA25 does not claim to fix PlaybackException.
+
+Do not change server catalogue, signed grant, Range/HMAC, codec negotiation, stable Android, Windows, OTA or Floki infrastructure without evidence from the new TXT. `AUDIO_STAGE_B_STATUS / CELIKOM_REPLACEMENT=NOT_CONNECTED` remains a static legacy marker, not a runtime verdict.
+
+---
+
+# HISTORICAL HANDOFF — BETA23 delivered; owner acoustic test pending
 
 **Latest owner build:** CELIKOM Android A1 BETA23 on experimental branch `experiment/android-a1-metrica-init-state-observer-arm13-20261112`, exact source SHA `d598c0fc043aa4fedf5a27223b4797af474b8955`. Native owner-export run `45903557070` (attempt 1) **SUCCESS**, JVM `45903454018` **SUCCESS**, clone-alone ARM13 differential `45903409452` **SUCCESS**. Persistent-owner-signed APK `CELIKOM-A1-RAMIL-AU-BETA23-HONOR50-20261127.apk`, size `71593964`, sha256 `5b008cc092b1b24ad6b916efb474b096e8b1a4fc5a370ace1f24adaff747b439`, unpublished source draft release ID `459959795`. Trusted-main Floki spool run `45904921524` **SUCCESS** with independent root receipt, actual HTTPS download/hash/size and unpublished owner draft readback. Owner link shared ONLY in private chat, NEVER in public docs, commits, Actions logs/summaries.
 
