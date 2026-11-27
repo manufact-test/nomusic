@@ -52,6 +52,13 @@ final class NativeEarlySourceLifecycleBridge
     private PendingApprovedAudio deferredIssuedAudio;
     private long deferredIssuedGeneration=-1;
     private boolean exactAlternateDataSourceInstalled;
+    // BETA25: first-open deferred-arm rejection reasons; no private values.
+    private long deferredArmEnter,deferredArmNoPending,deferredArmGenerationMismatch;
+    private long deferredArmSourceNull,deferredArmPeriodAmbiguous;
+    private long deferredArmPrepareNotSealed,deferredArmPeriodMissing;
+    private long deferredArmPrepareNotProven,deferredArmSourceMismatch;
+    private long deferredArmOwnerDisabled,deferredArmNativeRouteRejected;
+    private long deferredArmAccepted;
     interface AuthenticatedSourceGrantRequester {
         void request(long generation,Object originalTrack,Object originalAlbum,
             Object originalSource,String trackId,String albumId,
@@ -440,14 +447,45 @@ final class NativeEarlySourceLifecycleBridge
     synchronized boolean armDeferredOriginalDataSource(long generation,
             Object originalTrack,Object originalAlbum,Object originalSource,
             Object unopenedOriginalDataSource) {
+        deferredArmEnter++;
         PendingApprovedAudio approved=deferredIssuedAudio;
-        if(approved==null || deferredIssuedGeneration!=generation
-                || unopenedOriginalDataSource==null || originalPeriodAmbiguous
-                || !originalPeriodPrepareSealed || originalPeriodRef==null
-                || !sawOriginalPeriodPrePrepare(generation,originalPeriodRef.get())
-                || !isSuccessfulOriginalSource(generation,originalTrack,
-                    originalAlbum,originalSource) || !lifecycle.isEnabled())
+        if(approved==null) {
+            deferredArmNoPending++;
             return false;
+        }
+        if(deferredIssuedGeneration!=generation) {
+            deferredArmGenerationMismatch++;
+            return false;
+        }
+        if(unopenedOriginalDataSource==null) {
+            deferredArmSourceNull++;
+            return false;
+        }
+        if(originalPeriodAmbiguous) {
+            deferredArmPeriodAmbiguous++;
+            return false;
+        }
+        if(!originalPeriodPrepareSealed) {
+            deferredArmPrepareNotSealed++;
+            return false;
+        }
+        if(originalPeriodRef==null) {
+            deferredArmPeriodMissing++;
+            return false;
+        }
+        if(!sawOriginalPeriodPrePrepare(generation,originalPeriodRef.get())) {
+            deferredArmPrepareNotProven++;
+            return false;
+        }
+        if(!isSuccessfulOriginalSource(generation,originalTrack,
+                originalAlbum,originalSource)) {
+            deferredArmSourceMismatch++;
+            return false;
+        }
+        if(!lifecycle.isEnabled()) {
+            deferredArmOwnerDisabled++;
+            return false;
+        }
         // One opportunity only. An ambiguous second factory call cannot
         // reuse an earlier ticket; the native route itself checks exact grants.
         deferredIssuedAudio=null;
@@ -458,9 +496,37 @@ final class NativeEarlySourceLifecycleBridge
             approved.grant,approved.origin,unixClock.getAsLong(),
             NativeSourceGate.Choice.ALTERNATE);
         exactAlternateDataSourceInstalled=routed;
-        if(routed)NativeTrackIdBetaPolicy.mark(
-            NativeTrackIdBetaPolicy.Step.DATASOURCE_ARMED);
+        if(routed) {
+            NativeTrackIdBetaPolicy.mark(NativeTrackIdBetaPolicy.Step.DATASOURCE_ARMED);
+            deferredArmAccepted++;
+        } else {
+            deferredArmNativeRouteRejected++;
+        }
         return routed;
+    }
+
+    private static String diagnosticBucket(long count) {
+        return count==0?"NONE":count==1?"ONE":count<=4?"FEW":"MANY";
+    }
+    private static String diagnosticLine(String origin,long count) {
+        return "event=AUDIO_EARLY_ADMISSION_SUMMARY;origin="+origin
+            +";error="+diagnosticBucket(count)+";thread=OTHER";
+    }
+    synchronized String[] exportLines() {
+        return new String[] {
+            diagnosticLine("DEFERRED_ARM_ENTER",deferredArmEnter),
+            diagnosticLine("DEFERRED_ARM_NO_PENDING_APPROVED",deferredArmNoPending),
+            diagnosticLine("DEFERRED_ARM_GENERATION_MISMATCH",deferredArmGenerationMismatch),
+            diagnosticLine("DEFERRED_ARM_SOURCE_NULL",deferredArmSourceNull),
+            diagnosticLine("DEFERRED_ARM_PERIOD_AMBIGUOUS",deferredArmPeriodAmbiguous),
+            diagnosticLine("DEFERRED_ARM_PREPARE_NOT_SEALED",deferredArmPrepareNotSealed),
+            diagnosticLine("DEFERRED_ARM_PERIOD_MISSING",deferredArmPeriodMissing),
+            diagnosticLine("DEFERRED_ARM_PREPARE_NOT_PROVEN",deferredArmPrepareNotProven),
+            diagnosticLine("DEFERRED_ARM_SOURCE_MISMATCH",deferredArmSourceMismatch),
+            diagnosticLine("DEFERRED_ARM_OWNER_DISABLED",deferredArmOwnerDisabled),
+            diagnosticLine("DEFERRED_ARM_NATIVE_ROUTE_REJECTED",deferredArmNativeRouteRejected),
+            diagnosticLine("DEFERRED_ARM_ACCEPTED",deferredArmAccepted)
+        };
     }
 
     @Override public synchronized void beforeUnverifiedOriginalPeriodPrepare() {
