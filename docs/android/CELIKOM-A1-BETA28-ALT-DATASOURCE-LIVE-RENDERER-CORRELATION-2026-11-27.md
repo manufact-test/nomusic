@@ -123,7 +123,7 @@ If the remaining owner/clone gates pass, build a **diagnostic-only BETA29** cont
 - exact size/hash readback;
 - actual `A1_OWNER_DOWNLOAD_URL` read from the unpublished draft.
 
-Do not send a GitHub APK link. Do not publish the draft or bypass Floki/root verification.
+The owner workflow exports on push only when the commit message contains `[export-beta-audio]` **and** the changed path matches its source/test path filter. A docs-only commit will not trigger it; use a comment-only change in an already included source path after all gates pass. Do not send a GitHub APK link. Do not publish the draft or bypass Floki/root verification.
 
 The phone test for BETA29 is intentionally narrow: install over BETA28 without uninstalling or clearing data, reproduce the same Ramil / 10AGE — «Ау» test and the second song, then export TXT. The new counters decide whether the next change belongs in source selection or after the Exo DataSource read.
 
