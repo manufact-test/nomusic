@@ -39,6 +39,11 @@ jobs:
           node windows-companion/w23/build.mjs
           npm install --no-save --no-package-lock --no-audit --no-fund --prefix windows-companion/w23 acorn@8.15.0
           if ($LASTEXITCODE -ne 0) { throw 'W174_NATIVE_BUILD_FAILED' }
+      - name: Test W188 live mediaProvider discovery and id normalization
+        shell: pwsh
+        run: |
+          node --test windows-companion/w23/live-media-provider-hook.test.mjs windows-companion/w23/renderer-relay.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'W188_LIVE_MEDIA_PROVIDER_TEST_FAILED' }
       - name: Download official Yandex 5.129.0 and verify signatures, hashes, image and exact restore
         shell: pwsh
         run: |
