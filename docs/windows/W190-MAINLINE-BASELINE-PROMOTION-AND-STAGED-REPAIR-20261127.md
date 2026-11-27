@@ -82,3 +82,15 @@ After baseline checks pass:
 - Verify whether the stable feed is global before any publish. Do not use a global customer rollout as a one-owner test.
 - After all source/package/feed checks, provide the owner the exact GitHub Actions approval link and wait for explicit approval.
 - Test auto-discovery, signed manifest verification, download, install, restart and preserved local session separately on the already-installed owner copy. Do not claim OTA success before those steps complete.
+
+## Main advanced after baseline promotion — 27 November 2026
+
+- After PR #72 promoted the Windows baseline at `38b839f7d40a761fb794d4a20680e3cf71b6d65d`, main advanced to `48812d33d60f05ce833e253589b4110064f34179` through six extension-only commits, including the 0.4.94 owner-delivery/contribution-flow handoff.
+- The W189 repair branch was rebased by rebuilding its 14 Windows/docs changed paths on top of that latest main tree. The extension-only changes are preserved; no extension source was copied or modified.
+- Rebased repair branch commit: `d73b19d3f114f8055721c8ec8e4188dd007cc22f`.
+- Post-merge Windows integration [46057355291](https://github.com/manufact-test/nomusic/actions/runs/46057355291): SUCCESS.
+- Post-merge W188 Yandex 5.129 audit [46057355369](https://github.com/manufact-test/nomusic/actions/runs/46057355369): SUCCESS.
+- Post-merge generic CI [46057355317](https://github.com/manufact-test/nomusic/actions/runs/46057355317): SUCCESS.
+- Legacy W181 Yandex 5.128 audit [46057355310](https://github.com/manufact-test/nomusic/actions/runs/46057355310): FAILED because its old workflow did not install the one-off Acorn dependency required by the read-only player-callgraph audit. The repair branch adds the same pinned Acorn install already used by the W188 audit workflow; this is static tooling only, not a runtime hook.
+- FlokiNET crossbuild [46057355312](https://github.com/manufact-test/nomusic/actions/runs/46057355312): FAILED before any job step/log was created (no runner log/artifact). Treat as runner availability/infrastructure, not as a source compile result; recheck after the workflow/test update.
+

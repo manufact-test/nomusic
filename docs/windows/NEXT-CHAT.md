@@ -1,8 +1,8 @@
 # ACTIVE CELIKOM WINDOWS — W189 repairs from the promoted W188 mainline baseline
 
-**Current canonical baseline:** `main` @ `38b839f7d40a761fb794d4a20680e3cf71b6d65d`.
+**Current canonical main:** `48812d33d60f05ce833e253589b4110064f34179` (six later extension-only commits preserved). The Windows baseline remains CELIKOM 0.24.62.0 / native 0.24.31 / Yandex 5.129.0.
 
-**Current repair branch:** `work/windows-w189-repairs-from-main-20261127`, created directly from that main SHA.
+**Current repair branch:** `work/windows-w189-repairs-from-main-20261127`, rebased directly onto the latest main SHA.
 
 Read first:
 1. `docs/windows/W190-MAINLINE-BASELINE-PROMOTION-AND-STAGED-REPAIR-20261127.md` — promotion result, retained backup, CI evidence and sequence.

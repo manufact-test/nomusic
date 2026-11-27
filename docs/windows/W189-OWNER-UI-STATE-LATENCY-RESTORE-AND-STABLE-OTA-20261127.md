@@ -1,4 +1,4 @@
-> **Current execution branch (27 November 2026):** `work/windows-w189-repairs-from-main-20261127`, created directly from canonical `main` @ `38b839f7d40a761fb794d4a20680e3cf71b6d65d`. Follow W190 for promotion evidence and execution order. The old recovery branch is now a source reference only; do not make fixes there.
+> **Current execution branch (27 November 2026):** `work/windows-w189-repairs-from-main-20261127`, rebased onto canonical `main` @ `48812d33d60f05ce833e253589b4110064f34179` after six extension-only commits; all extension files are preserved unchanged by this branch. Follow W190 for promotion evidence and execution order. The old recovery branch is now a source reference only; do not make fixes there.
 
 > **Execution order update (27 November 2026):** Follow W190 first. Promote the exact W188 / 0.24.62 baseline to `main` before applying W169/W175/W178 or UI/latency fixes. After baseline CI and source checks pass on `main`, create a fresh Windows repair branch from that `main` and implement the W189 tasks there. Do not repair on the old recovery branch and then attempt a large late transplant.
 
