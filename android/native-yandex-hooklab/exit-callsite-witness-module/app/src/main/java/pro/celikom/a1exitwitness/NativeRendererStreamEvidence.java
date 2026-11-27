@@ -281,6 +281,24 @@ final class NativeRendererStreamEvidence {
     private int trackPlayerScopeEnter,playerSourceSameScope,playerSourceUnscoped;
     private int playerSourceConflict,livePeriodResolved,livePeriodUnavailable;
     private int livePeriodSourceMatched,livePeriodSourceDifferent,livePeriodSourceNoLink;
+    // NAV50: join the live SLOT_B MediaPeriod's exact wrapper to its already
+    // created Exo DataSource, then compare that identity with the route that
+    // has actually returned alternate bytes. This is observation only.
+    private int liveRendererAlternateSourceReadSame;
+    private int liveRendererAlternateSourceReadSameCurrentPeriod;
+    private int liveRendererAlternateSourceReadSameCurrentPeriodNonEos;
+    private int liveRendererAlternateSourceReadSameCurrentPeriodEosUnknown;
+    private int liveRendererAlternateSourceReadSameNoPeriodId;
+    private int liveRendererAlternateSourceArmedNoReadCurrentPeriod;
+    private int liveRendererAlternateSourceArmedNoReadNoPeriodId;
+    private int liveRendererAlternateSourceDifferentCurrentPeriod;
+    private int liveRendererAlternateSourceDifferentNoPeriodId;
+    private int liveRendererAlternateSourceNoRouteCurrentPeriod;
+    private int liveRendererAlternateSourceNoRouteNoPeriodId;
+    private int liveRendererAlternateSourceDataSourceUnresolvedCurrentPeriod;
+    private int liveRendererAlternateSourceDataSourceUnresolvedNoPeriodId;
+    private int liveRendererAlternateSourceSlotOrPeriodChanged;
+    private int liveRendererAlternateSourceEvidenceError;
     // NAV34: ONLY after a strict live-original-source == scoped native
     // Player setter source, inspect the SAME tCa wrapper's Stage B album link.
     // Historical structural link; NEVER selected track, queue generation or PCM.
@@ -311,8 +329,15 @@ final class NativeRendererStreamEvidence {
     interface ActiveOriginalTrackObserver {
         void observe(Object originalTrack,Object originalAlbum,Object liveSource);
     }
+    interface AlternateSourceReadEvidence {
+        // 1=same DataSource has positive alternate reads; 2=same but unread;
+        // -1=route belongs to another DataSource; 0=no route; -2=DataSource
+        // lineage unresolved. No source identity or media values are exported.
+        int status(Object originalTrackWrapper);
+    }
     private ExactOriginalTrackAlbumEvidence exactOriginalTrackAlbumEvidence;
     private ActiveOriginalTrackObserver activeOriginalTrackObserver;
+    private AlternateSourceReadEvidence alternateSourceReadEvidence;
 
     // Early original Exo Player source SETTER boundary, before vendor method
     // execution. This is not by itself source prepare/decoder or permission.
@@ -620,6 +645,9 @@ final class NativeRendererStreamEvidence {
     }
     synchronized void setActiveOriginalTrackObserver(ActiveOriginalTrackObserver observer) {
         activeOriginalTrackObserver=observer;
+    }
+    synchronized void setAlternateSourceReadEvidence(AlternateSourceReadEvidence evidence) {
+        alternateSourceReadEvidence=evidence;
     }
     private static final class ExactOriginalSourceRead {
         final Object source,track,album;
@@ -1412,7 +1440,70 @@ final class NativeRendererStreamEvidence {
         }
     }
 
-    private ExactOriginalSourceRead observeActivePeriodSource(Object currentHolder) {
+    private void observeAlternateSourceReadEvidence(Object wrapper,Object source,
+            Object currentEngine,Object currentHolder,boolean currentPeriodMatched,
+            Boolean endOfStream) {
+        if(alternateSourceReadEvidence==null)return;
+        int status;
+        try {status=alternateSourceReadEvidence.status(wrapper);}
+        catch(Throwable ignored) {status=-3;}
+        // Recheck the exact holder, source and current PeriodID after the
+        // Stage B lookup. A Next/queue transition during this callback cannot
+        // be promoted to a current-renderer source match.
+        boolean stable=liveQueueSlotMatches(currentEngine,currentHolder)==1
+            && holderStillHasOriginalSource(currentHolder,source);
+        if(stable && currentPeriodMatched)
+            stable=originalPeriodIdStillCurrent(currentEngine,currentHolder);
+        if(!stable) {
+            liveRendererAlternateSourceSlotOrPeriodChanged=
+                inc(liveRendererAlternateSourceSlotOrPeriodChanged);
+            return;
+        }
+        if(status==1) {
+            liveRendererAlternateSourceReadSame=
+                inc(liveRendererAlternateSourceReadSame);
+            if(currentPeriodMatched) {
+                liveRendererAlternateSourceReadSameCurrentPeriod=
+                    inc(liveRendererAlternateSourceReadSameCurrentPeriod);
+                if(Boolean.FALSE.equals(endOfStream))
+                    liveRendererAlternateSourceReadSameCurrentPeriodNonEos=
+                        inc(liveRendererAlternateSourceReadSameCurrentPeriodNonEos);
+                else if(endOfStream==null)
+                    liveRendererAlternateSourceReadSameCurrentPeriodEosUnknown=
+                        inc(liveRendererAlternateSourceReadSameCurrentPeriodEosUnknown);
+            } else liveRendererAlternateSourceReadSameNoPeriodId=
+                inc(liveRendererAlternateSourceReadSameNoPeriodId);
+        } else if(status==2) {
+            if(currentPeriodMatched)
+                liveRendererAlternateSourceArmedNoReadCurrentPeriod=
+                    inc(liveRendererAlternateSourceArmedNoReadCurrentPeriod);
+            else liveRendererAlternateSourceArmedNoReadNoPeriodId=
+                inc(liveRendererAlternateSourceArmedNoReadNoPeriodId);
+        } else if(status==-1) {
+            if(currentPeriodMatched)
+                liveRendererAlternateSourceDifferentCurrentPeriod=
+                    inc(liveRendererAlternateSourceDifferentCurrentPeriod);
+            else liveRendererAlternateSourceDifferentNoPeriodId=
+                inc(liveRendererAlternateSourceDifferentNoPeriodId);
+        } else if(status==-2) {
+            if(currentPeriodMatched)
+                liveRendererAlternateSourceDataSourceUnresolvedCurrentPeriod=
+                    inc(liveRendererAlternateSourceDataSourceUnresolvedCurrentPeriod);
+            else liveRendererAlternateSourceDataSourceUnresolvedNoPeriodId=
+                inc(liveRendererAlternateSourceDataSourceUnresolvedNoPeriodId);
+        } else if(status==0) {
+            if(currentPeriodMatched)
+                liveRendererAlternateSourceNoRouteCurrentPeriod=
+                    inc(liveRendererAlternateSourceNoRouteCurrentPeriod);
+            else liveRendererAlternateSourceNoRouteNoPeriodId=
+                inc(liveRendererAlternateSourceNoRouteNoPeriodId);
+        } else liveRendererAlternateSourceEvidenceError=
+            inc(liveRendererAlternateSourceEvidenceError);
+    }
+
+    private ExactOriginalSourceRead observeActivePeriodSource(Object currentEngine,
+            Object currentHolder,boolean eligibleRendererRead,
+            boolean currentPeriodMatched,Boolean endOfStream) {
         if(livePeriodSourceHook<=0 || currentHolder==null)return null;
         if(holderWrapperField==null || wrapperPeriodField==null
                 || periodSourceField==null)return null;
@@ -1525,6 +1616,9 @@ final class NativeRendererStreamEvidence {
         }
         if(!conflicting && matches==1) {
             livePeriodSourceMatched=inc(livePeriodSourceMatched);
+            if(eligibleRendererRead)
+                observeAlternateSourceReadEvidence(uniquelyScopedWrapper,source,
+                    currentEngine,currentHolder,currentPeriodMatched,endOfStream);
             // No classification if source is unresolved, conflicted, stale,
             // matched to multiple scopes or read from a non-live queue holder.
             if(scopedAlbumEvidence!=null && uniquelyScopedWrapper!=null) {
@@ -2071,14 +2165,26 @@ final class NativeRendererStreamEvidence {
                 // never join two positives from unrelated past tracks.
                 int beforeUidInts=periodUnknownEosUidInts;
                 int beforeSameRef=periodUnknownEosSame;
+                int beforeCurrentSameRef=currentPeriodSameReferenceAtRead;
+                int beforeCurrentUidInts=currentPeriodUidAndIntsAtRead;
                 int beforeFlowSame=scopedLateFlowAlbumSame;
                 int beforeSourceSame=livePeriodSourceMatched;
-                if(originalResult==-4 && !Boolean.TRUE.equals(endOfStream))
+                boolean eligibleRendererRead=
+                    originalResult==-4 && !Boolean.TRUE.equals(endOfStream);
+                if(eligibleRendererRead)
                     observeCurrentPlaybackPeriodAtRead(
                         live.engine.get(),live.holder.get(),endOfStream==null);
+                boolean currentPeriodMatched=
+                    currentPeriodSameReferenceAtRead>beforeCurrentSameRef
+                    || currentPeriodUidAndIntsAtRead>beforeCurrentUidInts
+                    || periodUnknownEosUidInts>beforeUidInts
+                    || periodUnknownEosSame>beforeSameRef;
                 // Only independently proven exact holder + live SLOT_B.
+                // NAV50 additionally joins that period's wrapper to the exact
+                // DataSource that has already returned alternate bytes.
                 ExactOriginalSourceRead exactLateSource=
-                    observeActivePeriodSource(live.holder.get());
+                    observeActivePeriodSource(live.engine.get(),live.holder.get(),
+                        eligibleRendererRead,currentPeriodMatched,endOfStream);
                 // NAV47 full same-callback identity: renderer's exact stream
                 // is the adapter retained by this holder's active MediaPeriod,
                 // its child stream exists, and the same period source resolves
@@ -2338,6 +2444,21 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SOURCE_NULL",livePeriodSourceNull),
             line("LIVE_PERIOD_REFLECTION_FAILED",livePeriodReflectionFailed),
             line("LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH",livePeriodSourceMatched),
+            line("LIVE_RENDERER_ALT_SOURCE_READ_SAME",liveRendererAlternateSourceReadSame),
+            line("LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD",liveRendererAlternateSourceReadSameCurrentPeriod),
+            line("LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS",liveRendererAlternateSourceReadSameCurrentPeriodNonEos),
+            line("LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_EOS_UNKNOWN",liveRendererAlternateSourceReadSameCurrentPeriodEosUnknown),
+            line("LIVE_RENDERER_ALT_SOURCE_READ_SAME_NO_PERIOD_ID",liveRendererAlternateSourceReadSameNoPeriodId),
+            line("LIVE_RENDERER_ALT_SOURCE_ARMED_NO_READ_CURRENT_PERIOD",liveRendererAlternateSourceArmedNoReadCurrentPeriod),
+            line("LIVE_RENDERER_ALT_SOURCE_ARMED_NO_READ_NO_PERIOD_ID",liveRendererAlternateSourceArmedNoReadNoPeriodId),
+            line("LIVE_RENDERER_ALT_SOURCE_DIFFERENT_CURRENT_PERIOD",liveRendererAlternateSourceDifferentCurrentPeriod),
+            line("LIVE_RENDERER_ALT_SOURCE_DIFFERENT_NO_PERIOD_ID",liveRendererAlternateSourceDifferentNoPeriodId),
+            line("LIVE_RENDERER_ALT_SOURCE_NO_ROUTE_CURRENT_PERIOD",liveRendererAlternateSourceNoRouteCurrentPeriod),
+            line("LIVE_RENDERER_ALT_SOURCE_NO_ROUTE_NO_PERIOD_ID",liveRendererAlternateSourceNoRouteNoPeriodId),
+            line("LIVE_RENDERER_ALT_SOURCE_DATASOURCE_UNRESOLVED_CURRENT_PERIOD",liveRendererAlternateSourceDataSourceUnresolvedCurrentPeriod),
+            line("LIVE_RENDERER_ALT_SOURCE_DATASOURCE_UNRESOLVED_NO_PERIOD_ID",liveRendererAlternateSourceDataSourceUnresolvedNoPeriodId),
+            line("LIVE_RENDERER_ALT_SOURCE_SLOT_OR_PERIOD_CHANGED",liveRendererAlternateSourceSlotOrPeriodChanged),
+            line("LIVE_RENDERER_ALT_SOURCE_EVIDENCE_ERROR",liveRendererAlternateSourceEvidenceError),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH",scopedAlbumMatch),
             line("LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_NO_LINK",scopedAlbumNoLink),
             line("LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT",scopedReasonWrapperAbsent),
