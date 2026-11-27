@@ -1323,8 +1323,8 @@ final class StageBAudioEvidence {
         link.descriptor=null;
         link.firstOpenDescriptorPin=null;
         link.factoryResult=null;
-link.sourceInstance=null;
-link.factorySourceIdentityBound=false;
+        link.sourceInstance=null;
+        link.factorySourceIdentityBound=false;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
@@ -1713,8 +1713,8 @@ link.factorySourceIdentityBound=false;
             link.descriptor=new WeakReference<>(descriptor);
             link.firstOpenDescriptorPin=null;
             link.factoryResult=null;
-link.sourceInstance=null;
-link.factorySourceIdentityBound=false;
+            link.sourceInstance=null;
+            link.factorySourceIdentityBound=false;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
@@ -1988,8 +1988,8 @@ link.factorySourceIdentityBound=false;
             // It is bounded by the existing lineage/birth tables.
             link.firstOpenDescriptorPin=link.sourceEverTouched?null:descriptor;
             link.factoryResult=new WeakReference<>(factoryResult);
-link.sourceInstance=null;
-link.factorySourceIdentityBound=false;
+            link.sourceInstance=null;
+            link.factorySourceIdentityBound=false;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
@@ -2233,8 +2233,8 @@ link.factorySourceIdentityBound=false;
         // The birth above proves that THIS source came from THIS exact
         // signed factory. Rebind the historical observation to the one
         // actually about to open (without ever rewinding a touched source).
-            link.sourceInstance=new WeakReference<>(source);
-            link.factorySourceIdentityBound=true;
+        link.sourceInstance=new WeakReference<>(source);
+        link.factorySourceIdentityBound=true;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;
