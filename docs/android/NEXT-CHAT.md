@@ -1,3 +1,20 @@
+# CRITICAL OWNER DELIVERY RULE — READ BEFORE ANY FUTURE APK DELIVERY
+
+The owner **cannot download APKs from GitHub on his phone**. This is a repeated, explicit constraint. For every future Android APK that the owner must install on the phone, provide a **direct non-GitHub HTTPS download URL from `https://celikom.com`**. A GitHub release page, GitHub asset URL, Actions artifact, ChatGPT attachment, or instructions to download from GitHub on the phone are NOT acceptable substitutes.
+
+Use only the trusted-main signed Floki spool:
+- Workflow: `.github/workflows/android-a1-owner-floki-spool.yml` (trusted `main`, data-only stage).
+- Update `.github/deploy/a1-owner-download-request.json` with the exact successful Android source workflow `run_id`, `attempt`, and its exact unpublished owner draft `release_id`; the currently stored request is stale and points to the older run `45959535273` / release `460295768`. Never trigger it unchanged.
+- Commit/push the updated request JSON to `main` to trigger the trusted spool workflow's `push.paths` route. Do not rely on its `workflow_run` filter: it still names an older BETA13 workflow name, while the current source workflow is named BETA24.
+- Wait for the isolated Floki runner to stage the exact APK as data and for the independent root consumer to create the matching receipt. Verify exact run/attempt, APK filename, size, SHA-256, original package/signing certificate, `https_verified=true`, and the HTTPS readback. The workflow must also write the owner URL to the unpublished draft and read it back.
+- Only then retrieve the **actual** `A1_OWNER_DOWNLOAD_URL` from the unpublished draft and send that exact URL privately in chat. URL shape is `https://celikom.com/downloads/a1/<48-hex-token>/<APK filename>`; never guess or fabricate it.
+- Never put the capability token/URL, private owner diagnostics, secrets, or root receipts into Git, public Actions logs/summaries, or documentation.
+- Old direct-SSH workflow `.github/workflows/android-a1-owner-floki-download.yml` is disabled and MUST NOT be re-enabled. Do not bypass the isolated runner or weaken host/root/SSH security.
+
+The current BETA24 is a one-off exception: the owner already downloaded it to his PC and will transfer it to the phone. No Floki URL has been verified for this already-downloaded build. **All subsequent builds must use the direct `celikom.com` link.**
+
+---
+
 # CURRENT HANDOFF — CELIKOM A1 BETA24 per-wrapper source-lineage repair — 2026-11-27
 
 ## Current owner-test status
@@ -58,11 +75,8 @@ Important limitation from the actual owner-run receipt/log:
 
 Private owner-only draft release ID: `460365440`.
 
-Release page:
-https://github.com/manufact-test/nomusic/releases/tag/untagged-90d8dc22ebb8e5469de9
-
-Direct APK:
-https://github.com/manufact-test/nomusic/releases/download/untagged-90d8dc22ebb8e5469de9/CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk
+Source unpublished owner draft release ID: `460365440` (internal build record only).
+The owner has already downloaded this BETA24 APK to his PC and will transfer it to the HONOR 50 manually. This particular build was **not** published through FlokiNET; no `celikom.com` capability URL exists/has been verified for it. Do not send the owner a GitHub download URL or tell him to download APKs from GitHub on the phone.
 
 Filename: `CELIKOM-A1-RAMIL-AU-BETA24-HONOR50-20261127.apk`
 
