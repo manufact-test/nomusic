@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 umask 077
 python3 - <<'PYREMOTE'
-import subprocess,re,time
+import subprocess,pathlib,time
 unit='celikom-ci-runner2.service'
 container='celikom-floki-ci02'
 def run(args,timeout=20,check=True):
@@ -10,31 +10,40 @@ def run(args,timeout=20,check=True):
     if check and p.returncode:raise RuntimeError('COMMAND_FAILED '+args[0]+' '+str(p.returncode))
     return p
 def out(*x):print(*x,flush=True)
-def active():
-    return run(['systemctl','is-active',unit],check=False).stdout.strip()
+def active():return run(['systemctl','is-active',unit],check=False).stdout.strip()
 def processes():
-    return run(['docker','top',container,'-eo','comm']).stdout.splitlines()[1:]
-logs=run(['docker','logs','--since','80m','--tail','140',container],check=False)
-for line in (logs.stdout+'\n'+logs.stderr).splitlines():
-    if not re.search(r'job|worker|session|error|exception|listen|update',line,re.I):continue
-    if re.search(r'(?i)token|authorization|password|secret|credential|cookie|https?://',line):continue
-    line=re.sub(r'\b[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\b','[id]',line,flags=re.I)
-    line=re.sub(r'\b[A-Za-z0-9_+/=-]{24,}\b','[redacted]',line)
-    out('CI02_RECENT',line[:250])
+    root=int(run(['docker','inspect','--format','{{.State.Pid}}',container]).stdout.strip())
+    if root<=1:raise RuntimeError('INVALID_CONTAINER_PID')
+    rows=run(['ps','-eo','pid=,ppid=,comm=']).stdout.splitlines()
+    table={}
+    for l in rows:
+        a=l.strip().split(None,2)
+        if len(a)==3 and a[0].isdigit() and a[1].isdigit():
+            table[int(a[0])]=(int(a[1]),a[2])
+    if root not in table:raise RuntimeError('CONTAINER_PID_NOT_FOUND')
+    tree={root}
+    while True:
+        new={k for k,(p,n) in table.items() if p in tree}-tree
+        if not new:break
+        tree.update(new)
+    return [table[k][1] for k in tree]
+def workers(p):return sum('Runner.Worker' in x for x in p)
+def listeners(p):return sum('Runner.Listener' in x for x in p)
 p=processes()
-out('CI02_BEFORE',active(),'listener='+str(sum('Runner.Listener' in x for x in p)),'worker='+str(sum('Runner.Worker' in x for x in p)))
-if active()!='active' or not any('Runner.Listener' in x for x in p):
-    raise SystemExit('CI02_UNEXPECTED_SERVICE_STATE_NO_RESTART')
-if any('Runner.Worker' in x for x in p):
-    raise SystemExit('CI02_WORKER_ACTIVE_NO_RESTART')
+out('CI02_BEFORE',active(),'listener='+str(listeners(p)),'worker='+str(workers(p)))
+if active()!='active' or listeners(p)!=1 or workers(p):
+    raise SystemExit('CI02_ACTIVE_OR_UNEXPECTED_NO_RESTART')
+time.sleep(2)
+p=processes()
+if listeners(p)!=1 or workers(p):raise SystemExit('CI02_ACTIVE_WORKER_NO_RESTART')
 out('CI02_RESTART_ONLY_EXISTING_SERVICE')
 run(['systemctl','restart',unit],timeout=85)
-for i in range(12):
+for i in range(20):
     if active()=='active':
         try:
             p=processes()
-            if any('Runner.Listener' in x for x in p):
-                out('CI02_LISTENER_READY','worker='+str(sum('Runner.Worker' in x for x in p)))
+            if listeners(p)==1:
+                out('CI02_LISTENER_READY','worker='+str(workers(p)))
                 break
         except Exception:pass
     time.sleep(2)
