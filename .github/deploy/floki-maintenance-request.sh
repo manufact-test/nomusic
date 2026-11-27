@@ -8,7 +8,8 @@ git=["git","-c","safe.directory=/home/celikom-mirror/github-mirror.git","--git-d
 subprocess.run(git+["merge-base","--is-ancestor",source,"refs/heads/main"],check=True,capture_output=True,timeout=15)
 base=["docker","exec","--user","1000","celikom-floki-ci01"]
 r=subprocess.run(base+["bash","-c","find /home/runner /opt /actions-runner /runner -maxdepth 10 -type f -name node 2>/dev/null | head -30"],capture_output=True,text=True,timeout=30)
-subprocess.run(base+["bash","-c","find /tmp -maxdepth 1 -type d -name 'celikom-extension96-node.*' -user 1000 -exec rm -rf -- {} +"],capture_output=True,check=True,timeout=30)
+cleanup=subprocess.run(base+["bash","-c",'for p in /tmp/celikom-extension96-node.*; do if [ -d "$p" ] && [ ! -L "$p" ]; then chmod -R u+rwX -- "$p"; rm -rf -- "$p"; fi; done'],capture_output=True,text=True,timeout=30)
+print("EXTENSION_096_OWN_TEMP_CLEANUP",cleanup.returncode,cleanup.stderr[:500])
 assert shutil.disk_usage("/srv/celikom/ci-runner/runner/celikom-build-spool").free>512*1024*1024,"PRIVATE_BUILD_FREE_SPACE"
 node=None
 for path in r.stdout.splitlines():
@@ -42,10 +43,11 @@ assert len(archive)<64*1024*1024
 subprocess.run(["docker","exec","-i","--user","1000","celikom-floki-ci01","tar","-xf","-","-C",directory],input=archive,check=True,capture_output=True,timeout=30)
 js=r"""
 import {spawnSync} from 'node:child_process';
-import {readdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {readdirSync,readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import path from 'node:path';
-const env={...process.env,CELIKOM_API_BASE_URL:'https://api.celikom.com',PATH:path.dirname(process.execPath)+':'+process.env.PATH};
+mkdirSync('.temporary',{recursive:true});
+const env={...process.env,TMPDIR:path.resolve('.temporary'),CELIKOM_API_BASE_URL:'https://api.celikom.com',PATH:path.dirname(process.execPath)+':'+process.env.PATH};
 function run(args){
  const r=spawnSync(process.execPath,args,{env,encoding:'utf8',timeout:240000,maxBuffer:8*1024*1024});
  if(r.status!==0){console.log((r.stdout||'').slice(-3500),(r.stderr||'').slice(-2000));throw Error('ISOLATED_BUILD_CHECK_FAILED');}
