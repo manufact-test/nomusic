@@ -1,4 +1,6 @@
-> **Latest checkpoint — BETA28 (27.11.2026):** BETA28 source/export workflow `46049315766` SUCCESS; clone-alone ARM13 `46049315771` SUCCESS; renderer JVM `46049315695` SUCCESS. APK `CELIKOM-A1-RAMIL-AU-BETA28-HONOR50-20261127.apk`, 71,602,156 bytes, SHA-256 `2c5dee053f2634224f929113e94b5aafe5ca5492160ed16f8e267020b394555c`, persistent owner signer verified. Private draft release `460950166`. Trusted-main request commit `64a1f36a5d3fb6951f327e28864fd5a10440203b`; Floki spool run `46052141389` / job `140685817495` was still `in_progress` at last check, with no confirmed root receipt or live HTTPS readback. **BETA28 is built but not yet delivered. BETA27 remains latest delivered.** Continue only through existing trusted Floki root receipt and live celikom.com verification; never send GitHub link or guess URL. Full details: `docs/android/NEXT-CHAT.md` and `docs/android/CELIKOM-A1-BETA28-OWNER-SESSION-RECOVERY-2026-11-27.md`.
+> **LATEST — BETA29 delivered and root-verified (27.11.2026):** owner/export run `46061697450` SUCCESS; Floki manual run `46064236455` / job `140727455245` SUCCESS. Independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact 71,602,156-byte size and SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`, and unpublished draft readback all passed (`A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED`). APK `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`; draft release `461031098` remains unpublished. The actual owner URL was read from the draft and delivered privately; capability URL intentionally omitted from Git/docs/logs. **Current next step: owner installs BETA29 over BETA28 and sends a fresh phone TXT diagnostic.** Do not uninstall or clear app data. See `docs/android/NEXT-CHAT.md` for the current test and engineering handoff.
+
+## Historical checkpoints — BETA28 and earlier
 
 > **BETA27 delivery complete (27.11.2026):** Floki spool workflow `46048173341` completed SUCCESS. Independent root receipt, live HTTPS readback and unpublished draft link readback all passed. Direct `celikom.com` URL delivered privately; capability URL intentionally omitted from Git/docs/logs. BETA27 owner audio test is pending. This supersedes the earlier "delivery pending" checkpoint below.
 
@@ -40,9 +42,9 @@ The owner cannot download APKs from GitHub on the phone. Every owner-phone APK m
 - Original application package and signing certificate were independently verified.
 - Install mode: update existing installation; do not uninstall or clear app data/cache.
 
-## Exact trusted-main request
+## Exact trusted-main request — historical BETA26 snapshot
 
-The current `.github/deploy/a1-owner-download-request.json` on `main` contains:
+At the time of the BETA26 delivery record, `.github/deploy/a1-owner-download-request.json` on `main` contained the following. This is historical and was later superseded by the BETA29 request (`run_id=46061697450`, `attempt=1`, `release_id=461031098`):
 
 ```json
 {
@@ -99,18 +101,9 @@ For the current diagnostic and code handoff, see:
 - `docs/android/CELIKOM-A1-BETA26-OWNER-DIAGNOSTIC-NEXT-STEPS-2026-11-27.md`
 
 
-## 2026-11-27 — BETA29 manual trigger fallback
+## 2026-11-27 — BETA29 manual trigger fallback (completed)
 
-BETA29 NAV50 owner draft:
-- Owner run: `46061697450`, attempt `1`.
-- Draft release: `461031098` (unpublished).
-- APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
-- Size: `71,602,156` bytes.
-- SHA-256: `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
-
-The trusted-main request file `.github/deploy/a1-owner-download-request.json` is updated to this run/release. A GitHub-connection commit did not start the push-triggered workflow, so the main `.github/workflows/android-a1-owner-floki-spool.yml` now also supports `workflow_dispatch`. Manual dispatch reads the same trusted request JSON and performs the same independent root-owned receipt, HTTPS, size/hash and unpublished-draft readback checks. It does not publish the release or bypass any verification.
-
-To continue, open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml), choose `main`, and click **Run workflow** with no inputs. Do not provide a GitHub APK URL to the owner; only the final verified `A1_OWNER_DOWNLOAD_URL` on `celikom.com` is acceptable.
+A manual `workflow_dispatch` fallback was added because the request-file commit made through the GitHub connection did not start Actions automatically. The owner then launched the existing workflow manually. Successful run `46064236455` completed the same root-owned receipt, live HTTPS and unpublished-draft checks. No further manual run is needed for BETA29; see the latest checkpoint at the top of this document.
 
 ## 2026-11-27 — BETA29 delivered to owner
 
