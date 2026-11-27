@@ -83,31 +83,29 @@ Interpretation:
 - Different DataSource: likely prefetch/stale generation or wrong source binding; fix selection binding only.
 - Unresolved/no route: repair the identity link, not codecs or assets.
 
-## CI checkpoint — finish these existing runs
+## CI checkpoint — BETA29 export run is active
 
-- Renderer observer JVM run `46060063393`, run number 256 — SUCCESS. It compiled and ran `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest`; NAV50 same-source/current-period and mismatch assertions passed.
-- Owner workflow `46060063423`:
+- Renderer observer JVM run `46060063393`, run number 256 — SUCCESS. `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest` passed, including NAV50 same-source/current-period and mismatch assertions.
+- Owner preflight run `46060063423` — SUCCESS:
   - `jvm-issuer-proxy-contract` job `140711877640` — SUCCESS.
-  - Private Android 13 ARM13 owner build/native test was still in progress at the last checkpoint.
-- Clone-alone workflow `46060063402` — SUCCESS, but verdict is `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only, not audio/product proof.
+  - ARM13 native main 75s gate — SUCCESS, verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+  - Persistent owner signer verified; install mode is update-existing.
+  - `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`. This is a native stability/signing gate, not audio/product proof.
+- Clone-alone run `46060063402` — SUCCESS, verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only.
+- BETA29 diagnostic export run `46061697450`, run number 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — IN_PROGRESS at last checkpoint. It is the only intended BETA29 export candidate: marker, README, artifact name and workflow expectations all say BETA29.
 
-Before exporting BETA29, recheck both run conclusions and all jobs. Do not assume the owner ARM13 native gate passed just because the JVM job passed.
+Several intermediate export-trigger commits were made while changing the artifact name. They may create older-name private drafts. Do not deliver or reference any draft from those intermediate runs. Only use run `46061697450` if it completes SUCCESS and its draft contains exactly `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`.
 
-## Next action after CI
+Do not create any more `[export-beta-audio]` commits; run 500 is already active.
 
-If owner ARM13 and clone-alone both finish SUCCESS:
+## Next action after run 500
 
-1. After both current CI runs finish successfully, create a comment-only change in an already included source path (for example `NativeRendererStreamEvidence.java`) with `[export-beta-audio]` in the commit message. The owner workflow's push trigger explicitly uses that marker to export BETA29 as a private diagnostic APK; a docs-only commit does not match its path filter. Do not authorize fresh clone installation or change audio behavior.
-2. Keep the owner draft unpublished.
-3. Follow the existing trusted Floki/root delivery process:
-   - owner signer/provenance checks;
-   - immutable spool;
-   - independent root-owned receipt;
-   - live `celikom.com` HTTPS verification;
-   - exact size/hash readback;
-   - read the real `A1_OWNER_DOWNLOAD_URL` from the unpublished draft.
-4. Send only the verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
-5. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
+1. Wait for run `46061697450` and all its jobs to complete. Confirm the ARM13 75s gate, persistent owner signer, update-existing mode, and BETA29 artifact checks.
+2. Read the actual unpublished draft release ID from the completed run/logs or the exact tag created by that run. Verify the release contains the BETA29 APK, `BUILD-PROVENANCE.json`, `SHA256SUMS.txt`, and BETA29 `README-RU.txt`.
+3. Update the trusted-main request `.github/deploy/a1-owner-download-request.json` with `run_id=46061697450`, `attempt=1`, and that exact draft `release_id`. This push triggers `.github/workflows/android-a1-owner-floki-spool.yml`.
+4. Wait for independent root receipt and live `celikom.com` HTTPS verification. Confirm HTTP 200, APK content type, exact size and SHA-256, and unpublished draft readback.
+5. Read the actual `A1_OWNER_DOWNLOAD_URL` from the draft. Send only that verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
+6. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
 
 The BETA29 phone test remains narrow:
 - Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
