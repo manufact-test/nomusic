@@ -1,78 +1,22 @@
 #!/bin/bash
 set -Eeuo pipefail
-# Isolated, unprivileged build of exact extension source; existing container/config untouched.
+# Existing private spool producer, using the ACTUAL successful isolated build run.
 python3 <<'PY'
-import subprocess,json,posixpath,urllib.request,hashlib,lzma,shutil
 from pathlib import Path
-source="0e28cba5221c0f345bb1e3502d186016a614f54b"
-git=["git","-c","safe.directory=/home/celikom-mirror/github-mirror.git","--git-dir=/home/celikom-mirror/github-mirror.git"]
-subprocess.run(git+["merge-base","--is-ancestor",source,"refs/heads/main"],check=True,capture_output=True,timeout=15)
-runner_uid=str(Path("/srv/celikom/ci-runner/runner/celikom-build-spool").stat().st_uid)
-assert runner_uid!="0"
-print("EXTENSION_096_ACTUAL_SPOOL_OWNER_UID",runner_uid)
-base=["docker","exec","--user",runner_uid,"celikom-floki-ci01"]
-r=subprocess.run(base+["bash","-c","find /home/runner /opt /actions-runner /runner -maxdepth 10 -type f -name node 2>/dev/null | head -30"],capture_output=True,text=True,timeout=30)
-cleanup=subprocess.run(base+["bash","-c",'for p in /tmp/celikom-extension96-node.*; do if [ -d "$p" ] && [ ! -L "$p" ]; then chmod -R u+rwX -- "$p"; rm -rf -- "$p"; fi; done'],capture_output=True,text=True,timeout=30)
-print("EXTENSION_096_OWN_TEMP_CLEANUP",cleanup.returncode,cleanup.stderr[:500])
-assert shutil.disk_usage("/srv/celikom/ci-runner/runner/celikom-build-spool").free>512*1024*1024,"PRIVATE_BUILD_FREE_SPACE"
-node=None
-for path in r.stdout.splitlines():
- if not path.startswith("/"):continue
- v=subprocess.run(base+[path,"--version"],capture_output=True,text=True,timeout=10)
- if v.returncode==0 and v.stdout.startswith("v24."):node=path;break
-if node is None:
- r=subprocess.run(base+["mktemp","-d","/home/runner/celikom-build-spool/.work-extension96-node.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
- runtime=r.stdout.strip()
- assert runtime.startswith("/home/runner/celikom-build-spool/.work-extension96-node.") and runtime.count("/")==4
- name="node-v24.22.3-linux-x64.tar.xz"
- origin="https://nodejs.org/dist/v24.22.3/"
- with urllib.request.urlopen(origin+"SHASUMS256.txt",timeout=45) as response:checks=response.read(65536).decode()
- expected=next(line.split()[0] for line in checks.splitlines() if line.split()[-1]==name)
- with urllib.request.urlopen(origin+name,timeout=60) as response:binary=response.read(80*1024*1024+1)
- assert len(binary)<=80*1024*1024 and hashlib.sha256(binary).hexdigest()==expected
- plain=lzma.decompress(binary)
- assert len(plain)<256*1024*1024
- extraction=subprocess.run(["docker","exec","-i","--user",runner_uid,"celikom-floki-ci01","tar","-xf","-","-C",runtime,"--strip-components=1","node-v24.22.3-linux-x64/bin/node"],input=plain,capture_output=True,timeout=45)
- if extraction.returncode:print("EXTENSION_096_RUNTIME_EXTRACTION_ERROR",extraction.stderr.decode("utf-8","replace")[:1000])
- assert extraction.returncode==0
- del binary,plain
- node=runtime+"/bin/node"
- print("EXTENSION_096_TEMPORARY_PINNED_NODE_VERIFIED",expected)
-
-r=subprocess.run(base+["mktemp","-d","/home/runner/celikom-build-spool/.work-extension96-owner.XXXXXXXX"],capture_output=True,text=True,check=True,timeout=15)
-directory=r.stdout.strip()
-assert directory.startswith("/home/runner/celikom-build-spool/.work-extension96-owner.") and directory.count("/")==4
-archive=subprocess.run(git+["archive",source,"extension","scripts","package.json","package-lock.json","server/composer.json",".github/scripts/floki-private-build-spool.mjs"],capture_output=True,check=True,timeout=60).stdout
-assert len(archive)<64*1024*1024
-subprocess.run(["docker","exec","-i","--user",runner_uid,"celikom-floki-ci01","tar","-xf","-","-C",directory],input=archive,check=True,capture_output=True,timeout=30)
-js=r"""
-import {spawnSync} from 'node:child_process';
-import {readdirSync,readFileSync,writeFileSync,mkdirSync} from 'node:fs';
-import {createHash} from 'node:crypto';
-import path from 'node:path';
-mkdirSync('.temporary',{recursive:true});
-const env={...process.env,TMPDIR:path.resolve('.temporary'),CELIKOM_API_BASE_URL:'https://api.celikom.com',PATH:path.dirname(process.execPath)+':'+process.env.PATH};
-function run(args){
- const r=spawnSync(process.execPath,args,{env,encoding:'utf8',timeout:240000,maxBuffer:8*1024*1024});
- if(r.status!==0){console.log((r.stdout||'').slice(-3500),(r.stderr||'').slice(-2000));throw Error('ISOLATED_BUILD_CHECK_FAILED');}
- console.log((r.stdout||'').slice(-1200));
- return r.stdout||'';
-}
-run(['--disable-warning=ExperimentalWarning','extension/scripts/build.mjs','--unpacked-only']);
-const tests=readdirSync('extension/tests').filter(x=>x.endsWith('.test.mjs')).map(x=>'extension/tests/'+x);
-const report=run(['--test','--test-concurrency=2',...tests]);
-if(!/pass 471/.test(report))throw Error('EXPECTED_471_TESTS');
-run(['--disable-warning=ExperimentalWarning','extension/scripts/build.mjs']);
-run(['extension/scripts/validate-manifest.mjs']);
-run(['scripts/security-audit.mjs']);
-const zip=readFileSync('extension/dist/celikom-extension-0.4.96.zip');
-const sha=createHash('sha256').update(zip).digest('hex');
-if(zip.length!==2506160||sha!=='2503ea6f3a2326394dbd3e67859064a051db30125a035f44cff22c35aefc1379')throw Error('PACKAGE_MISMATCH');
-writeFileSync('private-owner-build-verified.json',JSON.stringify({source:'0e28cba5221c0f345bb1e3502d186016a614f54b',tests:471,size:zip.length,sha256:sha}));
-console.log('EXTENSION_096_ISOLATED_BUILD_CHECKS_PASS',sha,zip.length);
-"""
-r=subprocess.run(["docker","exec","-i","--user",runner_uid,"--workdir",directory,"celikom-floki-ci01",node,"--input-type=module","-"],input=js,capture_output=True,text=True,timeout=600)
-print(r.stdout[-12000:],end="")
-assert r.returncode==0,"UNPRIVILEGED_EXTENSION_BUILD_FAILED"
-print("EXTENSION_096_ISOLATED_BUILD_LOCATION",json.dumps({"directory":directory,"node":node,"source":source}))
+import subprocess,json,runpy,stat
+a=json.loads("{\"version\":\"0.4.96\",\"source_commit\":\"0e28cba5221c0f345bb1e3502d186016a614f54b\",\"run_id\":\"46070419007\",\"attempt\":\"1\",\"name\":\"celikom-extension-0.4.96.zip\",\"size\":2506160,\"sha256\":\"2503ea6f3a2326394dbd3e67859064a051db30125a035f44cff22c35aefc1379\"}")
+location=json.loads("{\"directory\":\"/home/runner/celikom-build-spool/.work-extension96-owner.N2PzTsPO\",\"node\":\"/home/runner/_work/_tool/node/24.22.3/x64/bin/node\",\"source\":\"0e28cba5221c0f345bb1e3502d186016a614f54b\"}")
+assert location["directory"].startswith("/home/runner/celikom-build-spool/.work-extension96-owner.")
+assert location["source"]==a["source_commit"]
+uid=str(Path("/srv/celikom/ci-runner/runner/celikom-build-spool").stat().st_uid)
+assert uid!="0"
+args=["docker","exec","--user",uid,"--workdir",location["directory"],"celikom-floki-ci01",location["node"],".github/scripts/floki-private-build-spool.mjs",location["directory"],"/home/runner/celikom-build-spool",a["source_commit"],a["run_id"],a["attempt"],"--extension-only"]
+r=subprocess.run(args,capture_output=True,text=True,timeout=60)
+print(r.stdout[-2000:],end="")
+assert r.returncode==0,"EXISTING_PRIVATE_PRODUCER_FAILED"
+p=Path("/usr/local/lib/celikom-extension-release/consumer.py")
+st=p.lstat();assert stat.S_ISREG(st.st_mode) and st.st_uid==0 and not st.st_mode & 0o022
+trusted=runpy.run_path(str(p));data=trusted["verify_spool"](a)
+assert len(data)==a["size"]
+print("EXTENSION_096_INDEPENDENT_PRIVATE_SPOOL_VERIFIED",json.dumps(a,sort_keys=True))
 PY
