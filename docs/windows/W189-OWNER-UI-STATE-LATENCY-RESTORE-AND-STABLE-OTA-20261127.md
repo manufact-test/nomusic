@@ -198,7 +198,7 @@ Important distinction:
 
 ## W189 implementation status — 27 November 2026
 
-Implementation is on PR [#73](https://github.com/manufact-test/nomusic/pull/73), now reconciled onto main `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`. The current repair branch HEAD is `d9473fc220594ccacd2c855b952287c2da31c538`.
+Implementation is on PR [#73](https://github.com/manufact-test/nomusic/pull/73), reconciled onto main at `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`. Main has since advanced to `ec68241b3c58d87770267f0d2cde844146086de8` with two extension-only commits and no overlapping paths. Current PR HEAD is `cdda5230e6386c3ffaa4ace239310117d0b62e38`.
 
 - W169 Electron main-process error protection restored; native module marker is 0.24.32 for this repair candidate.
 - W175 initial already-playing-song revalidation and W178 new-current-song catch-up restored over the W188 Yandex 5.129 provider bridge.
@@ -206,7 +206,7 @@ Implementation is on PR [#73](https://github.com/manufact-test/nomusic/pull/73),
 - W178 resolve diagnostics distinguish local session/origin failure, refresh failure, session replacement and rejected grants without recording tokens, URLs or grant contents.
 - UI state fixes include one bounded metadata lease, cached/shared presence reads, epoch-based stale-response rejection, immediate local pending status, and a current-track guard before painting async results.
 - The working admin upload and proposal contracts are unchanged.
-- The latest complete pre-rebase checks passed: Windows integration [46070031881](https://github.com/manufact-test/nomusic/actions/runs/46070031881), generic CI [46070031935](https://github.com/manufact-test/nomusic/actions/runs/46070031935). Re-run exact-head CI on the current branch before merge.
+- Exact-head CI on current PR HEAD `cdda5230e6386c3ffaa4ace239310117d0b62e38` passed: Windows integration [46071049097](https://github.com/manufact-test/nomusic/actions/runs/46071049097) and generic CI [46071049046](https://github.com/manufact-test/nomusic/actions/runs/46071049046).
 - W174 baseline source files remain unchanged; W188 provider bridge remains the build base. No W182/W183/W185 experiments were imported.
 
 ### Production workflow correction

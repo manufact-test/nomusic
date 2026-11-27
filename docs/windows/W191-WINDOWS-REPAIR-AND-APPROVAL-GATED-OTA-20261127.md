@@ -5,11 +5,12 @@ Date: 27 November 2026
 ## Repository and branch
 
 - Repository: `manufact-test/nomusic`.
-- Current main: `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`.
+- Main reconciliation base: `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`.
+- Main at latest check: `ec68241b3c58d87770267f0d2cde844146086de8` (two later extension-only commits, no W189 path overlap).
 - Repair PR: [#73](https://github.com/manufact-test/nomusic/pull/73).
 - Repair branch: `work/windows-w189-repairs-from-main-20261127`.
-- Exact branch HEAD after main reconciliation: `d9473fc220594ccacd2c855b952287c2da31c538`.
-- PR diff: 24 files, all W189 Windows runtime/tests/release workflows/docs. No Android, extension runtime or server/admin backend source is included.
+- Current PR HEAD: `cdda5230e6386c3ffaa4ace239310117d0b62e38` (documentation-only handoff update after the code rebase).
+- PR diff: 25 files, all W189 Windows runtime/tests/release workflows/docs. No Android, extension runtime or server/admin backend source is included.
 - Main's later extension 0.4.96 commits are preserved as base history; the W189 PR does not replace them.
 
 ## Implemented repairs
@@ -34,9 +35,9 @@ Date: 27 November 2026
 
 ### Preserved audio baseline
 - W174 source files remain byte-identical:
-  - `windows-companion/w23/renderer-entry.mjs`: `203b098914d549bc8d21b682b62df6486025cefa`
-  - `windows-companion/w22/native-resource-adapter.mjs`: `e3bfdc3ed579709c342c3ae87e2e83510e35826e`
-  - `windows-companion/w60/current-source-refresh.mjs`: `a5814bee52a8698ab79f9f4861f1b1451d85ee09`
+  - `windows-companion/w23/renderer-entry.mjs` Git blob ID: `203b098914d549bc8d21b682b62df6486025cefa`
+  - `windows-companion/w22/native-resource-adapter.mjs` Git blob ID: `e3bfdc3ed579709c342c3ae87e2e83510e35826e`
+  - `windows-companion/w60/current-source-refresh.mjs` Git blob ID: `a5814bee52a8698ab79f9f4861f1b1451d85ee09`
 - W188 `renderer-entry-w188.mjs` / `live-media-provider-hook.mjs` remains the active 5.129 provider bridge.
 - No W182/W183/W185 runtime experiments were transplanted.
 
@@ -46,9 +47,9 @@ Latest completed full checks before the branch was reconciled onto the two newes
 - [Windows integration CI 46070031881](https://github.com/manufact-test/nomusic/actions/runs/46070031881) — SUCCESS. All 22 substantive steps passed, including W174/W175/W178/W188, W21, W24, W15, GUI warnings-as-errors, supervisor, installer and updater safety.
 - [Generic CI 46070031935](https://github.com/manufact-test/nomusic/actions/runs/46070031935) — SUCCESS.
 
-The branch was then reconciled onto current main. Fresh exact-head checks for `d9473fc220594ccacd2c855b952287c2da31c538` must pass before PR merge:
-- [Windows integration CI 46070795201](https://github.com/manufact-test/nomusic/actions/runs/46070795201)
-- [Generic CI 46070795204](https://github.com/manufact-test/nomusic/actions/runs/46070795204)
+The branch was reconciled onto current main; exact-head checks on `cdda5230e6386c3ffaa4ace239310117d0b62e38` passed:
+- [Windows integration CI 46071049097](https://github.com/manufact-test/nomusic/actions/runs/46071049097) — SUCCESS.
+- [Generic CI 46071049046](https://github.com/manufact-test/nomusic/actions/runs/46071049046) — SUCCESS.
 
 Green CI confirms code/test contracts only. Actual audible replacement on the owner's Windows installation is not yet verified.
 
@@ -94,7 +95,7 @@ This audit is read-only and runs through the existing `floki-deploy` environment
 
 ## Next actions
 
-1. Wait for both exact-head checks on `d9473fc...` to pass.
+1. Mark PR #73 ready and merge it to current main. Do not force-push or reset main.
 2. Mark PR #73 ready and merge it to current main. Do not force-push or reset main.
 3. Approve/run the read-only Floki route audit and inspect its output. If the spool is non-empty or the timer is active with an unexpected candidate, stop and resolve before any new release.
 4. Verify `windows-stable-production` has required reviewers.

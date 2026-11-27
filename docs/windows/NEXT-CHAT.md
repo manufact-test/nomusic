@@ -1,10 +1,10 @@
 # ACTIVE CELIKOM WINDOWS — W189 repairs from the latest mainline (27 November 2026)
 
-**Current canonical main:** `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`. It includes the later extension 0.4.96 delivery work; W189 is layered on top without replacing or editing that work.
+**Current canonical main at latest check:** `ec68241b3c58d87770267f0d2cde844146086de8`. The W189 branch was reconciled at `117e0772fbecf0bb902127f0a4a5ce704d44d8ec`; two later extension-only commits are now on main, with no overlapping W189 paths. They are preserved by the PR merge.
 
 **Repair branch:** `work/windows-w189-repairs-from-main-20261127`  
-**Current branch HEAD:** `d9473fc220594ccacd2c855b952287c2da31c538`  
-**PR:** [#73 — W189 Windows repairs](https://github.com/manufact-test/nomusic/pull/73), 24 changed files, mergeable, still draft.
+**Current PR HEAD:** `cdda5230e6386c3ffaa4ace239310117d0b62e38` (documentation-only handoff update after the code rebase).  
+**PR:** [#73 — W189 Windows repairs](https://github.com/manufact-test/nomusic/pull/73), 25 changed files, mergeable, still draft.
 
 **Windows baseline:** CELIKOM 0.24.62.0 / Update Supervisor 0.24.62.0 / Yandex Music 5.129.0. W169 adds native-host protection and advances the native module marker from 0.24.31 to 0.24.32 for this repair candidate. Do not bump the app/supervisor release version until the production stable floor and sequence are audited.
 
@@ -32,11 +32,11 @@ Latest full CI on pre-rebase source `f8f6d9b7575fe7e9cd9d72af5c460b809ac87a36`:
 - [Windows integration CI](https://github.com/manufact-test/nomusic/actions/runs/46070031881) — SUCCESS, all steps including W174/W175/W178/W188, W15, GUI warnings-as-errors, supervisor, installer and updater-safety checks.
 - [Generic CI](https://github.com/manufact-test/nomusic/actions/runs/46070031935) — SUCCESS.
 
-The current branch was then reconciled with main's two later extension-only commits. Fresh checks for the exact merged branch HEAD `d9473fc220594ccacd2c855b952287c2da31c538` are running:
-- [Windows integration CI](https://github.com/manufact-test/nomusic/actions/runs/46070795201)
-- [Generic CI](https://github.com/manufact-test/nomusic/actions/runs/46070795204)
+The current branch was reconciled with main, then received documentation-only handoff updates. Exact-head checks on `cdda5230e6386c3ffaa4ace239310117d0b62e38` both passed:
+- [Windows integration CI](https://github.com/manufact-test/nomusic/actions/runs/46071049097) — SUCCESS.
+- [Generic CI](https://github.com/manufact-test/nomusic/actions/runs/46071049046) — SUCCESS.
 
-Do not merge until these exact-head checks pass. Green CI is not proof of audible replacement; owner runtime playback remains unconfirmed.
+Exact-head CI is green. PR #73 can be marked ready and merged. Green CI is not proof of audible replacement; owner runtime playback remains unconfirmed.
 
 ## Release safety
 
@@ -44,7 +44,7 @@ The Floki root-consumer spool is not a private test area: its systemd timer cons
 
 A read-only Floki route audit is queued by `.github/deploy/windows-owner-audit-trigger.txt`. It checks timer/service state, pending spool files, local stable pointer/manifest, owner receipt, public DNS/HTTP routes and Nginx mapping. It runs only after merge and does not change the server. Use its result to decide whether Hostinger and Floki are complementary targets.
 
-**No package version bump, stable publication, global rollout or owner auto-update test has occurred.** After the exact-head CI passes: merge PR #73, approve/run the read-only Floki audit, confirm the required reviewers on `windows-stable-production`, determine the correct publisher target(s) and sequence, then prepare the next signed stable release. Do not assume the next sequence; read the live stable floor first.
+**No package version bump, stable publication, global rollout or owner auto-update test has occurred.** Next: merge PR #73, approve/run the read-only Floki audit, confirm the required reviewers on `windows-stable-production`, determine the correct publisher target(s) and sequence, then prepare the next signed stable release. Do not assume the next sequence; read the live stable floor first.
 
 No Android, browser-extension runtime or server/admin backend changes.
 
