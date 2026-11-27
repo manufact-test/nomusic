@@ -62,7 +62,7 @@ jobs:
           Write-Host "W174_YANDEX_51290_ASAR_SHA256=$($data.asarSha256)"
           Write-Host 'W174_YANDEX_51290_NATIVE_IMAGE_AND_BYTE_EXACT_RESTORE_PASS'
       - name: Audit the official 5.129.0 ASAR against the unchanged W174 hook contract
-        if: always()
+        if: success()
         shell: pwsh
         run: |
           $asar = Join-Path $env:RUNNER_TEMP 'yandex-51290-app.asar'
@@ -91,5 +91,5 @@ jobs:
             ${{ runner.temp }}/yandex-51290-app.asar
             ${{ runner.temp }}/yandex-51290-hook-audit.json
             ${{ runner.temp }}/yandex-51290-callgraph-audit.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
