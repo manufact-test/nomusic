@@ -78,6 +78,7 @@ jobs:
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-stable-signed-release.yml"); puts "W155_RELEASE_WORKFLOW_YAML_PASS"'
           node --test .github/scripts/tests/windows-stable-manifest.test.mjs .github/scripts/tests/windows-stable-trust-embed.test.mjs .github/scripts/tests/windows-stable-release-verify.test.mjs .github/scripts/tests/windows-stable-keygen.test.mjs .github/scripts/tests/windows-stable-provision-key.test.mjs .github/scripts/tests/windows-stable-key-public.test.mjs .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
           bash -n .github/scripts/windows-stable-publish-hostinger.sh
+          bash -n .github/scripts/floki-windows-owner-readonly-inventory.sh
       - name: Validate Hostinger workflow YAML and owner-scoped private gain staging scripts
         run: |
           ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hostinger-deploy.yml"); puts "W98_HOSTINGER_WORKFLOW_YAML_PASS"'
