@@ -679,3 +679,17 @@ test('saved upload error survives reopening, stays closed on polling and does no
  assert.equal(find('[data-upload-status]').hidden,true,'server pending wins over historical transport failure');
  delete localValues[key];
 });
+
+test('XMP trailer cleanup reaches actual multipart bytes while the selected source remains unchanged',async()=>{
+ const id='944530631';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const tail=new TextEncoder().encode('ABCDEF0123456"\n stRef:documentID="xmp.did:0123456789ABCDEF0123456789ABCDEF01"/>\n</rdf:Description>\n</rdf:RDF>\n</x:xmpmeta>\n');
+ const file=new Blob([fixtureAudio,new Uint8Array(64),tail],{type:'audio/mpeg'});
+ Object.defineProperty(file,'name',{value:'metadata-tail.mp3'});
+ find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
+ FakeXHR.hold=false;FakeXHR.throwOnSend=false;
+ const before=requests.length;await form().fire('submit');assert.equal(requests.length,before+1);
+ const sent=requests.at(-1).body.get('file');assert.equal(sent.name,file.name);assert.equal(sent.size,fixtureAudio.length);
+ assert.deepEqual(new Uint8Array(await sent.arrayBuffer()),fixtureAudio);
+ assert.equal(file.size,fixtureAudio.length+64+tail.length);
+});

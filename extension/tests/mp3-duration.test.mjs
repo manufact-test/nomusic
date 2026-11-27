@@ -152,3 +152,21 @@ test('ancillary repair cannot skip internal damage or change MPEG format',()=>{
  last[2]|=4;
  assert.equal(inspectMp3(concatenate(audio,last.subarray(0,-1))),null);
 });
+
+const xmpOrphan='ABCDEF0123456"\n stRef:documentID="xmp.did:0123456789ABCDEF0123456789ABCDEF01"\n stRef:originalDocumentID="xmp.did:0123456789ABCDEF0123456789ABCDEF01"/>\n </rdf:Description>\n </rdf:RDF>\n</x:xmpmeta>\n';
+test('orphaned XMP property tail after zero padding is removed without changing any MPEG frame',()=>{
+ const audio=mp3(),tag=id3v24(new Uint8Array(300)),id3v1=concatenate(new TextEncoder().encode('TAG'),new Uint8Array(125));
+ const source=concatenate(tag,audio,new Uint8Array(1804),new TextEncoder().encode(xmpOrphan+' '.repeat(1100)),id3v1);
+ const clean=inspectMp3(source);assert.equal(clean.removedXmpTail,true);assert.deepEqual(clean.bytes,audio);
+ assert.equal(clean.durationMs,mp3DurationMs(audio));assert.equal(inspectMp3(clean.bytes).changed,false);
+});
+test('XMP cleanup rejects arbitrary trailers, broken frame headers, binary/control data and over-limit tails',()=>{
+ const audio=mp3(),encode=s=>new TextEncoder().encode(s),padding=new Uint8Array(64);
+ for(const bad of [xmpOrphan+'garbage',xmpOrphan+'\0',xmpOrphan+'\x01','random '+xmpOrphan,xmpOrphan.replace('</rdf:RDF>',''),xmpOrphan.replace('xmp.did:','file:///secret'),xmpOrphan+'<script/>']){
+  assert.equal(inspectMp3(concatenate(audio,padding,encode(bad))),null);
+ }
+ assert.equal(inspectMp3(concatenate(audio,encode(xmpOrphan))),null,'no cleanup without the explicit zero-padding boundary');
+ assert.equal(inspectMp3(concatenate(audio,new Uint8Array(4096),encode(xmpOrphan))),null);
+ const broken=audio.slice();broken[417]=0;
+ assert.equal(inspectMp3(concatenate(broken,padding,encode(xmpOrphan))),null,'cannot search past a broken frame');
+});

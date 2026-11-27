@@ -68,3 +68,7 @@ The supplied baby-melo-orvi MP3 exposed a one-byte-short final ancillary slot re
 ## Current continuation — 0.4.95 upload cancellation/stall handling
 
 Owner authorized correcting the previously investigated rare stalled uploads. 0.4.95 fixes pending-preparation cancellation, serializes immediate retry after cleanup, monitors byte-progress idle after initial transfer, preserves accurate terminal bytes/percent and restores last failed/cancelled status on explicit form opening while current server status remains authoritative. 468 tests pass. See `CELIKOM-EXTENSION-095-UPLOAD-CANCEL-STALL-20261127.md` for exact scope and verified owner delivery. Underlying intermittent network cause remains unproven; playback, backend auth, Android and Windows unchanged. No customer release.
+
+## Latest continuation — 0.4.96 XMP upload cleanup, 28 November 2026
+
+New owner MP3 Trapflow exposed an orphaned XMP text tail after 4,569 complete MPEG frames and zero padding, distinct from 0.4.94's one-byte ancillary repair. 0.4.96 recognizes only this bounded full metadata-tail grammar, preserves all actual MPEG frames byte-for-byte and sends the prepared Blob through the existing upload flow. Both supplied real MP3s pass preparation; cleaned Trapflow passes strict FFmpeg and its decoded PCM matches all original decodable audio. 471 tests, build, manifest/security pass. See `CELIKOM-EXTENSION-096-XMP-UPLOAD-20261128.md` for exact evidence and eventual private delivery receipt. Existing 0.4.95 fixes retained; no customer publication or backend/Android/Windows/auth changes.
