@@ -16,3 +16,21 @@ Owner explicitly authorized fixing findings from `Вставленный тек�
 Scope: extension upload worker, popup, tests, version and documentation. Playback engine behavior, MP3 normalization/decoder, backend authentication, Android and Windows are unchanged. No customer publication. Do not present the unknown underlying network condition as fixed; the reproduced extension failures and their handling are corrected.
 
 Exact private spool and HTTPS delivery evidence will be appended after independent verification through the existing owner channel. Native browser/listening gate is separate and must not be claimed passed if unavailable or failed.
+
+## Verified private owner delivery
+
+- Upload correction source: `01401c064554904e5c676231655e1ef667a29d8d`. Exact build source `6684c937e56b6a8dc6fb8dffcddab99f19c88a9a`; Floki extension run `46066362165`, attempt 1.
+- Initial extension run 46066259828 was assigned to ci02 without any started steps. Existing trigger file requested the next available runner once; ci01 ran the exact build. No runner or Chrome infrastructure repair.
+- Server tests: 468 passed. ZIP build, manifest, security, checksum and private staging passed. All 11 changed source/document blobs were independently matched to the locally tested git hash-object before main was advanced.
+- Independent root-owned consumer spool/ZIP validation: administrative run `46066449872`, job `140732804128`, SUCCESS.
+- Filename `celikom-extension-0.4.95.zip`, **2,505,631 bytes**.
+- SHA256 `ef0ddd9f1e0cfc5e2649ad360c2ae82b8ec8af815249e28150e68f412be05a40`.
+- Approved exact metadata in existing owner-only manifest; public_stable remains null.
+- Final trusted receipt, publication and versioned/latest complete HTTPS download verification: administrative run `46066560798`, job `140733173799`, SUCCESS. Anonymous 401 / authorized 200; full size/digest and exact version/source/run/attempt receipt matched.
+- Mirror service invocation returned 1 again; exact trusted approval was independently matched and existing consumer publication/HTTPS verification succeeded. No unrelated branch/mirror changes.
+- Verified private download: https://celikom.com/downloads/extension/celikom-extension-0.4.95.zip
+- Maintenance request reset to harmless no-op in `e2f8d81b64455478fbb2ad195f3b47322974c69d`.
+
+At final owner-download verification, the separate native Chromium media gate was still `in_progress`; it is not counted as passed or real owner listening acceptance. Private delivery follows the owner's previously authorized separation from prolonged headless work. The current task changes upload handling only; native/playback engines were not changed.
+
+Owner should update the existing unpacked extension, then try normal upload, Cancel followed by retry, and closing/reopening the popup after a failed attempt. Save diagnostics if slow transmission recurs. A genuinely interrupted connection can still produce a visible failed upload; no unsupported claim is made that the underlying network condition has disappeared. Existing 0.4.94 prepared MP3 behavior remains covered.
