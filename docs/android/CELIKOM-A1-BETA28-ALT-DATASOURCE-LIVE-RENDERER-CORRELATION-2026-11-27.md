@@ -109,7 +109,7 @@ Interpretation:
 - Owner workflow `46060063423`:
   - `jvm-issuer-proxy-contract` job `140711877640` — SUCCESS.
   - Private Android 13 ARM13 owner build/native test was still running at the last checkpoint.
-- Clone-alone workflow `46060063402` was still running at the last checkpoint.
+- Clone-alone workflow `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. This is a stability gate only, not product/audio proof.
 
 Wait for the owner ARM13 and clone-alone workflows to finish before exporting a new owner APK.
 
