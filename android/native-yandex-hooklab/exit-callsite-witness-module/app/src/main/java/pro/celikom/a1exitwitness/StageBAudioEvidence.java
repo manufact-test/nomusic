@@ -609,6 +609,7 @@ final class StageBAudioEvidence {
     private final AtomicLong nativeTrackSourceRequests = new AtomicLong();
     private final AtomicLong flowTrackSourceSameObject = new AtomicLong();
     private final AtomicLong nativeTrackWrapperLinks = new AtomicLong();
+    private final AtomicLong nativeTrackWrapperLinksRestored = new AtomicLong();
     private final AtomicLong nativeTrackWrapperConstructed = new AtomicLong();
     private final AtomicLong tcaCreatorOwnerEnter = new AtomicLong();
     private final AtomicLong tcaCreatorOwnerNull = new AtomicLong();
@@ -817,7 +818,7 @@ final class StageBAudioEvidence {
      */
     synchronized Object[] exactOriginalTrackAlbumForWrapper(Object wrapper) {
         int status=classifyNativeTrackAlbumForWrapper(wrapper);
-        if(status!=1 && status!=16)return null;
+        if(status!=1 && status!=16 && status!=20)return null;
         Object track=null,album=null;
         if(status==1) {
             NativeTrackSourceLink matched=null;
@@ -837,10 +838,10 @@ final class StageBAudioEvidence {
                 if(matched!=null)return null;
                 matched=birth;
             }
-            if(matched==null || matched.scopeAtBirth!=12
-                    || !matched.laterFlowEmitted
-                    || matched.creatorTrack==null
-                    || matched.albumAtBirth==null)return null;
+            if(matched==null || matched.creatorTrack==null
+                    || matched.albumAtBirth==null
+                    || status==16 && (matched.scopeAtBirth!=12 || !matched.laterFlowEmitted)
+                    || status==20 && matched.scopeAtBirth!=14)return null;
             track=matched.creatorTrack.get();
             album=matched.albumAtBirth.get();
         }
@@ -869,22 +870,20 @@ final class StageBAudioEvidence {
         if(found==null || (found.scopeAtBirth!=12 && found.scopeAtBirth!=14))
             return null;
         Object track,album;
-        if(found.scopeAtBirth==12) {
-            // Signed original creator Track not in Flow at wrapper birth.
-            if(found.creatorTrack==null || found.albumAtBirth==null)return null;
+        if(found.creatorTrack!=null && found.albumAtBirth!=null) {
+            // Both creator paths retain their exact weak Track+Album birth
+            // references. Scope 12 later enters Flow; scope 14 was already
+            // in Flow at birth. Neither depends on the shorter 16-link ring.
             track=found.creatorTrack.get();
             album=found.albumAtBirth.get();
         } else {
-            // The same original creator Track had ALREADY entered the
-            // original Flow when the wrapper was constructed. Its exact
-            // Track+Album reference is in the unique at-birth wrapper link.
             NativeTrackSourceLink linked=findByWrapper(wrapper);
             if(linked==null || linked.track==null || linked.albumInstance==null)
                 return null;
             track=linked.track.get();
             album=linked.albumInstance.get();
-            if(!wasNativeTrackFlowItem(track))return null;
         }
+        if(found.scopeAtBirth==14 && !wasNativeTrackFlowItem(track))return null;
         if(track==null || album==null || findTrackAlbum(track)!=album)return null;
         // A rebinding or conflicting later Flow cannot recycle creator proof.
         for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
@@ -999,19 +998,38 @@ final class StageBAudioEvidence {
         popScope(activeTrackScopes);
     }
 
-    // NAV40: only SAME original creator Track seen in Flow AFTER THIS
-    // wrapper's birth. 16 same birth Album; 17 absent/conflicted Album;
-    // 18 different Album; 19 weak Track/Flow window lost. Historical ONLY.
+    // NAV40: 16 = same original creator Track/Album entered Flow AFTER birth;
+    // 20 = same exact Track/Album was already in Flow AT birth. Both remain
+    // historical structural identity only, never selected edition or PCM.
+    // 17 absent/conflicted Album; 18 different Album; 19 weak Track/Flow lost.
+    private WrapperBirth uniqueWrapperBirth(Object wrapper) {
+        if(wrapper==null)return null;
+        WrapperBirth found=null;
+        for(WrapperBirth birth:wrapperBirths) {
+            if(birth.wrapper.get()!=wrapper)continue;
+            if(found!=null)return null;
+            found=birth;
+        }
+        return found;
+    }
+
     private int classifyMissingWrapperBirth(Object wrapper) {
         if(wrapper==null)return 10;
         WrapperBirth found=null;
         for(WrapperBirth birth:wrapperBirths) {
-            if(birth.wrapper.get()==wrapper) {
-                if(found!=null)return 15;
-                found=birth;
-            }
+            if(birth.wrapper.get()!=wrapper)continue;
+            if(found!=null)return 15;
+            found=birth;
         }
         if(found==null)return 10;
+        if(found.scopeAtBirth==14) {
+            Object track=found.creatorTrack==null?null:found.creatorTrack.get();
+            if(track==null || !wasNativeTrackFlowItem(track))return 19;
+            Object album=found.albumAtBirth==null?null:found.albumAtBirth.get();
+            Object observed=findTrackAlbum(track);
+            if(album==null || observed==null)return 17;
+            return album==observed?20:18;
+        }
         if(found.scopeAtBirth!=12 || !found.laterFlowEmitted)
             return found.scopeAtBirth;
         Object track=found.creatorTrack==null?null:found.creatorTrack.get();
@@ -1020,6 +1038,44 @@ final class StageBAudioEvidence {
         Object observed=findTrackAlbum(track);
         if(album==null || observed==null)return 17;
         return album==observed?16:18;
+    }
+
+    /**
+     * Restore only a lost bounded Track->wrapper link from the unique signed
+     * tCa creator birth. The original Track+Album must still be the same live
+     * Flow objects. A different wrapper for the same Track, duplicate birth,
+     * changed Album or weak-lost reference is rejected.
+     */
+    private NativeTrackSourceLink restoreWrapperLinkFromCreatorBirth(Object wrapper) {
+        WrapperBirth birth=uniqueWrapperBirth(wrapper);
+        if(birth==null || (birth.scopeAtBirth!=12 && birth.scopeAtBirth!=14)
+                || birth.creatorTrack==null || birth.albumAtBirth==null)
+            return null;
+        if(birth.scopeAtBirth==12 && !birth.laterFlowEmitted)return null;
+        Object track=birth.creatorTrack.get(),album=birth.albumAtBirth.get();
+        if(track==null || album==null || !wasNativeTrackFlowItem(track)
+                || findTrackAlbum(track)!=album)return null;
+        for(int i=nativeTrackSourceLinks.size()-1;i>=0;i--) {
+            NativeTrackSourceLink existing=nativeTrackSourceLinks.get(i);
+            Object existingTrack=existing.track==null?null:existing.track.get();
+            if(existingTrack==null) {
+                nativeTrackSourceLinks.remove(i);
+                continue;
+            }
+            if(existingTrack==track) {
+                Object existingWrapper=existing.wrapper==null?null:existing.wrapper.get();
+                return existingWrapper==wrapper?existing:null;
+            }
+        }
+        if(nativeTrackSourceLinks.size()>=16)nativeTrackSourceLinks.remove(0);
+        NativeTrackSourceLink restored=new NativeTrackSourceLink();
+        restored.track=new WeakReference<>(track);
+        restored.wrapper=new WeakReference<>(wrapper);
+        restored.albumInstance=new WeakReference<>(album);
+        restored.creatorOnlyAtBirth=birth.scopeAtBirth==12;
+        nativeTrackSourceLinks.add(restored);
+        mark(nativeTrackWrapperLinksRestored);
+        return restored;
     }
 
     synchronized void onNativeTrackWrapperCreated(Object wrapper) {
@@ -1060,10 +1116,10 @@ final class StageBAudioEvidence {
             int atBirth=track==null?11:!wasNativeTrackFlowItem(track)?12:
                 findTrackAlbum(track)==null?13:14;
             if(wrapperBirths.size()>=64)wrapperBirths.remove(0);
-            Object birthAlbum=fromExactTcaCreator && atBirth==12
+            Object birthAlbum=fromExactTcaCreator && (atBirth==12 || atBirth==14)
                 ?findTrackAlbum(track):null;
             wrapperBirths.add(new WrapperBirth(wrapper,atBirth,
-                fromExactTcaCreator && (atBirth==12 || atBirth==13)?track:null,
+                fromExactTcaCreator && (atBirth==12 || atBirth==13 || atBirth==14)?track:null,
                 birthAlbum,
                 fromExactTcaCreator?numericOriginalId(originalConstructorArg):null,
                 issuerClock.getAsLong()));
@@ -1621,7 +1677,7 @@ final class StageBAudioEvidence {
                 match=link;
             }
         }
-        return match;
+        return match!=null?match:restoreWrapperLinkFromCreatorBirth(wrapper);
     }
 
     private NativeTrackSourceLink findByDescriptor(Object descriptor) {
@@ -2063,6 +2119,7 @@ final class StageBAudioEvidence {
             event("NATIVE_TRACK_SOURCE_REQUEST", nativeTrackSourceRequests),
             event("FLOW_TRACK_SAME_OBJECT", flowTrackSourceSameObject),
             event("TRACK_WRAPPER_LINK", nativeTrackWrapperLinks),
+            event("TRACK_WRAPPER_LINK_RESTORED", nativeTrackWrapperLinksRestored),
             event("WRAPPER_MAIN_SOURCE", wrapperMainSourceRequests),
             event("WRAPPER_DESCRIPTOR_LINK", wrapperDescriptorLinks),
             event("ORIGINAL_MEDIAITEM_SOURCE_ANCHOR", originalMediaItemAnchors),

@@ -1667,6 +1667,59 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(wrong.exportLines(),"origin=LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME;error=NONE"),"NAV40_WRONG_SOURCE_CANNOT_CLASSIFY");
     }
 
+
+    private static void testNav48TcaCreatorFlowBirthSurvivesWrapperLinkEvictionOnLivePeriod() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        e.setScopedAlbumEvidence(stage::classifyNativeTrackAlbumForWrapper);
+        e.setExactOriginalTrackAlbumEvidence(stage::exactOriginalTrackAlbumForWrapper);
+        setUpNav29(e);
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper,"144530503");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        for(int i=0;i<16;i++) {
+            Object otherTrack=new Object(),otherAlbum=new Object(),otherWrapper=new Object();
+            stage.onNativeTrackAlbumConstructed(otherTrack,otherAlbum);
+            stage.onNativeTrackFlowEmission(otherTrack);
+            stage.enterNativeTcaCreatorOwner(new Object());
+            try {
+                stage.enterNativeTcaCreatorTrackScope(otherTrack,1);
+                try {stage.onNativeTrackWrapperCreated(otherWrapper,"987654321");}
+                finally {stage.exitNativeTcaCreatorTrackScope();}
+            } finally {stage.exitNativeTcaCreatorOwner();}
+        }
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==20,
+            "NAV48_SAME_CREATOR_TRACK_ALBUM_AT_FLOW_BIRTH_SURVIVES_LINK_EVICTION");
+        Object[] pair=stage.exactOriginalTrackAlbumForWrapper(wrapper);
+        check(pair!=null && pair[0]==track && pair[1]==album,
+            "NAV48_EXACT_BIRTH_PAIR_REMAINS_RECOVERABLE");
+        FakeSource source=new FakeSource();
+        Object renderer=new Object(),stream=new Object();
+        FakeHolderSource holder=new FakeHolderSource(source,stream);
+        holder.nested=new FakePeriod(source);
+        FakeActiveEngine engine=new FakeActiveEngine(holder);
+        NativeRendererStreamEvidence.TrackPlayerScope selected=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(selected);}
+        nav29BindLive(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,2,-4);
+        String[] report=e.exportLines();
+        check(contains(report,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+            "NAV48_EXACT_LIVE_SOURCE_STILL_MATCHES");
+        check(contains(report,"origin=LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_SAME;error=ONE"),
+            "NAV48_CURRENT_DIRECT_PERIOD_RECOVERS_SAME_CREATOR_BIRTH");
+        check(contains(report,"origin=LIVE_PERIOD_SCOPED_WRAPPER_FLOW_ALBUM_MATCH;error=ONE"),
+            "NAV48_RECOVERED_CREATOR_BIRTH_IS_EXACT_TRACK_ALBUM");
+        check(contains(report,"origin=LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT;error=NONE"),
+            "NAV48_EVICTED_LINK_NO_LONGER_LOOKS_LIKE_DIFFERENT_WRAPPER");
+    }
+
     private static void testNav36ConstructorWitnessCannotCrossWrongSource() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         StageBAudioEvidence stage=new StageBAudioEvidence();
@@ -2904,6 +2957,51 @@ public final class NativeRendererStreamEvidenceTest {
             "NON_CREATOR_PRE_FLOW_CANNOT_LEARN_ORIGINAL_EXO");
     }
 
+
+    private static void testTcaCreatorFlowBirthRestoresEvictedWrapperLineage() {
+        StageBAudioEvidence stage=new StageBAudioEvidence();
+        Object track=new Object(),album=new Object(),wrapper=new Object();
+        stage.onNativeTrackAlbumConstructed(track,album);
+        stage.onNativeTrackFlowEmission(track);
+        stage.enterNativeTcaCreatorOwner(new Object());
+        try {
+            stage.enterNativeTcaCreatorTrackScope(track,1);
+            try {stage.onNativeTrackWrapperCreated(wrapper,"144530503");}
+            finally {stage.exitNativeTcaCreatorTrackScope();}
+        } finally {stage.exitNativeTcaCreatorOwner();}
+        for(int i=0;i<16;i++) {
+            Object otherTrack=new Object(),otherAlbum=new Object(),otherWrapper=new Object();
+            stage.onNativeTrackAlbumConstructed(otherTrack,otherAlbum);
+            stage.onNativeTrackFlowEmission(otherTrack);
+            stage.enterNativeTcaCreatorOwner(new Object());
+            try {
+                stage.enterNativeTcaCreatorTrackScope(otherTrack,1);
+                try {stage.onNativeTrackWrapperCreated(otherWrapper,"987654321");}
+                finally {stage.exitNativeTcaCreatorTrackScope();}
+            } finally {stage.exitNativeTcaCreatorOwner();}
+        }
+        check(stage.classifyNativeTrackAlbumForWrapper(wrapper)==20,
+            "NAV48_FLOW_AT_BIRTH_CLASSIFICATION_AFTER_RING_EVICTION");
+        Object[] original=stage.exactCreatorTrackAlbumBeforeSourceSet(wrapper);
+        check(original!=null && original[0]==track && original[1]==album,
+            "NAV48_CREATOR_BIRTH_TRACK_ALBUM_DOES_NOT_DEPEND_ON_RING");
+        Object descriptor=new Object(),factory=new Object(),source=new Object();
+        stage.enterNativeMainSourceRequest(wrapper,null);
+        try {stage.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);}
+        finally {stage.exitNativeMainSourceRequest();}
+        stage.onExoFactoryCreated(descriptor,factory);
+        stage.onExoSourceInstanceCreated(source,factory);
+        Object[] fresh=stage.exactFreshCreatorOrBetaAtFirstOpen(source);
+        check(fresh!=null && fresh[0]==wrapper && fresh[1]==track && fresh[2]==album,
+            "NAV48_RESTORED_CREATOR_LINK_REACHES_EXACT_FIRST_OPEN");
+        check(contains(stage.exportLines(),"origin=TRACK_WRAPPER_LINK_RESTORED;error=ONE"),
+            "NAV48_RESTORE_IS_EXPLICITLY_DIAGNOSTIC");
+        check(contains(stage.exportLines(),"origin=TRACK_DESCRIPTOR_FACTORY_LINK;error=ONE"),
+            "NAV48_RESTORED_LINK_REBUILDS_DESCRIPTOR_FACTORY");
+        check(contains(stage.exportLines(),"origin=TRACK_FACTORY_SOURCE_LINK;error=ONE"),
+            "NAV48_RESTORED_LINK_REBUILDS_FACTORY_SOURCE");
+    }
+
     private static void testRealPublisherAnnotatedTrackIdCorrelatesCreator() {
         StageBAudioEvidence stage=new StageBAudioEvidence();
         Object track=new Object(),album=new Object(),wrapper=new Object();
@@ -3197,6 +3295,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav37NullCreatorTrackFieldShadowsOuterTrackScope();
         testNav38CreatorTrackLaterFlowExactIdentity();
         testNav40ExactLaterFlowUnderLiveOriginalSource();
+        testNav48TcaCreatorFlowBirthSurvivesWrapperLinkEvictionOnLivePeriod();
         testNav36ConstructorWitnessCannotCrossWrongSource();
         testNav47ExactAdapterAndCurrentSourceSameStartedRead();
         testNav47DifferentRendererStreamCannotMatchPeriodAdapter();
@@ -3222,6 +3321,7 @@ public final class NativeRendererStreamEvidenceTest {
         testUnlinkedOriginalPrepareSealsLateNativeAdmission();
         testExactOriginalPrepareTracksPreopenDataSourceCandidate();
         testExactCreatorBeforeFlowOriginalDataSourceLink();
+        testTcaCreatorFlowBirthRestoresEvictedWrapperLineage();
         testNativeFirstOpenedFactorySourceNotFirstConstructed();
         testRealPublisherAnnotatedTrackIdCorrelatesCreator();
         testRealPublisherTrackIdAtNativeSourceSetter();

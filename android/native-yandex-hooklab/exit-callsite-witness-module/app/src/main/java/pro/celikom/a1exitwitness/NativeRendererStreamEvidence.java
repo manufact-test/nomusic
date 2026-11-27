@@ -300,6 +300,7 @@ final class NativeRendererStreamEvidence {
     // NAV40: strictly gated by same live original period/setter source.
     private int scopedLateFlowAlbumSame,scopedLateFlowAlbumMissing;
     private int scopedLateFlowAlbumDifferent,scopedLateFlowReferenceLost;
+    private int scopedCreatorBirthFlowAlbumSame;
     synchronized void setScopedAlbumEvidence(ScOpedAlbumEvidence evidence) {
         scopedAlbumEvidence=evidence;
     }
@@ -1490,7 +1491,22 @@ final class NativeRendererStreamEvidence {
                 catch(Throwable ignored) { result=0; }
                 if(result==1)scopedAlbumMatch=inc(scopedAlbumMatch);
                 else if(result==-1)scopedAlbumConflict=inc(scopedAlbumConflict);
-                else {
+                else if(result==20) {
+                    scopedAlbumMatch=inc(scopedAlbumMatch);
+                    scopedCreatorBirthFlowAlbumSame=inc(scopedCreatorBirthFlowAlbumSame);
+                    exactLateFlowSource=source;
+                    if(exactOriginalTrackAlbumEvidence!=null) {
+                        try {
+                            Object[] same=exactOriginalTrackAlbumEvidence.exact(
+                                uniquelyScopedWrapper);
+                            if(same!=null && same.length==2
+                                    && same[0]!=null && same[1]!=null) {
+                                exactLateFlowTrack=same[0];
+                                exactLateFlowAlbum=same[1];
+                            }
+                        } catch(Throwable ignored) { }
+                    }
+                } else {
                     scopedAlbumNoLink=inc(scopedAlbumNoLink);
                     switch(result) {
                         case 2:
@@ -2288,6 +2304,7 @@ final class NativeRendererStreamEvidence {
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_TRACK_NOT_IN_FLOW",scopedBirthTrackNotInFlow),
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_NO_ALBUM",scopedBirthFlowNoAlbum),
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_LINK_MISSING",scopedBirthFlowAlbumButLinkMissing),
+            line("LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_SAME",scopedCreatorBirthFlowAlbumSame),
             line("LIVE_PERIOD_SCOPED_TCA_BIRTH_DUPLICATE_AMBIGUOUS",scopedBirthAmbiguous),
             line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_SAME",scopedLateFlowAlbumSame),
             line("LIVE_PERIOD_SCOPED_TCA_LATE_FLOW_ALBUM_MISSING",scopedLateFlowAlbumMissing),

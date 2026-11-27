@@ -1,3 +1,38 @@
+# CURRENT HANDOFF — 27.11.2026, BETA24 exact creator-birth source-link recovery
+
+## Последняя диагностика владельца: BETA23 — подмена не работает
+
+Файл: `CELIKOM-A1-Diagnostics-1795763662873.txt`.
+
+- CELIKOM grant path положительный: `OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `OWNER_AUDIO_RANGE_VALID=ONE`, `GRANT_ADMITTED=ONE`, `DECISION_ALTERNATE=ONE`.
+- До оригинального Exo DataSource подмена не дошла: `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN=NONE`, `AUDIO_READ=NONE`.
+- Связь descriptor→factory и factory→source отсутствовала: `TRACK_DESCRIPTOR_FACTORY_LINK=NONE`, `TRACK_FACTORY_SOURCE_LINK=NONE`.
+- Одновременно активный оригинальный MediaPeriod совпадал с Player source setter: `LIVE_PERIOD_DIRECT_LO96=FEW`, `LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=FEW`.
+- Конкретный отказ Stage B: `LIVE_PERIOD_SCOPED_ALBUM_NO_LINK_WRAPPER_ABSENT=FEW` и `LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_LINK_MISSING=FEW`. Creator birth остался, но TrackWrapper link отсутствовал.
+- `ISSUER_VALUE_TARGET_ALLOWLISTED=NONE` и `ISSUER_CODEC_MP3_REQUESTED=NONE`: прежнее изменение FileInfoApi codecs=mp3 в этой сессии не запускалось. Не заявлять, что BETA23 действительно запросила MP3.
+
+## BETA24 — функциональное исправление
+
+Ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
+
+- WrapperBirth теперь удерживает weak ссылки на исходные Track и Album также для tCa creator scope 14 (Track уже был в Flow при создании wrapper).
+- При потере короткой 16-элементной таблицы `NativeTrackSourceLink` связь может быть восстановлена только из уникального tCa creator birth с теми же живыми Track/Album, тем же Flow и без другой wrapper-связи для Track.
+- Неоднозначное рождение, конфликт Album, другой wrapper, слабые/утраченные ссылки остаются fail-closed.
+- Добавлена диагностическая метка `TRACK_WRAPPER_LINK_RESTORED` и отдельная категория live-period `LIVE_PERIOD_SCOPED_TCA_BIRTH_FLOW_ALBUM_SAME`.
+- Добавлены Java regressions: вытеснение 16 записей, восстановление descriptor→factory→DataSource и сверка того же source setter с активным MediaPeriod.
+
+## Границы и следующий критерий
+
+BETA24 пока не является доказательством звука. После CI и выдачи владельческой сборки проверять именно эту цепочку:
+
+`TRACK_WRAPPER_LINK_RESTORED` → `TRACK_DESCRIPTOR_FACTORY_LINK` → `TRACK_FACTORY_SOURCE_LINK` → `AUDIO_EXO_FIRST_OPEN_ARM` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
+
+Затем отдельно сопоставить `CODEC_CONFIG_MPEG/AAC`, `ISSUER_CODEC_MP3_REQUESTED` и реальный слуховой результат. Не менять серверный каталог, Range/HMAC, оригинальный Yandex APK, Windows, stable Android или OTA без отдельного подтверждения.
+
+**Статус CI/экспорта:** ожидает завершения после коммита BETA24. До PASS не устанавливать и не объявлять исправленным.
+
+---
+
 # CURRENT HANDOFF — 26.11.2026, BETA18 source-factory bridge
 
 ## Latest owner test: BETA17 still does not replace audio

@@ -79,9 +79,9 @@ public final class ExitCallsiteWitness extends XposedModule {
     // Preserve NAV45 read-only witness baseline and CI assertions; the
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
-    // BETA23: owner-only exact FileInfoApi MP3 negotiation before original Exo prepare.
+    // BETA24: recover an evicted exact creator Track+Album wrapper link before Exo factory binding.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA23_OWNER_EXACT_FILEINFO_MP3_DECODER_ALIGNMENT_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA24_OWNER_CREATOR_BIRTH_SOURCE_LINK_RECOVERY_20261127";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3895,7 +3895,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
-                                        // BETA23: select an original MP3 response
+                                        // BETA24 retains the owner-only MP3 preference when the exact original API request occurs;
+                                        // a cached FileInfo path does not emit this marker and is not claimed as changed.
                                         // BEFORE the vendor builds the extractor.
                                         // Only the owner-enabled, exact signed
                                         // FileInfoApi and approved Ramil trial.
