@@ -234,8 +234,10 @@ public sealed partial class MainWindow
         return true;
     }
 
-    private void CompactResult(bool upload, string title, string note)
+    private void CompactResult(bool upload, string trackId, string title, string note)
     {
+        // Never let an old request paint a result over a newly selected song.
+        if (!IsCompactCurrentTrack(trackId)) return;
         if (upload)
         {
             _compactUploadView = "result";
@@ -379,13 +381,13 @@ public sealed partial class MainWindow
             if (generation != _compactOpenEpoch || !IsCompactCurrentTrack(id) || !_api.IsLoggedIn)
                 return;
             if (status == "approved")
-                CompactResult(upload, "Версия уже доступна",
+                CompactResult(upload, id, "Версия уже доступна",
                     "Для этой песни уже есть одобренная версия CELIKOM. Повторная отправка не требуется.");
             else if (status == "pending")
-                CompactResult(upload, upload ? "Трек уже добавлен" : "Версия уже на проверке",
+                CompactResult(upload, id, upload ? "Трек уже добавлен" : "Версия уже на проверке",
                     "Альтернативная версия ожидает проверки. Повторная отправка не требуется.");
             else if (status == "error")
-                CompactResult(upload, "Не удалось проверить статус",
+                CompactResult(upload, id, "Не удалось проверить статус",
                     "Не удалось получить состояние песни. Проверь интернет и повтори.");
             else if (upload)
             {
@@ -766,7 +768,7 @@ public sealed partial class MainWindow
             if (status is "approved" or "pending")
             {
                 SetCompactPresenceStatus(track, status);
-                CompactResult(false, status == "approved" ? "Версия уже доступна" : "Версия на проверке",
+                CompactResult(false, track, status == "approved" ? "Версия уже доступна" : "Версия на проверке",
                     "Песня уже в CELIKOM. Повторное предложение не требуется.");
                 return;
             }
@@ -780,7 +782,7 @@ public sealed partial class MainWindow
             if (IsCompactCurrentTrack(track))
             {
                 SetCompactPresenceStatus(track, "pending");
-                CompactResult(false, "Предложение отправлено",
+                CompactResult(false, track, "Предложение отправлено",
                     "Песня отправлена на рассмотрение. Повторное предложение не требуется.");
             }
             else
@@ -793,7 +795,7 @@ public sealed partial class MainWindow
         {
             var status = ex.Category == "track_pending" ? "pending" : "approved";
             SetCompactPresenceStatus(track, status);
-            CompactResult(false, status == "pending" ? "Версия уже на проверке" : "Версия уже доступна",
+            CompactResult(false, track, status == "pending" ? "Версия уже на проверке" : "Версия уже доступна",
                 "Песня уже в CELIKOM. Повторное предложение не требуется.");
         }
         catch (Exception ex) { _compactSuggestNote.Text = DescribeAccountError(ex); }
@@ -858,7 +860,7 @@ public sealed partial class MainWindow
             if (status is "approved" or "pending")
             {
                 SetCompactPresenceStatus(track, status);
-                CompactResult(true, status == "approved" ? "Версия уже доступна" : "Трек уже добавлен",
+                CompactResult(true, track, status == "approved" ? "Версия уже доступна" : "Трек уже добавлен",
                     "Повторно загружать эту песню не требуется.");
                 return;
             }
@@ -893,7 +895,7 @@ public sealed partial class MainWindow
             if (IsCompactCurrentTrack(track))
             {
                 SetCompactPresenceStatus(track, "pending");
-                CompactResult(true, "Отправлено на проверку",
+                CompactResult(true, track, "Отправлено на проверку",
                     "Версия ожидает модерации. Повторная загрузка не требуется.");
             }
             else
@@ -912,7 +914,7 @@ public sealed partial class MainWindow
         {
             var status = ex.Category == "track_pending" ? "pending" : "approved";
             SetCompactPresenceStatus(track, status);
-            CompactResult(true, status == "pending" ? "Трек уже добавлен" : "Версия уже доступна",
+            CompactResult(true, track, status == "pending" ? "Трек уже добавлен" : "Версия уже доступна",
                 "Эта версия уже есть в CELIKOM, повторная отправка не нужна.");
         }
         catch (Exception ex) { CompactUploadError(DescribeAccountError(ex)); }
