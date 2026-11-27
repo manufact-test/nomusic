@@ -13,7 +13,7 @@ Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-2026111
 
 ## Current state
 
-**BETA29 phone diagnostic was negative: alternate audio bytes were read, but audible replacement did not work. NAV51 identity-witness repair is implemented. BETA30 passed the owner JVM and native Android 13 gates and has an unpublished owner-only draft. Trusted Floki delivery is still queued; do not send any APK link yet.**
+**BETA29 phone diagnostic was negative: alternate audio bytes were read, but audible replacement did not work. NAV51 identity-witness repair is implemented. BETA30 passed the owner JVM and native Android 13 gates and has an unpublished owner-only draft. The stale JVM run #260 is cancelled; both self-hosted runners show Active. Trusted Floki run #34 is now IN_PROGRESS at `stage-verified-signed-apk`; root receipt and live HTTPS verification are still pending. Do not send any APK link yet.**
 
 ### BETA29 diagnostic result
 
@@ -65,9 +65,9 @@ Twelve fixed-bucket NAV51 counters report the exact failure boundary. No audio r
   - `.github/workflows/android-a1-owner-floki-spool.yml` — added the exact BETA30 workflow name to the workflow-run filter.
   - `.github/deploy/a1-owner-download-request.json` — points to run `46070081916`, attempt `1`.
 - No Android application source was merged or pushed to `main`.
-- Push-triggered Floki spool run: `46070217462` — currently QUEUED.
-- The self-hosted JVM run `46068440633` is still reported IN_PROGRESS without step output; it may be occupying the `celikom-ci-smoke-only` runner. The same targeted Java regression already passed inside BETA30's GitHub-hosted owner JVM gate.
-- If the Floki run remains queued, inspect the self-hosted runner and stale job. Cancel/restart only as needed to free the existing trusted runner. Do not bypass the root-owned consumer or change delivery mechanism.
+- Self-hosted JVM run `46068440633` / run #260 is now COMPLETED with conclusion `cancelled` (21:46:07 UTC). Its `nav17-owned-observer-no-vendor-code` job is also cancelled. The screenshot showed both self-hosted runners (`celikom-floki-ci01` and `celikom-floki-ci02`) as Active.
+- After that cancellation, Floki spool run `46070217462` / run #34 moved from QUEUED to IN_PROGRESS. Its only job, `stage-verified-signed-apk` (`140745086840`), is IN_PROGRESS.
+- The Floki job has not produced readable logs yet. Do not touch runners, cancel the Floki job, or bypass the root-owned consumer. Wait for this trusted stage to finish, then verify the receipt and live HTTPS readback.
 - Delivery is complete only after the matching root-owned receipt, live HTTPS HTTP 200/content-type/size/SHA-256 readback and unpublished draft readback all pass. Then retrieve the actual `A1_OWNER_DOWNLOAD_URL` from the draft and send it privately.
 
 ## Next steps
