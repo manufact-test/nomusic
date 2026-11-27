@@ -38,8 +38,7 @@ Branch:
 Android source commit used by the delivered APK:
 `901a421e461311de4b2fbba42c1c7ec78f55cb93`
 
-Current documentation commit before this update:
-`dd5abc033d228f9059a95393f8299bb60f49fcdf`
+Documentation update is documentation-only; the delivered APK was built from source commit `901a421e461311de4b2fbba42c1c7ec78f55cb93`. Do not treat this documentation commit as a new Android APK build.
 
 Changes in `StageBAudioEvidence.java`:
 
