@@ -24,7 +24,9 @@ public final class StageBAudioEvidenceTest {
             ";error="+value+";thread=OTHER";
         for(String row:rows) {
             if(row.contains(";origin="+category+";")) {
-                check(row.equals(expected));
+                if(!row.equals(expected))
+                    throw new AssertionError("BUCKET_MISMATCH category="+category
+                        +" expected="+expected+" actual="+row);
                 return;
             }
         }
