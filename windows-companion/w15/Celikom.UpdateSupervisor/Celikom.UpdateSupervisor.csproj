@@ -10,9 +10,9 @@
     <AssemblyTitle>CELIKOM.UpdateSupervisor</AssemblyTitle>
     <Company>CELIKOM</Company>
     <Product>CELIKOM</Product>
-    <Version>0.24.62</Version>
-    <AssemblyVersion>0.24.62.0</AssemblyVersion>
-    <FileVersion>0.24.62.0</FileVersion>
+    <Version>0.24.63</Version>
+    <AssemblyVersion>0.24.63.0</AssemblyVersion>
+    <FileVersion>0.24.63.0</FileVersion>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup>
