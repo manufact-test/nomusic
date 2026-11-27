@@ -101,31 +101,26 @@ Interpretation:
 
 ## CI status
 
-- Renderer observer JVM run `46060063393` — SUCCESS. It compiled and ran:
-  - `NativeRendererStreamEvidenceTest`
-  - `NativeExoAlternateByteRouteTest`
-  - `NativeRamilTrackOnlyLineageTest`
-  - The new NAV50 same-source/current-period and mismatch assertions passed.
+- Renderer observer JVM run `46060063393` — SUCCESS. It compiled and ran `NativeRendererStreamEvidenceTest`, `NativeExoAlternateByteRouteTest`, and `NativeRamilTrackOnlyLineageTest`; NAV50 same-source/current-period and mismatch assertions passed.
 - Owner preflight run `46060063423` — SUCCESS. ARM13 native main 75s verdict: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; persistent owner signer verified and update-existing mode confirmed. It remains a stability/signing gate only: `stage_a=NO_GO`, `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`.
-- BETA29 export run `46061697450`, run 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — IN_PROGRESS at the last checkpoint. This is the only intended BETA29 export candidate.
-- Clone-alone workflow `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. This is a stability gate only, not product/audio proof.
-- Several intermediate export-trigger commits were made during the BETA29 filename migration. They may create older-name private drafts; do not deliver any of them. Only use run `46061697450` if its final draft contains exactly the BETA29 artifact name.
+- Clone-alone workflow `46060063402` — SUCCESS. Verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS`; `audio_or_account_tested=false` and `stage_b_current_player_album_edition_attested=false`. Stability gate only, not product/audio proof.
+- BETA29 export run `46061697450`, run 500, attempt 1, source `1afa88c78b5b3a3063fac5176f1152a95dcdf962` — SUCCESS.
+- Private draft release: `461031098`, still unpublished, target `main`.
+- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk`, 71,602,156 bytes, SHA-256 `5ae5c75a10daff02910fa5c2a8b4a10e0b02e28df2bfe6d1461d80337975b459`.
+- Owner signer verified; install mode `UPDATE_EXISTING`; fresh clone install was not authorized.
+- Native verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `audio_or_account_tested=false`, `stage_b_current_player_album_edition_attested=false`, `diagnostic_only_not_product_or_releasable=true`.
 
-Wait for the owner ARM13 and clone-alone workflows to finish before exporting a new owner APK.
+Several intermediate export-trigger commits were made while changing the artifact name. They may have produced older-name private drafts. Do not deliver or reference them. Only BETA29 release `461031098` is the intended candidate.
 
-## Next action
+## Next action — start the existing Floki root-verification workflow
 
-If the remaining owner/clone gates pass, build a **diagnostic-only BETA29** containing NAV50. It must remain an unpublished owner draft and use the same trusted delivery process:
-- owner signer/provenance checks;
-- private spool;
-- independent root-owned receipt;
-- live `celikom.com` HTTPS verification;
-- exact size/hash readback;
-- actual `A1_OWNER_DOWNLOAD_URL` read from the unpublished draft.
+The trusted-main request file `.github/deploy/a1-owner-download-request.json` has been updated to `run_id=46061697450`, `attempt=1`, `release_id=461031098`. A push made through the GitHub connection did not start Actions automatically. The main Floki workflow now has a manual `workflow_dispatch` fallback; this runs the same existing validation and root-owned spool path and does not publish the draft.
 
-The owner workflow exports on push only when the commit message contains `[export-beta-audio]` **and** the changed path matches its source/test path filter. A docs-only commit will not trigger it; use a comment-only change in an already included source path after all gates pass. Do not send a GitHub APK link. Do not publish the draft or bypass Floki/root verification.
-
-The phone test for BETA29 is intentionally narrow: install over BETA28 without uninstalling or clearing data, reproduce the same Ramil / 10AGE — «Ау» test and the second song, then export TXT. The new counters decide whether the next change belongs in source selection or after the Exo DataSource read.
+1. Open [the Floki spool workflow](https://github.com/manufact-test/nomusic/actions/workflows/android-a1-owner-floki-spool.yml).
+2. Select branch `main` and click **Run workflow**. No inputs are required; the trusted request file already points to BETA29 release `461031098`.
+3. Wait for the run to complete. Confirm independent root-owned receipt, live `celikom.com` HTTPS HTTP 200, APK content type, exact size/hash, and unpublished draft readback.
+4. Read the actual `A1_OWNER_DOWNLOAD_URL` from the draft. Send only that verified direct HTTPS URL from `celikom.com`. Never send a GitHub APK link, fabricate a URL, publish the draft, or bypass root verification.
+5. The owner installs BETA29 over BETA28 without uninstalling or clearing data, reproduces the same tests and exports a fresh TXT.
 
 ## Guardrails
 
