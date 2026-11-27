@@ -1,64 +1,72 @@
-# CURRENT HANDOFF — 27.11.2026 (BETA25 delivered; first-open rejection diagnosis pending)
+# CURRENT HANDOFF — 27.11.2026 (BETA26 built; Floki delivery pending)
 
-## Latest owner APK — build and direct delivery verified
+## Latest owner APK — source build passed; direct delivery is NOT yet verified
 
 - Android A1 source branch: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`.
-- Exact APK source commit: `54e61c9e88b1953d87211aff469d4f1908cfe714`.
-- Owner source/export workflow: `46002222383`, attempt 1 — **SUCCESS**; JVM issuer/proxy contract and publisher-first Android 13 native gate both **SUCCESS**.
-- Clone-alone differential ARM13 workflow: `46002222408` — **SUCCESS**.
-- Exact APK: `CELIKOM-A1-RAMIL-AU-BETA25-HONOR50-20261127.apk`.
-- Size: `71602156` bytes. SHA-256: `29eec91b086a4c09597637d731e481c13bef5f50a788c54dc50412e84fefaf8c`.
-- Unpublished owner draft release: `460609800`.
-- Trusted-main Floki spool run: `46003916671`, job `140522187673` — **SUCCESS**. Exact run/attempt, APK name, size and digest matched; original signing certificate and package were verified; independent root receipt confirmed `https_verified=true`; the actual HTTPS capability URL was written to the unpublished draft and read back successfully.
-- The direct `celikom.com` capability URL has been sent privately to the owner in chat. Never copy it or its token into Git, docs, Actions logs/summaries, or public messages.
-- The manual request file currently records source run `46002222383`, attempt `1`, draft release `460609800`. This delivery is complete; replace those IDs only when a genuinely new APK needs delivery.
-- Documentation-only edits after source commit `54e61c9e88b1953d87211aff469d4f1908cfe714` do not change the already-built APK.
+- BETA26 source commit: `bcb5d9ccee56b2e8bcc5493c12514c07f342ee6b`.
+- Owner source/export workflow: `46014952782`, attempt `1` — **SUCCESS**.
+- JVM issuer/proxy contract, including the new original-codec-passthrough test: **PASS**.
+- Publisher-first Android 13 native gate: **PASS**. Clone-alone differential ARM13: run `46014952798` — **PASS**.
+- Separate renderer-observer workflow `46014952803` was cancelled; the required renderer/JVM contracts were included in the successful source workflow's JVM job.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA26-HONOR50-20261127.apk`.
+- Size: `71,598,060` bytes. SHA-256: `43e5bb00eabde955eff8e2b25b76986a29198fa3f7ca0512cc55ff234b245888`.
+- Unpublished owner draft release ID: `460707648`.
+- Owner APK signer verified: `true`; install mode: `UPDATE_EXISTING`; original publisher launch status: `NATIVE_MAIN_ACTIVITY_ACCEPTED`.
+- CI verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`; `acoustic_replacement_proven=false`; `owner_phone_touched=false`.
+- The BETA26 APK has **not** yet been delivered to the owner's phone. No direct `celikom.com` capability URL has been verified or sent. Do not send a GitHub URL or guess a site URL.
 
-## Why BETA25 exists
+## Why BETA26 exists
 
-BETA24 had positive server-side approval and alternate decision evidence:
-`OWNER_RESOLVE_APPROVED=ONE`, `SIGNED_AUDIO_READY=ONE`, `OWNER_AUDIO_RANGE_VALID=ONE`, `GRANT_ADMITTED=FEW`, `EXACT_PREPARE=FEW`, `DECISION_ALTERNATE=FEW`.
-But the CELIKOM native DataSource did not reach `DATASOURCE_ARMED`, `AUDIO_OPEN`, or `AUDIO_READ`; successful `AUDIO_EXO_FIRST_OPEN_ARM` was not recorded. Original Exo sources continued to open/read normally. The exact rejection point was not exported.
+BETA25's actual owner TXT showed `ISSUER_CODEC_MP3_REQUESTED=ONE` while the approved CELIKOM source never reached `DATASOURCE_ARMED`, `AUDIO_OPEN`, or `AUDIO_READ`. The first-open candidate was never accepted; `FIRST_OPEN_CANDIDATE_ACCEPTED=NONE`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED=MANY`, `FIRST_OPEN_BIRTH_NOT_FOUND=MANY`, and `DEFERRED_ARM_ENTER=NONE`.
 
-BETA25 adds privacy-safe, bucketed reasons at three gates without weakening fail-closed checks:
+The MP3 preference helper was replacing the original Yandex FileInfoApi `codecs` argument with only `mp3`. That changed the publisher's playback request without connecting CELIKOM audio. BETA26 therefore pauses that request-only override: `NativeIssuerCodecPreference.preferMp3ForOwnedFileInfo()` now returns `false` and does not inspect or mutate the original arguments. The original Yandex codec negotiation passes through unchanged.
 
-- `AUDIO_STAGE_B_SUMMARY`: first-open hook entry, candidate acceptance/rejection, factory/source/wrapper/creator/album lineage rejection reasons, setter result, deferred-arm call/result, exceptions.
-- `AUDIO_NATIVE_RENDERER_SUMMARY`: exact first-open setter check and separate rejection reasons.
-- `AUDIO_EARLY_ADMISSION_SUMMARY`: deferred-arm entry and rejection reasons, including pending approval, generation, period prepare, source match, owner enabled and native route.
-- Buckets are `NONE / ONE / FEW / MANY`. No raw object identities, private IDs, URLs, source addresses or audio bytes are exported.
+BETA26 keeps the BETA25 first-OPEN and deferred-arm rejection diagnostics. No server, catalogue, signed permissions, Range/HMAC, original Yandex APK, Windows, stable Android, or OTA code was changed. This is a targeted playback-safety rollback, **not** proof that MP3 preference was the sole cause and **not** an audio-replacement fix claim.
 
-This is a diagnostic build, **not an audio fix claim**. The checks remain fail-closed. Server, signed original Yandex package, codec negotiation, Windows, stable Android and OTA were not changed. `acoustic_replacement_proven=false`.
+Expected next diagnostic: `ISSUER_CODEC_MP3_REQUESTED=NONE`. If «Ау» plays again, that supports the codec-override hypothesis but still does not prove CELIKOM replacement. If it still fails, inspect the original Yandex PlaybackException and the exact track-scoped first-open path.
 
-## Next owner test — do not build another APK before this TXT
+## Next owner test — after the direct link is verified
 
-1. Install BETA25 **over BETA24**. Do not uninstall CELIKOM and do not clear app data or cache.
-2. Open the original Yandex Music app. Play Ramil / 10AGE — `Ау` directly from original album `38902809`, track ID `144530503`; do not use MyWave. Listen at `00:43–00:54`.
-3. Note whether Yandex shows «Невозможно воспроизвести».
-4. Then play another track that previously had gaps at the beginning. Do not restart the app between the two checks.
-5. Export one fresh CELIKOM diagnostic TXT from that same session and attach it privately, regardless of whether audio changed.
+1. Install BETA26 **over BETA25**. Do not uninstall CELIKOM; do not clear app data or cache.
+2. Open the original Yandex Music app. Play Ramil / 10AGE — `Ау` directly from original album `38902809`, track ID `144530503`; do not use MyWave.
+3. Listen at `00:43–00:54` and note whether Yandex shows «Невозможно воспроизвести».
+4. Then play another track that previously had gaps at the beginning. Do not restart the app between checks.
+5. Export one fresh CELIKOM diagnostic TXT from that same session and attach it privately, regardless of the sound result.
 
 Read the first break in this order:
 `FIRST_OPEN_HOOK_ENTERED` → `FIRST_OPEN_CANDIDATE_ACCEPTED` → `FIRST_OPEN_SETTER_MATCH` → `FIRST_OPEN_DEFERRED_ARM_CALLED` → `DEFERRED_ARM_ENTER` → `DEFERRED_ARM_ACCEPTED` → `DATASOURCE_ARMED` → `AUDIO_OPEN` → `AUDIO_READ`.
-If a stage is missing, inspect its corresponding `FIRST_OPEN_*`, `FIRST_OPEN_SETTER_*` or `DEFERRED_ARM_*` reason counters. If arm/open/read succeed but Yandex still errors, the next task is downstream decoder/player error diagnosis; BETA25 does not claim to fix PlaybackException.
 
-`AUDIO_STAGE_B_STATUS` / `CELIKOM_REPLACEMENT=NOT_CONNECTED` remains a static legacy marker and must not be used alone as a runtime verdict. Do not change server catalogue, signed grant, Range/HMAC, codec negotiation, stable Android, Windows, OTA or Floki infrastructure without evidence from the new TXT.
+Do not claim audible replacement from JVM, CI, hook registration, or native launch alone. The owner must confirm hearing the alternate audio.
+
+## Current Floki delivery block — do not bypass
+
+- Current main request JSON values: `run_id=46014952782`, `attempt=1`, `release_id=460707648`.
+- Initial JSON push commit: `b9e25e52b7d676355bd9402e7b5f4c2b0644d3c3`.
+- Same-value retry push commit (JSON keys reordered only): `0617cea7ecd9ab8b4abb470ef500b89eb78f08dd`.
+- First trusted Floki spool run: `46017089409`, job `140566875542`, runner `celikom-floki-ci02`. It remains `in_progress` with no reported steps/logs since `2026-11-27T14:34:10Z`; no root receipt and no owner URL have been verified.
+- Retry spool run: `46018546776`, currently `pending` behind the existing spool concurrency group.
+- The legacy owner-download workflow `.github/workflows/android-a1-owner-floki-download.yml` is disabled with `if: false`; its job being skipped is expected. **Do not enable it.**
+- Continue only through `.github/workflows/android-a1-owner-floki-spool.yml` and the main JSON request. Wait for the stuck run to release the concurrency group and the queued retry to run. Verify exact run/attempt, APK name, size, SHA-256, signer/package, independent root receipt, `https_verified=true`, and HTTPS readback. Only then retrieve the actual `A1_OWNER_DOWNLOAD_URL` from the unpublished draft and send it privately.
+- Do not re-enable SSH, bypass root verification, weaken Floki security, or invent a URL. If `celikom-floki-ci02` remains stuck, an authorized runner maintenance/restart is required; no SSH workaround from this chat.
+
+The requested file `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md` is not present in the current branch tree. This `NEXT-CHAT.md` plus the current Floki workflow are the available delivery source of truth.
 
 ---
 
 # CRITICAL OWNER DELIVERY RULE — READ BEFORE ANY FUTURE APK DELIVERY
 
-The owner **cannot download APKs from GitHub on his phone**. This is a repeated, explicit constraint. For every future Android APK that the owner must install on the phone, provide a **direct non-GitHub HTTPS download URL from `https://celikom.com`**. A GitHub release page, GitHub asset URL, Actions artifact, ChatGPT attachment, or instructions to download from GitHub on the phone are NOT acceptable substitutes.
+The owner **cannot download APKs from GitHub on his phone**. For every future Android APK that the owner must install on the phone, provide a **direct non-GitHub HTTPS download URL from `https://celikom.com`**. A GitHub release page, GitHub asset URL, Actions artifact, ChatGPT attachment, or instructions to download from GitHub on the phone are NOT acceptable substitutes.
 
 Use only the trusted-main signed Floki spool:
 - Workflow: `.github/workflows/android-a1-owner-floki-spool.yml` (trusted `main`, data-only stage).
-- Update `.github/deploy/a1-owner-download-request.json` with the exact successful Android source workflow `run_id`, `attempt`, and unpublished owner draft `release_id`. The current BETA25 request was `46002222383` / attempt `1` / release `460609800`, and its delivery is complete. Replace it for the next new build; never reuse stale IDs.
-- Commit/push the updated request JSON to `main` to trigger the trusted spool workflow's `push.paths` route. Do not rely on its `workflow_run` filter: it still names an older BETA13 workflow name, while the current source workflow is named BETA24.
-- Wait for the isolated Floki runner to stage the exact APK as data and for the independent root consumer to create the matching receipt. Verify exact run/attempt, APK filename, size, SHA-256, original package/signing certificate, `https_verified=true`, and the HTTPS readback. The workflow must also write the owner URL to the unpublished draft and read it back.
+- Update `.github/deploy/a1-owner-download-request.json` with the exact successful Android source workflow `run_id`, `attempt`, and unpublished owner draft `release_id`.
+- Commit/push the updated request JSON to `main` to trigger the trusted spool workflow's `push.paths` route. Do not rely on its `workflow_run` filter: it still names an older BETA13 workflow name, while the current source workflow is BETA26.
+- Wait for the isolated Floki runner to stage the exact APK as data and for the independent root consumer to create the matching receipt. Verify exact run/attempt, APK filename, size, SHA-256, original package/signing certificate, `https_verified=true`, and HTTPS readback. The workflow must also write the owner URL to the unpublished draft and read it back.
 - Only then retrieve the **actual** `A1_OWNER_DOWNLOAD_URL` from the unpublished draft and send that exact URL privately in chat. URL shape is `https://celikom.com/downloads/a1/<48-hex-token>/<APK filename>`; never guess or fabricate it.
-- Never put the capability token/URL, private owner diagnostics, secrets, or root receipts into Git, public Actions logs/summaries, or documentation.
+- Never put the capability token/URL, private owner diagnostics, secrets, or root receipts into Git, docs, Actions logs/summaries, or public messages.
 - Old direct-SSH workflow `.github/workflows/android-a1-owner-floki-download.yml` is disabled and MUST NOT be re-enabled. Do not bypass the isolated runner or weaken host/root/SSH security.
 
-BETA24 was a one-off exception and is superseded. BETA25 has now been delivered through the verified Floki spool; its direct `celikom.com` link was sent privately in chat. **All subsequent builds must also use the direct `celikom.com` link.**
+BETA25 was delivered through the verified Floki spool and its direct URL was sent privately. BETA26 has been built and its owner draft created, but its Floki delivery is currently blocked by the unresponsive `celikom-floki-ci02` runner; the retry run is pending. **Do not claim BETA26 delivered until the independent root receipt and HTTPS readback succeed.**
 
 ---
 
