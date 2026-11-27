@@ -2,7 +2,7 @@
 
 ## Purpose and status
 
-This is the active Windows work order after the owner's latest test of the W188 / 0.24.62 candidate. It combines:
+This is the active Windows work order after the owner received the W188 / 0.24.62 candidate and reported the latest UI observations. The exact installed version still needs confirmation from diagnostics. It combines:
 1. the source-diff audit findings that were missing from the W188 candidate;
 2. the newly observed UI state and latency defects;
 3. the owner's explicit request to make the next accepted version available through the production/main update path and verify automatic update on his installed copy.
