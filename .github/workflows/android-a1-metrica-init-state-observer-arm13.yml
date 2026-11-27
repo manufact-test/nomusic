@@ -1,4 +1,4 @@
-name: CELIKOM A1 Ramil Au BETA29 NAV50 live renderer correlation — no acoustic proof
+name: CELIKOM A1 Ramil Au BETA30 NAV51 live renderer correlation — no acoustic proof
 on:
   push:
     branches: [experiment/android-a1-metrica-init-state-observer-arm13-20261112]
@@ -54,7 +54,7 @@ on:
         required: false
         type: boolean
         default: false
-# BETA29 NAV50 diagnostic export requires existing JVM, publisher-first ARM13, and persistent owner signer.
+# BETA30 NAV51 diagnostic export requires existing JVM, publisher-first ARM13, and persistent owner signer.
 # 2026-11-26: public-repository recovery run is validation-only; export remains opt-in and disabled.
 permissions:
   contents: read
@@ -77,6 +77,27 @@ jobs:
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
       - name: Verify exact descriptor lifetime and Stage B fail-closed regression
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
+      - name: Verify NAV51 live DataSource identity survives weak descriptor/factory release
+        shell: bash
+        run: |
+          set -euo pipefail
+          d=$(mktemp -d)
+          trap 'rm -rf -- "$d"' EXIT
+          javac -encoding UTF-8 --release 17 -d "$d" \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeSourceGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeTrackIdentityGate.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeGrantContract.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativePrePrepareAdmission.java \
+            android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeEarlySourceLifecycleBridge.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeTrackIdBetaPolicy.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeRendererStreamEvidence.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java \
+            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
+            android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java
+          java -cp "$d" pro.celikom.a1exitwitness.NativeRamilTrackOnlyLineageTest
       - name: Verify original Yandex codec negotiation remains unchanged
         shell: bash
         run: |
@@ -351,7 +372,7 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk"
           test -s "$apk"
           cp android/native-yandex-hooklab/device-audio-trial/README-RU.txt "$bundle/README-RU.txt"
           sha256sum "$apk"
@@ -368,7 +389,7 @@ jobs:
           test "$(gh repo view "$GITHUB_REPOSITORY" --json visibility --jq .visibility)" = PUBLIC
           [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ && "$GITHUB_SHA" =~ ^[a-f0-9]{40}$ ]]
           bundle="$RUNNER_TEMP/celikom-a1-owner-phone-test"
-          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk"
+          apk="$bundle/CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk"
           test -f "$apk" && test ! -L "$apk"
           test -f "$bundle/README-RU.txt" && test ! -L "$bundle/README-RU.txt"
           # Existing private A1 drafts are delivery envelopes on main.
@@ -378,7 +399,7 @@ jobs:
           cd "$bundle"
           python3 - <<'PY'
           import hashlib, json, os, pathlib
-          name = "CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk"
+          name = "CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk"
           apk = pathlib.Path(name)
           with apk.open("rb") as f:
               digest = hashlib.file_digest(f, "sha256").hexdigest()
@@ -416,7 +437,7 @@ jobs:
           assert receipt["targetCommitish"] == "main"
           root = pathlib.Path(sys.argv[3])
           expected = {p.name: p for p in root.iterdir() if p.is_file()}
-          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA29-HONOR50-20261127.apk", "README-RU.txt", "BUILD-PROVENANCE.json", "SHA256SUMS.txt"}
+          assert set(expected) == {"CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk", "README-RU.txt", "BUILD-PROVENANCE.json", "SHA256SUMS.txt"}
           provenance = json.loads(expected["BUILD-PROVENANCE.json"].read_bytes())
           assert provenance["source_commit"] == os.environ["GITHUB_SHA"]
           assert provenance["source_branch"] == os.environ["GITHUB_REF_NAME"]
