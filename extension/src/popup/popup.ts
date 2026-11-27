@@ -433,6 +433,7 @@ addTrackButton?.addEventListener("click", async () => {
     addTrackButton.dataset.loading = "false";
     addTrackButton.textContent = "Загрузить версию";
     addTrackButton.setAttribute("aria-expanded", "true");
+    if(view === "form")await syncBackgroundUpload(true);
   }
   void send({ type: "CELIKOM_ADD_TRACK_OPENED" }).catch(() => {});
 });
@@ -619,30 +620,33 @@ uploadForm?.addEventListener("submit", async (event) => {
     if (finalTarget?.id !== pinnedTrack.id) throw new Error("track_changed");
     let failure = "";
     let lastActivityAt = Date.now();
-    let bytesMoved = false, waitNotice = false, lastPercent = -1;
+    let bytesMoved = false, bodySent = false, lastBytes = 0, waitNotice = false, lastPercent = -1;
     const watchdog = setInterval(() => {
-      if (!uploading || bytesMoved) return;
+      if (!uploading || bodySent) return;
       const idle = Date.now() - lastActivityAt;
       if (idle > 15000 && !waitNotice) {
         waitNotice = true;
-        uploadMessage("Ожидаем начала передачи. Проверяем соединение…", "checking");
-        void uploadJournal.record(attemptId, "waiting");
+        uploadMessage(bytesMoved?"Передача приостановилась. Проверяем соединение…":"Ожидаем начала передачи. Проверяем соединение…", "checking");
+        void uploadJournal.record(attemptId, "waiting",{sent:lastBytes,percent:Math.max(0,lastPercent)});
       }
-      if (idle > 45000) { failure = "stalled"; xhr.abort(); }
+      if (idle > (bytesMoved?30000:45000)) { failure = "stalled"; xhr.abort(); }
     }, 3000);
     watchdog?.unref?.();
     xhr.upload.addEventListener("progress", (progress) => {
-      lastActivityAt = Date.now();
+      if(progress.loaded>lastBytes){lastActivityAt=Date.now();waitNotice=false;}
+      lastBytes=progress.loaded;
       bytesMoved ||= progress.loaded > 0;
       const percent = progress.lengthComputable && progress.total > 0
         ? Math.floor(progress.loaded / progress.total * 100) : 0;
       if (uploadProgress && progress.lengthComputable) uploadProgress.value = percent;
-      if (Math.floor(percent / 10) !== Math.floor(lastPercent / 10)) {
-        lastPercent = percent;
+      const reportProgress=Math.floor(percent / 10) !== Math.floor(lastPercent / 10);
+      lastPercent = percent;
+      if (reportProgress) {
         void uploadJournal.record(attemptId, "transferring", {sent: progress.loaded, percent});
       }
     });
     xhr.upload.addEventListener("load", () => {
+      bodySent=true;
       bytesMoved = true;
       void uploadJournal.record(attemptId, "server_wait");
       uploadMessage("Файл отправлен. Ждём подтверждения сервера…", "checking");
@@ -694,9 +698,9 @@ uploadForm?.addEventListener("submit", async (event) => {
         idempotency_conflict: "Повтор запроса не совпадает с исходным.",
         rights_declaration_required: "Подтвердите права на файл."
       };
-      void uploadJournal.record(attemptId, "failed", {httpStatus: xhr.status, code: failure || code || "http_error"});
+      void uploadJournal.record(attemptId, manualUploadCancel?"cancelled":"failed", {httpStatus: xhr.status, code: manualUploadCancel?"cancelled":failure || code || "http_error",sent:lastBytes,percent:Math.max(0,lastPercent)});
       const guidance = manualUploadCancel ? "Загрузка отменена по вашему запросу."
-        : failure === "stalled" ? "Передача не началась за 45 секунд. Проверьте интернет или VPN."
+        : failure === "stalled" ? "Передача файла остановилась. Повторите отправку."
         : failure === "timeout" ? "Сервер не ответил за две минуты. Проверьте статус песни."
         : xhr.status === 0 ? "Соединение прервалось. Проверьте сеть или VPN."
         : xhr.status === 429 ? uploadRateLimitMessage()
@@ -820,18 +824,18 @@ initDiagnosticsButton(send);
 
 // Reopened popup reconstructs progress from the offscreen uploader's small,
 // sanitized status record. No original File or credentials leave IndexedDB.
-async function syncBackgroundUpload(): Promise<void> {
+async function syncBackgroundUpload(restoreFailure = false): Promise<void> {
   if (!chrome.storage?.local) return;
   let saved;
   try { saved = (await chrome.storage.local.get(BACKGROUND_UPLOAD_KEY))?.[BACKGROUND_UPLOAD_KEY]; }
   catch { return; }
-  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > 600000 || opening) return;
+  if (!saved || typeof saved.id !== "string" || Date.now()-saved.at > (restoreFailure?86400000:600000) || opening) return;
   const target = uploadTargetFromStatus(lastState);
   if (!target || target.id !== saved.trackId) return;
   const active = ["connecting","waiting","transferring","server_wait"].includes(saved.phase);
   // Historical terminal results (success, duplicate, failure or cancel)
   // cannot override a fresh server presence check after the popup reopens.
-  if (!active && !backgroundUploadMode) return;
+  if (!active && !backgroundUploadMode && !(restoreFailure && ["failed","cancelled"].includes(saved.phase))) return;
   if (!active && !["completed","duplicate","failed","cancelled"].includes(saved.phase)) return;
   // Do not overwrite an unrelated newly selected file with an older result.
   if (!active && !backgroundUploadMode && uploadFile?.files?.length) return;
@@ -868,12 +872,13 @@ async function syncBackgroundUpload(): Promise<void> {
   }
   const descriptions = {
     connecting:"Подключаемся к серверу. Загрузка продолжается в фоне.",
-    waiting:"Ожидаем начала передачи. Проверяем соединение…",
+    waiting:saved.code==="transfer_idle"?"Передача приостановилась. Проверяем соединение…":"Ожидаем начала передачи. Проверяем соединение…",
     transferring:"Загружаем аудиофайл: "+(saved.percent||0)+"%. Можно закрыть окно CELIKOM.",
     server_wait:"Файл передан. Ждём подтверждения сервера…",
     cancelled:"Загрузка отменена по вашему запросу.",
     failed: saved.code==="rate_limited" || saved.httpStatus===429 ? uploadRateLimitMessage(saved.retryAt)
-      : saved.code==="stalled"?"Соединение зависло. Проверьте интернет или VPN."
+      : saved.code==="stalled"?"Передача файла остановилась. Повторите отправку."
+      : saved.code==="network_error"?"Связь с сервером прервалась во время загрузки. Повторите отправку."
       : saved.code==="timeout"?"Сервер не ответил за две минуты. Проверьте статус трека."
       : saved.code==="invalid_mp3"?"MP3 повреждён или содержит неподдерживаемые данные. Выберите другой исходный файл."
       : "Загрузка не завершена. Попробуйте ещё раз."

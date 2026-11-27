@@ -654,3 +654,28 @@ test('background upload stages the same repaired blob rather than the rejected o
   assert.deepEqual(bytes.subarray(0,-1),new Uint8Array(await original.arrayBuffer()));
  }finally{chrome.runtime.sendMessage=previousSend;chrome.runtime.getManifest=previousManifest;globalThis.indexedDB=previousDb;}
 });
+
+test('saved upload error survives reopening, stays closed on polling and does not override verified server pending',async()=>{
+ const key='celikom_background_upload_v1',action=find("[data-action='add']");
+ // Retire the preceding mocked background transfer before changing songs.
+ localValues[key]={id:'123e4567-e89b-42d3-a456-426614174000',trackId:current.track.id,phase:'cancelled',at:Date.now()};
+ await intervals[0]();await new Promise(setImmediate);
+ find('[data-upload-file]').files=[];
+ const id='944530629';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ localValues[key]={id:'123e4567-e89b-42d3-a456-426614174000',trackId:id,phase:'failed',code:'network_error',percent:3,at:Date.now()};
+ find('[data-upload-panel]').hidden=true;
+ await intervals[0]();await new Promise(setImmediate);
+ assert.equal(find('[data-upload-panel]').hidden,true,'failure must not force a closed panel open');
+ await action.fire('click');
+ assert.equal(find('[data-upload-status]').dataset.kind,'error');
+ assert.match(find('[data-upload-status]').textContent,/123E4567/);
+ assert.equal(find('[data-upload-submit]').dataset.uploadMode,'retry');
+ find('[data-upload-panel]').hidden=true;await action.fire('click');
+ assert.match(find('[data-upload-status]').textContent,/123E4567/,'explicit reopen retains the last failure');
+ const pendingId='944530630';current={track:{...selected.track,id:pendingId}};pendingTracks.add(pendingId);
+ localValues[key]={...localValues[key],trackId:pendingId};
+ find('[data-upload-panel]').hidden=true;await action.fire('click');
+ assert.equal(result().hidden,false);assert.match(find('[data-upload-result-title]').textContent,/Трек уже добавлен/);
+ assert.equal(find('[data-upload-status]').hidden,true,'server pending wins over historical transport failure');
+ delete localValues[key];
+});

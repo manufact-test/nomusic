@@ -1,0 +1,18 @@
+# Extension 0.4.95 — stalled upload, real cancellation and retained failure
+
+27 November 2026. Private owner candidate only.
+
+Owner explicitly authorized fixing findings from `Вставленный текст(20261127-202937).txt` after the prior analysis recorded them in the 0.4.94 handoff. Two real incidents: track 128750389 crawled to 13% and was cancelled at 65 s, then uploaded in 1.68 s; track 115444644 stopped at 3% and failed network_error/status 0 at 30.2 s, then uploaded in 1.596 s. Read-only audit 46064319037 confirmed successful retry application statuses 202/552 ms and 202/453 ms. Exact intermittent transport cause remains unproven; no VPN, TLS, HTTP2 or server changes are justified by that log.
+
+## Corrections
+
+- Offscreen and direct transfer watchdogs now observe actual increases in sent bytes for the whole request body. A 15-second idle warning preserves existing progress; a partial transfer with no byte progress for 30 seconds stops as stalled. Before first bytes the existing 45-second admission bound remains. Continuing byte progress resets the deadline even if its percentage is unchanged. Once request body is sent, normal server response timeout applies independently; no false stall abort during server processing. POST is never automatically replayed.
+- Each offscreen transfer owns its cancellation signal and XHR. Cancellation races pending configuration fetch/JSON, staged-file read and connecting status; checks fence the send. A cancelled preparation cannot later POST. Cancellation acknowledgment waits for cleanup, and an immediate explicit new begin waits for the cancelled operation to finish. Final status is published after staged-file cleanup so the UI cannot enable retry before old staging is removed. Late preparation/config/old progress callbacks cannot activate or overwrite a newer operation. Duplicate delivery of an already active same-ID command acknowledges existing work without starting another POST.
+- Terminal progress retains exact percentage and bytes rather than a decile/zero. Waiting preserves partial progress. Cancelling direct fallback is journaled as cancelled.
+- Explicitly reopening the upload form recovers the saved failed/cancelled attempt for that track (bounded to 24 hours), with failure category and attempt code. Background polling does not forcibly reopen a closed panel or restore historical success. Fresh server pending/approved status remains authoritative and wins over a historical failure; user-selected new files are protected. No credentials, filename or file content are added to diagnostic storage.
+
+468 extension tests pass, including new pending-config/file cancel races, cleanup barrier, immediate explicit retry, partial-transfer idle cutoff, byte-progress heartbeat despite unchanged percent, independent server wait, command-delivery idempotence and recoverable failure UI with server-state precedence. Existing 0.4.94 MP3 preparation and ordinary/background prepared Blob regressions pass. Full ZIP build, manifest, security and whitespace checks are required for delivery.
+
+Scope: extension upload worker, popup, tests, version and documentation. Playback engine behavior, MP3 normalization/decoder, backend authentication, Android and Windows are unchanged. No customer publication. Do not present the unknown underlying network condition as fixed; the reproduced extension failures and their handling are corrected.
+
+Exact private spool and HTTPS delivery evidence will be appended after independent verification through the existing owner channel. Native browser/listening gate is separate and must not be claimed passed if unavailable or failed.

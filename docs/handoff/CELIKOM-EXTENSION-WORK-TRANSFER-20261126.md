@@ -64,3 +64,7 @@ The owner authorized the accumulated dropouts and formerly deferred VPN/diagnost
 ## Latest owner upload correction — 0.4.94, 27 November 2026
 
 The supplied baby-melo-orvi MP3 exposed a one-byte-short final ancillary slot rejected before reaching server cleanup. Exact audio-bit bounds now permit this narrow repair, and popup sends the prepared Blob in direct/background upload instead of discarding normalized bytes. Owner-file decoded PCM is identical before/after; 462 tests, build/manifest/security pass. Read `CELIKOM-EXTENSION-094-UPLOAD-ANCILLARY-20261127.md` for evidence, rejection boundaries and private delivery verification. Backend/auth/Android/Windows and playback engine unchanged; no customer publication.
+
+## Current continuation — 0.4.95 upload cancellation/stall handling
+
+Owner authorized correcting the previously investigated rare stalled uploads. 0.4.95 fixes pending-preparation cancellation, serializes immediate retry after cleanup, monitors byte-progress idle after initial transfer, preserves accurate terminal bytes/percent and restores last failed/cancelled status on explicit form opening while current server status remains authoritative. 468 tests pass. See `CELIKOM-EXTENSION-095-UPLOAD-CANCEL-STALL-20261127.md` for exact scope and verified owner delivery. Underlying intermittent network cause remains unproven; playback, backend auth, Android and Windows unchanged. No customer release.
