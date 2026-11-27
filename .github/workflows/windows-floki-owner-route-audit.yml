@@ -12,7 +12,7 @@ concurrency:
 jobs:
   audit:
     if: github.repository == 'manufact-test/nomusic' && github.ref == 'refs/heads/main'
-    runs-on: celikom-ci-smoke-only
+    runs-on: ubuntu-latest
     environment: floki-deploy
     timeout-minutes: 10
     steps:
