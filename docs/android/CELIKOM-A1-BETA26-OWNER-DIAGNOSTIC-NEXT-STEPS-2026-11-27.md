@@ -1,3 +1,5 @@
+> **Superseded by BETA27 (27.11.2026):** The owner confirmed «Ау» plays normally again on BETA26, but no replacement was audible. The diagnostic showed `ISSUER_CODEC_MP3_REQUESTED=NONE` and `FIRST_OPEN_DESCRIPTOR_LOST=ONE` after exact descriptor→factory→source lineage was observed. BETA27 narrowly pins the exact verified descriptor until first source touch and has passed JVM + Android 13 native-launch gates. It is not audio proof. BETA27 APK: `CELIKOM-A1-RAMIL-AU-BETA27-HONOR50-20261127.apk`, 71,598,060 bytes, SHA-256 `5939d5f9c8dc7661c5eac64f06391bf06f854b1da79158dfacc2f41f74f918c1`. Owner delivery is pending independent Floki root receipt and live celikom.com HTTPS verification. Continue from `docs/android/CELIKOM-A1-BETA27-EXACT-DESCRIPTOR-FIRST-OPEN-2026-11-27.md` and `docs/android/NEXT-CHAT.md`.
+
 # CELIKOM A1 BETA26 — owner diagnostic next steps
 
 Date: 2026-11-27  
