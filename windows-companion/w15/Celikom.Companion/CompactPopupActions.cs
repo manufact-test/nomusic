@@ -234,6 +234,27 @@ public sealed partial class MainWindow
         return true;
     }
 
+    private void CompactResult(bool upload, string title, string note)
+    {
+        if (upload)
+        {
+            _compactUploadView = "result";
+            _compactUploadResultTitle.Text = title;
+            _compactUploadResultNote.Text = note;
+            _compactUploadNote.Text = "";
+        }
+        else
+        {
+            _compactSuggestView = "result";
+            _compactSuggestResultTitle.Text = title;
+            _compactSuggestResultNote.Text = note;
+            _compactSuggestNote.Text = "";
+        }
+
+        RenderCompact();
+        LayoutCompact();
+    }
+
     private async Task<string> ReadCompactPresenceAsync(string trackId, bool force)
     {
         if (!GrantValidator.IsTrackId(trackId) || !_api.IsLoggedIn)
