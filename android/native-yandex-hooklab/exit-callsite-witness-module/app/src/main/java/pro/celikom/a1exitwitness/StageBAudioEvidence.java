@@ -1782,6 +1782,35 @@ final class StageBAudioEvidence {
             return null;
         return instance;
     }
+
+    /**
+     * Read-only live-period lookup: resolve the exact DataSource already linked
+     * to this original Track wrapper, even after open/read. Unlike the
+     * exactFresh* admission helpers, this never nominates or arms a source.
+     * Full creator Track+Album and the owner-consented track-only BETA token
+     * remain separate, exact identity paths.
+     */
+    synchronized Object linkedSourceInstanceForCreatorOrBeta(Object wrapper) {
+        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+        if(creator==null || creator.length!=2
+                || creator[0]==null || creator[1]==null)return null;
+        NativeTrackSourceLink link=findByWrapper(wrapper);
+        if(link==null || link.wrapper==null || link.wrapper.get()!=wrapper
+                || link.track==null || link.track.get()!=creator[0]
+                || link.descriptor==null || link.descriptor.get()==null
+                || link.factoryResult==null || link.factoryResult.get()==null
+                || link.sourceInstance==null)return null;
+        Object instance=link.sourceInstance.get();
+        if(instance==null || findBySource(instance)!=link)return null;
+        if(creator[1]==wrapper) {
+            Object[] beta=exactBetaCreatorWithoutAlbum(wrapper);
+            if(beta==null || beta.length!=2
+                    || beta[0]!=creator[0] || beta[1]!=wrapper)return null;
+        } else if(link.albumInstance==null
+                || link.albumInstance.get()!=creator[1])return null;
+        return instance;
+    }
+
     synchronized Object[] exactFreshCreatorOrBetaForDataSource(Object dataSource) {
         Object[] original=exactFreshCreatorForDataSource(dataSource);
         if(original!=null)return original;
