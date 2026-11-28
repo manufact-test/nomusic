@@ -55,6 +55,15 @@
       "name": "celikom-extension-0.4.96.zip",
       "size": 2506160,
       "sha256": "2503ea6f3a2326394dbd3e67859064a051db30125a035f44cff22c35aefc1379"
+    },
+    {
+      "version": "0.4.97",
+      "source_commit": "c3057ec8cd6f39d56591fe05b5a8f1f3420a6f8b",
+      "run_id": "46125600649",
+      "attempt": "1",
+      "name": "celikom-extension-0.4.97.zip",
+      "size": 2507737,
+      "sha256": "79d2f37b73d38802a0fe38ea538185049628eb74968045b88d52e885ddadd429"
     }
   ],
   "public_stable": null
