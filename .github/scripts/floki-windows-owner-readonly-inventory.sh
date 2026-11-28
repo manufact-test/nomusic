@@ -95,4 +95,39 @@ done
 echo WIN_NGINX_WINDOWS_ROUTE_CONFIG_END
 echo WINDOWS_ROOT_CONSUMER_STATE_END
 
+echo WINDOWS_CUSTOMER_STABLE_CONSUMER_STATE_BEGIN
+CUSTOMER=/srv/celikom-releases/public/windows-customer-stable
+for unit in celikom-windows-customer-stable.timer celikom-windows-customer-stable.service; do
+  printf 'WIN_CUSTOMER_SYSTEMD %s ' "$unit"
+  systemctl show "$unit" -p LoadState -p ActiveState -p UnitFileState -p LastTriggerUSec -p ExecMainStatus --no-pager 2>/dev/null | tr '\n' ' ' || true
+  echo
+done
+if [[ -d "$CUSTOMER" && ! -L "$CUSTOMER" ]]; then
+  for f in latest.json accepted.json; do
+    if [[ -f "$CUSTOMER/$f" && ! -L "$CUSTOMER/$f" ]]; then
+      python3 - "$CUSTOMER/$f" "$f" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1],encoding='utf-8'))
+if sys.argv[2]=='latest.json':
+    print('WIN_CUSTOMER_LATEST', 'version='+str(d.get('version','')), 'sequence='+str(d.get('sequence','')), 'sha256='+str(d.get('sha256','')))
+else:
+    print('WIN_CUSTOMER_ACCEPTED', 'version='+str(d.get('version','')), 'sequence='+str(d.get('sequence','')), 'sha256='+str(d.get('sha256','')), 'https_verified='+str(d.get('https_verified','')))
+PY
+    else
+      echo "WIN_CUSTOMER_FILE_MISSING $CUSTOMER/$f"
+    fi
+  done
+else
+  echo WIN_CUSTOMER_DIRECTORY=missing
+fi
+journalctl -u celikom-windows-customer-stable.service -n 25 --no-pager -o cat 2>/dev/null | tail -n 50 || true
+echo WIN_CUSTOMER_PUBLIC_LATEST_BEGIN
+curl --proto '=https' -fsS --max-time 15 https://celikom.com/CELIKOM/Windows/Updates/stable/latest.json 2>&1 |
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print("WIN_CUSTOMER_PUBLIC_LATEST", "version="+str(d.get("version","")), "sequence="+str(d.get("sequence","")), "sha256="+str(d.get("sha256","")))' || true
+for url in https://celikom.com/CELIKOM/Windows/Updates/stable/0.24.64/manifest.json https://celikom.com/CELIKOM/Windows/Updates/stable/0.24.64/CELIKOM-Windows-0.24.64.exe https://celikom.com/downloads/windows/CELIKOM-Windows-stable.exe; do
+  printf 'WIN_CUSTOMER_PUBLIC_HEAD %s ' "$url"
+  curl --proto '=https' -sSI --max-time 15 "$url" 2>&1 | sed -n '1,5p' | tr '\n' ' '
+  echo
+done
+echo WINDOWS_CUSTOMER_STABLE_CONSUMER_STATE_END
 echo WINDOWS_OWNER_DELIVERY_INVENTORY_END
