@@ -49,37 +49,62 @@ internal static class StableOtaLiveRepro
                 "W196 .NET package stager downloads both exact signed installers");
             Console.WriteLine("W196_DOTNET_CURRENT_AND_LATEST_INSTALLERS_SHA256_AND_PE_OK");
 
-            var installedRoot = Path.Combine(scratchRoot, "w196-02462-package-install");
-            InstallPackageToIsolatedDirectory(currentPackage.Path, installedRoot, scratchRoot);
+            var installVersion = Environment.GetEnvironmentVariable("CELIKOM_LIVE_INSTALL_VERSION");
+            if (string.IsNullOrWhiteSpace(installVersion))
+                installVersion = "0.24.62";
+            var selectedRelease = installVersion switch
+            {
+                "0.24.62" => current,
+                "0.24.63" => latest,
+                _ => throw new InvalidDataException("W196_LIVE_INSTALL_VERSION_INVALID")
+            };
+            var selectedPackage = installVersion == "0.24.62"
+                ? currentPackage
+                : latestPackage;
+            if (selectedPackage is null)
+                throw new InvalidDataException("W196_LIVE_SELECTED_PACKAGE_MISSING");
+
+            var installedRoot = Path.Combine(
+                scratchRoot, "w196-" + installVersion + "-package-install");
+            InstallPackageToIsolatedDirectory(
+                selectedPackage.Path, installedRoot, scratchRoot);
 
             var app = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
             var nativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
             var renderer = Path.Combine(installedRoot, "integration", "renderer.js");
             var supervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
 
-            var currentPayloadsMatch =
-                LogPayloadHash("0.24.62", "application", app, current.ApplicationSha256) &
-                LogPayloadHash("0.24.62", "native-host", nativeHost, current.NativeHostSha256) &
-                LogPayloadHash("0.24.62", "renderer", renderer, current.RendererSha256) &
-                LogPayloadHash("0.24.62", "supervisor", supervisor, current.SupervisorSha256);
-            Console.WriteLine("W196_DOTNET_02462_PAYLOAD_HASHES_RECORDED");
-
-            if (currentPayloadsMatch)
+            var payloadChecks = new[]
             {
-                var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
-                var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-                    emptyJournalRoot, current, currentPackage.Path, PublicKeySha256,
-                    installedVersion, app, nativeHost, renderer, supervisor,
-                    DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
-                var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-                    emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
-                test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
-                     cached.Release.Version == installedVersion &&
-                     cached.Release.Sequence == current.Sequence,
-                    "W196 exact 0.24.62 .NET bootstrap succeeds with a missing LKG journal");
-                Console.WriteLine("W196_DOTNET_EMPTY_LKG_BOOTSTRAP_OK");
-    
+                LogPayloadHash(installVersion, "application", app, selectedRelease.ApplicationSha256),
+                LogPayloadHash(installVersion, "native-host", nativeHost, selectedRelease.NativeHostSha256),
+                LogPayloadHash(installVersion, "renderer", renderer, selectedRelease.RendererSha256),
+                LogPayloadHash(installVersion, "supervisor", supervisor, selectedRelease.SupervisorSha256)
+            };
+            var allExpandedChecksPass = payloadChecks.All(x => x.Expanded && x.ExpandedOpen);
+            var allDefaultChecksPass = payloadChecks.All(x => x.Default && x.DefaultOpen);
+
+            test(allExpandedChecksPass,
+                "W196 installed package payloads pass the 250 MB verifier limit");
+            test(allDefaultChecksPass,
+                "W196 production default payload verifier and supervisor handle accept every installed payload");
+
+            var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
+            var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+                emptyJournalRoot, selectedRelease, selectedPackage.Path, PublicKeySha256,
+                selectedRelease.Version, app, nativeHost, renderer, supervisor,
+                DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
+                (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
+            var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+                emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
+            test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
+                 cached.Release.Version == selectedRelease.Version &&
+                 cached.Release.Sequence == selectedRelease.Sequence,
+                "W196 exact signed installer bootstraps a missing LKG journal");
+            Console.WriteLine($"W196_DOTNET_EMPTY_LKG_BOOTSTRAP_OK version={installVersion}");
+
+            if (installVersion == "0.24.62")
+            {
                 // Synthetic only: model a completed old-version journal left behind
                 // when the current app was installed outside the supervised OTA flow.
                 // No owner-device journal is read or inferred by this test.
@@ -104,7 +129,7 @@ internal static class StableOtaLiveRepro
                 test(staleCached.Release.Version == staleVersion &&
                      staleCached.LastAcceptedSequence == 2,
                     "W196 synthetic completed older LKG journal is readable and retains its sequence");
-    
+
                 var staleRebaseDenied = false;
                 try
                 {
@@ -125,27 +150,8 @@ internal static class StableOtaLiveRepro
                     "W196 current bootstrap rejects a completed stale LKG instead of safely reconciling it");
                 Console.WriteLine("W196_SYNTHETIC_STALE_LKG_BLOCK_REPRODUCED");
             }
-            else
-            {
-                Console.WriteLine("W196_LKG_TESTS_SKIPPED_CURRENT_PAYLOADS_DID_NOT_MATCH");
-            }
 
-            InstallPackageToIsolatedDirectory(latestPackage.Path, installedRoot, scratchRoot);
-            var latestApp = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
-            var latestNativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
-            var latestRenderer = Path.Combine(installedRoot, "integration", "renderer.js");
-            var latestSupervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
-            var latestPayloadsMatch =
-                LogPayloadHash("0.24.63", "application", latestApp, latest.ApplicationSha256) &
-                LogPayloadHash("0.24.63", "native-host", latestNativeHost, latest.NativeHostSha256) &
-                LogPayloadHash("0.24.63", "renderer", latestRenderer, latest.RendererSha256) &
-                LogPayloadHash("0.24.63", "supervisor", latestSupervisor, latest.SupervisorSha256);
-
-            test(currentPayloadsMatch,
-                "W196 installed 0.24.62 package payloads match its signed manifest");
-            test(latestPayloadsMatch,
-                "W196 installed 0.24.63 package payloads match its signed manifest");
-            Console.WriteLine("W196_DOTNET_PACKAGE_PAYLOAD_HASH_COMPARISON_COMPLETE");
+            Console.WriteLine($"W196_DOTNET_PACKAGE_PAYLOAD_HASH_COMPARISON_COMPLETE version={installVersion}");
         }
         finally
         {
@@ -156,13 +162,13 @@ internal static class StableOtaLiveRepro
         }
     }
 
-    private static bool LogPayloadHash(
+    private static (bool Default, bool Expanded, bool DefaultOpen, bool ExpandedOpen) LogPayloadHash(
         string releaseVersion, string payloadName, string path, string expectedHash)
     {
         if (!File.Exists(path))
         {
-            Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} path=MISSING expected={expectedHash} actual=MISSING match=false");
-            return false;
+            Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} path=MISSING expected={expectedHash} actual=MISSING defaultMatch=false expandedMatch=false defaultOpen=false expandedOpen=false");
+            return (false, false, false, false);
         }
 
         var info = new FileInfo(path);
@@ -172,8 +178,24 @@ internal static class StableOtaLiveRepro
         var defaultMatch = StableUpdatePayloadVerifier.MatchesFile(path, expectedHash);
         var expandedMatch = StableUpdatePayloadVerifier.MatchesFile(
             path, expectedHash, 250_000_000);
-        Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} size={info.Length} attributes={attributes} expected={expectedHash} actual={actualHash} defaultMatch={defaultMatch} expandedMatch={expandedMatch}");
-        return expandedMatch;
+        var defaultOpen = TryOpenVerifiedPayload(path, expectedHash, 125_000_000);
+        var expandedOpen = TryOpenVerifiedPayload(path, expectedHash, 250_000_000);
+        Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} size={info.Length} attributes={attributes} expected={expectedHash} actual={actualHash} defaultMatch={defaultMatch} expandedMatch={expandedMatch} defaultOpen={defaultOpen} expandedOpen={expandedOpen}");
+        return (defaultMatch, expandedMatch, defaultOpen, expandedOpen);
+    }
+
+    private static bool TryOpenVerifiedPayload(string path, string expectedHash, long maxBytes)
+    {
+        try
+        {
+            using var stream = StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+                path, expectedHash, maxBytes: maxBytes);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     private static void InstallPackageToIsolatedDirectory(
