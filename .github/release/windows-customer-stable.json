@@ -2,9 +2,9 @@
   "schema": 1,
   "channel": "customer-stable",
   "approved": {
-    "version": "0.24.63",
-    "sequence": 10,
-    "sha256": "3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f",
+    "version": "0.24.64",
+    "sequence": 11,
+    "sha256": "5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff",
     "owner_accepted": true
   }
 }
