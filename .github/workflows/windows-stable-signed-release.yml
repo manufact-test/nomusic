@@ -23,8 +23,17 @@ on:
         required: false
         default: ''
         type: string
+      publish_target:
+        description: Verified Windows customer OTA route. Floki serves the existing public customer-stable feed.
+        required: true
+        default: floki
+        type: choice
+        options:
+          - floki
+          - hostinger
+          - both
       publish_to_production:
-        description: Promote the signed release to the selected Hostinger and/or Floki targets; affects installations following stable and requires protected approval
+        description: Promote the signed release to the selected target; affects installations following stable and requires protected approval
         required: true
         default: false
         type: boolean
@@ -54,7 +63,7 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version || '0.24.64' }}
       RELEASE_SEQUENCE: ${{ inputs.sequence || '11' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
-      CELIKOM_STABLE_PUBLISHER: ${{ vars.CELIKOM_STABLE_PUBLISHER }}
+      CELIKOM_STABLE_PUBLISHER: ${{ inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -205,10 +214,11 @@ jobs:
   publish_floki:
     name: Promote signed release to Floki stable (approval-gated)
     needs: prepare
-    # The Floki root consumer promotes its local stable feed and owner download.
-    # The read-only route audit determines whether those paths are public or mirrored.
-    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'floki' || vars.CELIKOM_STABLE_PUBLISHER == 'both') && needs.prepare.result == 'success'
+    # Floki is the verified source for the public customer-stable consumer.
+    # The protected child records explicit acceptance after staging the signed bundle.
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'floki' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both') && needs.prepare.result == 'success'
     permissions:
+      actions: read
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
     with:
@@ -218,7 +228,7 @@ jobs:
 
   publish:
     needs: prepare
-    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'hostinger' || vars.CELIKOM_STABLE_PUBLISHER == 'both')
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'hostinger' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both')
     permissions:
       contents: read
     concurrency:
@@ -251,3 +261,124 @@ jobs:
           bash .github/scripts/windows-stable-publish-hostinger.sh \
             "$RUNNER_TEMP/celikom-stable-ready" \
             '${{ inputs.version }}' '${{ inputs.sequence }}'
+
+  verify_customer_stable:
+    name: Verify public customer stable OTA over HTTPS
+    needs: [prepare, publish_floki]
+    if: ${{ github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'floki' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both') && needs.prepare.result == 'success' && needs.publish_floki.result == 'success' }}
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence }}
+      CELIKOM_STABLE_ORIGIN: https://celikom.com
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: CELIKOM-Windows-P256-transfer-${{ inputs.version }}-${{ github.sha }}
+          path: ${{ runner.temp }}/exact-windows-transfer
+      - name: Extract exact signed expectations and verify package digest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - "$RUNNER_TEMP/exact-windows-transfer/CELIKOM-Windows-P256-transfer.zip" "$RUNNER_TEMP/expected" "$RELEASE_VERSION" "$RELEASE_SEQUENCE" <<'PY'
+          import hashlib,json,sys,zipfile
+          from pathlib import Path
+          bundle,destination,version,sequence=sys.argv[1:]
+          sequence=int(sequence)
+          expected={"latest.json","latest.json.sig","manifest-public-key.der",
+                    f"{version}/manifest.json",f"{version}/manifest.json.sig",
+                    f"{version}/CELIKOM-Windows-{version}.exe"}
+          out=Path(destination);out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile(bundle) as z:
+              assert set(z.namelist())==expected, "PUBLIC_VERIFY_TRANSFER_CONTENTS_INVALID"
+              latest=z.read("latest.json")
+              signature=z.read("latest.json.sig")
+              key=z.read("manifest-public-key.der")
+              assert z.read(f"{version}/manifest.json")==latest
+              assert z.read(f"{version}/manifest.json.sig")==signature
+              data=json.loads(latest)
+              assert data["version"]==version and data["sequence"]==sequence
+              assert hashlib.sha256(key).hexdigest()=="46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95"
+              info=z.getinfo(f"{version}/CELIKOM-Windows-{version}.exe")
+              assert info.file_size==data["packageSize"]
+              h=hashlib.sha256()
+              with z.open(info) as source:
+                  for chunk in iter(lambda:source.read(1024*1024),b""):
+                      h.update(chunk)
+              assert h.hexdigest()==data["sha256"]
+              (out/"latest.json").write_bytes(latest)
+              (out/"latest.json.sig").write_bytes(signature)
+              (out/"manifest-public-key.der").write_bytes(key)
+              (out/"manifest.json").write_bytes(latest)
+              (out/"manifest.json.sig").write_bytes(signature)
+              (out/"identity.json").write_text(json.dumps({
+                  "version":version,"sequence":sequence,"sha256":data["sha256"],
+                  "packageSize":data["packageSize"]}),encoding="utf-8")
+          print("PUBLIC_CUSTOMER_EXPECTED_SIGNED_PACKAGE_OK",version,sequence)
+          PY
+      - name: Verify expected P-256 signature
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          export CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64="$(base64 -w0 "$RUNNER_TEMP/expected/manifest-public-key.der")"
+          node --input-type=module - "$RUNNER_TEMP/expected/latest.json" "$RUNNER_TEMP/expected/latest.json.sig" <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          import {verifyExistingStableLatest} from './.github/scripts/windows-stable-existing-latest.mjs';
+          const [manifestPath,signaturePath]=process.argv.slice(2);
+          const manifest=await readFile(manifestPath);
+          const signature=await readFile(signaturePath);
+          const result=verifyExistingStableLatest(manifest,signature,{
+            origin:process.env.CELIKOM_STABLE_ORIGIN,
+            pinnedPublicKeyDerBase64:process.env.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64
+          });
+          const data=JSON.parse(manifest.toString('utf8'));
+          if(data.version!==process.env.RELEASE_VERSION ||
+             data.sequence!==Number(process.env.RELEASE_SEQUENCE) ||
+             result.sequence!==Number(process.env.RELEASE_SEQUENCE))
+            throw new Error('PUBLIC_CUSTOMER_SIGNED_IDENTITY_MISMATCH');
+          console.log('PUBLIC_CUSTOMER_EXPECTED_P256_SIGNATURE_OK',data.version,result.sequence);
+          NODE
+      - name: Wait for approved public customer feed and verify exact HTTPS bytes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          p="$RUNNER_TEMP/expected"
+          base="$CELIKOM_STABLE_ORIGIN/CELIKOM/Windows/Updates/stable"
+          ready=0
+          for attempt in $(seq 1 36); do
+            if curl --proto '=https' -fsS --max-time 10 "$base/latest.json" -o "$p/public-latest.json" &&
+               curl --proto '=https' -fsS --max-time 10 "$base/latest.json.sig" -o "$p/public-latest.json.sig" &&
+               cmp -s "$p/latest.json" "$p/public-latest.json" &&
+               cmp -s "$p/latest.json.sig" "$p/public-latest.json.sig"; then
+              ready=1
+              break
+            fi
+            sleep 15
+          done
+          test "$ready" = 1 || { echo PUBLIC_CUSTOMER_STABLE_LATEST_NOT_PROMOTED; exit 1; }
+          cmp "$p/latest.json" "$p/public-latest.json"
+          cmp "$p/latest.json.sig" "$p/public-latest.json.sig"
+          v="$RELEASE_VERSION"
+          curl --proto '=https' -fsS --max-time 30 "$base/$v/manifest.json" -o "$p/public-manifest.json"
+          curl --proto '=https' -fsS --max-time 30 "$base/$v/manifest.json.sig" -o "$p/public-manifest.json.sig"
+          cmp "$p/manifest.json" "$p/public-manifest.json"
+          cmp "$p/manifest.json.sig" "$p/public-manifest.json.sig"
+          expected_sha=$(jq -er '.sha256' "$p/identity.json")
+          curl --proto '=https' -fsS --max-time 180 --max-filesize 125000000 \
+            "$base/$v/CELIKOM-Windows-$v.exe" -o "$p/public-installer.exe"
+          printf '%s  %s\n' "$expected_sha" "$p/public-installer.exe" | sha256sum -c
+          curl --proto '=https' -fsS --max-time 180 --max-filesize 125000000 \
+            "$CELIKOM_STABLE_ORIGIN/downloads/windows/CELIKOM-Windows-stable.exe" \
+            -o "$p/public-owner-stable.exe"
+          printf '%s  %s\n' "$expected_sha" "$p/public-owner-stable.exe" | sha256sum -c
+          echo "W198_PUBLIC_CUSTOMER_STABLE_OTA_VERIFIED $v $RELEASE_SEQUENCE $expected_sha" >> "$GITHUB_STEP_SUMMARY"

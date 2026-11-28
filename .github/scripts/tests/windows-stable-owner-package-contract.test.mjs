@@ -44,8 +44,10 @@ test("W156 owner bootstrap uses a short-lived signed transfer artifact; Floki pr
 
 test("W189 Floki spool is a production publisher and every route is approval-gated", () => {
   assert.match(releaseWorkflow, /publish_to_production:\s*\n\s+description: Promote the signed release/);
-  assert.match(releaseWorkflow, /publish_floki:[\s\S]*?inputs\.publish_to_production == true[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'floki'[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'both'/);
-  assert.match(releaseWorkflow, /publish:\s*\n[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'hostinger'[\s\S]*?CELIKOM_STABLE_PUBLISHER == 'both'/);
+  assert.match(releaseWorkflow, /publish_floki:[\s\S]*?inputs\.publish_to_production == true[\s\S]*?inputs\.publish_target \|\| vars\.CELIKOM_STABLE_PUBLISHER \|\| 'floki'[\s\S]*?== 'both'/);
+  assert.match(releaseWorkflow, /publish:[\s\S]*?inputs\.publish_target \|\| vars\.CELIKOM_STABLE_PUBLISHER \|\| 'floki'[\s\S]*?== 'both'/);
+  assert.match(flokiStageWorkflow, /Record owner-approved version for the existing public customer stable feed/);
+  assert.match(releaseWorkflow, /verify_customer_stable:[\s\S]*?W198_PUBLIC_CUSTOMER_STABLE_OTA_VERIFIED/);
   assert.match(releaseWorkflow, /CELIKOM-Windows-P256-stable-/);
   assert.match(flokiStageWorkflow, /environment:\s*windows-stable-production/);
   assert.doesNotMatch(flokiStageWorkflow, /\n  workflow_dispatch:/);

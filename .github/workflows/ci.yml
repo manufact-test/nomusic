@@ -79,6 +79,8 @@ jobs:
 
       - name: Validate W155 final owner EXE and ZIP package contract
         run: node --test .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
+      - name: Validate protected Windows customer stable promotion
+        run: python3 .github/scripts/tests/windows-stable-customer-promotion.test.py
 
       - name: Validate Stage 6 restricted library workflow
         run: |
