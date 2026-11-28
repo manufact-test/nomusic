@@ -13,6 +13,9 @@ class WindowsCustomerStablePromotionContract(unittest.TestCase):
         self.assertIn("default: floki", RELEASE)
         self.assertIn("CELIKOM_STABLE_PUBLISHER: ${{ inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki' }}", RELEASE)
         self.assertIn("publish_floki:", RELEASE)
+        floki_job = RELEASE.split("  publish_floki:", 1)[1].split("\n  publish:", 1)[0]
+        self.assertIn("actions: read", floki_job)
+        self.assertIn("contents: write", floki_job)
         self.assertIn("windows-stable-production", FLOKI)
 
     def test_customer_approval_is_written_only_after_protected_floki_stage(self):
