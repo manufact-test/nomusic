@@ -27,6 +27,8 @@ class WindowsCustomerStablePromotionContract(unittest.TestCase):
         self.assertIn("contents: write", FLOKI)
         self.assertIn('/actions/runs/"+run_id+"/approvals', FLOKI)
         self.assertIn("PROTECTED_PRODUCTION_APPROVAL_NOT_RECORDED", FLOKI)
+        self.assertNotIn('gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals"', FLOKI)
+        self.assertIn('approvals=api("/actions/runs/"+run_id+"/approvals")', FLOKI)
         self.assertIn("owner_accepted", FLOKI)
         self.assertIn("CUSTOMER_STABLE_DOWNGRADE_REFUSED", FLOKI)
         self.assertIn("verifyExistingStableLatest", FLOKI)
