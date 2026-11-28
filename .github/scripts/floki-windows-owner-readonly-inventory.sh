@@ -102,11 +102,71 @@ for unit in celikom-mirror-sync.timer celikom-mirror-sync.service; do
   systemctl show "$unit" -p LoadState -p ActiveState -p UnitFileState -p LastTriggerUSec -p ExecMainStatus --no-pager 2>/dev/null | tr '\n' ' ' || true
   echo
 done
+echo WIN_MIRROR_SYNC_UNIT_DETAILS_BEGIN
+systemctl show celikom-mirror-sync.service -p FragmentPath -p DropInPaths -p ExecStart -p User -p Group -p WorkingDirectory --no-pager 2>/dev/null |
+  sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
+unit_file=$(systemctl show celikom-mirror-sync.service -p FragmentPath --value 2>/dev/null || true)
+if [[ -n "$unit_file" && -f "$unit_file" ]]; then
+  grep -nE '^[[:space:]]*(User|Group|WorkingDirectory|ExecStart|ExecStartPre|ExecStartPost|EnvironmentFile)=' "$unit_file" |
+    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
+fi
+exec_path=$(systemctl show celikom-mirror-sync.service -p ExecStart --value 2>/dev/null |
+  sed -n 's/.*path=\([^ ;]*\).*/\1/p' | head -n 1)
+if [[ -n "$exec_path" && -f "$exec_path" ]]; then
+  exec_path=$(readlink -f "$exec_path" 2>/dev/null || printf '%s' "$exec_path")
+  stat -c 'WIN_MIRROR_EXEC_FILE %n %U:%a %s' "$exec_path" || true
+  grep -nEi 'git|fetch|push|mirror|atomic|prune|remote|refspec|force|branch' "$exec_path" 2>/dev/null |
+    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' | head -n 100 || true
+else
+  echo WIN_MIRROR_EXEC_FILE=not_resolved
+fi
+echo WIN_MIRROR_SYNC_UNIT_DETAILS_END
 if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
   mirror_head=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" rev-parse refs/heads/main 2>/dev/null || true)
   echo "WIN_MIRROR_MAIN_COMMIT=$mirror_head"
   runuser -u celikom-mirror -- git --git-dir="$MIRROR" show refs/heads/main:.github/release/windows-customer-stable.json 2>/dev/null |
     python3 -c 'import json,sys; d=json.load(sys.stdin); a=d.get("approved") or {}; print("WIN_MIRROR_CUSTOMER_APPROVAL", "version="+str(a.get("version","none")), "sequence="+str(a.get("sequence","")), "sha256="+str(a.get("sha256","")), "owner_accepted="+str(a.get("owner_accepted","")))' || true
+  echo WIN_MIRROR_REMOTES_BEGIN
+  SOURCE_REMOTE=""
+  TARGET_REMOTE=""
+  while IFS= read -r remote; do
+    fetch_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url "$remote" 2>/dev/null || true)
+    push_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url --push "$remote" 2>/dev/null || true)
+    safe_fetch=$(printf '%s' "$fetch_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#')
+    safe_push=$(printf '%s' "$push_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#')
+    echo "WIN_MIRROR_REMOTE name=$remote fetch=$safe_fetch push=$safe_push"
+    if [[ "$fetch_url" == *github.com/manufact-test/nomusic.git* ]]; then SOURCE_REMOTE="$remote"; fi
+    if [[ "$push_url" == *127.0.0.1:celadmin/nomusic.git* ||
+          "$push_url" == *127.0.0.1/celadmin/nomusic.git* ]]; then TARGET_REMOTE="$remote"; fi
+  done < <(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote 2>/dev/null || true)
+  echo "WIN_MIRROR_SOURCE_REMOTE=$SOURCE_REMOTE"
+  echo "WIN_MIRROR_TARGET_REMOTE=$TARGET_REMOTE"
+  for remote in "$SOURCE_REMOTE" "$TARGET_REMOTE"; do
+    [[ -n "$remote" ]] || continue
+    echo "WIN_MIRROR_REMOTE_HEADS_BEGIN $remote"
+    while read -r remote_sha remote_ref; do
+      [[ -n "$remote_sha" && -n "$remote_ref" ]] || continue
+      local_sha=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" rev-parse "$remote_ref" 2>/dev/null || true)
+      if [[ -z "$local_sha" ]]; then
+        relation=REMOTE_REF_NOT_LOCAL
+      elif [[ "$local_sha" == "$remote_sha" ]]; then
+        relation=EQUAL
+      elif runuser -u celikom-mirror -- git --git-dir="$MIRROR" cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        if runuser -u celikom-mirror -- git --git-dir="$MIRROR" merge-base --is-ancestor "$local_sha" "$remote_sha" 2>/dev/null; then
+          relation=REMOTE_AHEAD_FAST_FORWARD
+        elif runuser -u celikom-mirror -- git --git-dir="$MIRROR" merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+          relation=LOCAL_AHEAD
+        else
+          relation=DIVERGED
+        fi
+      else
+        relation=REMOTE_OBJECT_NOT_LOCAL
+      fi
+      [[ "$relation" == EQUAL ]] || echo "WIN_MIRROR_REF_COMPARE remote=$remote ref=$remote_ref local=$local_sha remote_sha=$remote_sha relation=$relation"
+    done < <(timeout 20s runuser -u celikom-mirror -- git --git-dir="$MIRROR" ls-remote --heads "$remote" 2>/dev/null || true)
+    echo "WIN_MIRROR_REMOTE_HEADS_END $remote"
+  done
+  echo WIN_MIRROR_REMOTES_END
 else
   echo WIN_MIRROR_DIRECTORY=missing
 fi
