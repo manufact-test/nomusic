@@ -72,8 +72,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" |
-            jq -e 'any(.[]; .state=="approved" and any(.environments[]?; .name=="windows-stable-production"))' >/dev/null
+          # The pinned Python GitHub API check below verifies the recorded protected approval.
+          # Do not depend on the optional GitHub CLI being preinstalled on this runner.
 
           bundle="$RUNNER_TEMP/celikom-windows-private-stage/CELIKOM-Windows-P256-transfer.zip"
           tmp=$(mktemp -d)
