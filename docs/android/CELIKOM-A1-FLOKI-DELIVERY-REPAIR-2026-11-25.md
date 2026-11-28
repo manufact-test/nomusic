@@ -1,3 +1,19 @@
+# Current checkpoint — BETA31 delivered (2026-11-28)
+
+**BETA31 NAV52 owner delivery is complete and verified.** This supersedes BETA30 delivery-pending notes below.
+
+- Android source/export run `46121780348`, attempt 1 — SUCCESS; source commit `ef661ce23da8c50367b9aaaf0d27c65aed160ba1`.
+- Unpublished owner draft release ID `461389699`.
+- APK `CELIKOM-A1-RAMIL-AU-BETA31-HONOR50-20261128.apk`, 71,602,156 bytes.
+- SHA-256 `fed4b9c150e45eadc6cc424b2a904f5ac5951160ef1e1e8c9227c039f37562fe`.
+- Delivery run `46122831604`, attempt 3, job `140919835283` on `celikom-floki-ci02` — SUCCESS.
+- CI01 had accepted the first two delivery attempts but started no workflow steps. A read-only audit showed its listener present and zero worker processes. CI02 accepted attempt 3; no runner restart or security relaxation was required.
+- The root consumer verified the original signing certificate/package, source provenance, exact size and SHA-256. Receipt `a1-46121780348-1.json` recorded `https_verified=true`; independent HTTPS returned HTTP 200 with the expected APK content type, exact size and SHA-256. The unpublished owner draft was patched and read back with exactly one matching capability URL.
+- The owner capability URL was sent privately. Never copy the URL/token into Git, docs, logs, Actions summaries or public messages.
+- Delivery is accepted; **audible replacement is not**. Owner must install over BETA30 and report actual sound plus a fresh BETA31 diagnostic TXT.
+
+---
+
 # Current checkpoint — BETA30 delivered (2026-11-28)
 
 **This checkpoint supersedes all pending/blocked delivery notes below, which are historical.**

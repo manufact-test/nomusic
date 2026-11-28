@@ -108,3 +108,16 @@ The NAV51 same-DataSource result would establish source-path identity, not audib
 ## 8. Owner-directed next development step (2026-11-28)
 
 Fresh BETA30 TXT and listening result are pending in this checkpoint. The next chat should use those existing results to implement a justified functional fix, not automatically add telemetry. Follow the decision branches in NEXT-CHAT.md. Investigate only the concrete unresolved boundary; use targeted tests and required release gates, then deliver a corrected APK. If the same-period witness resolves, investigate downstream audio; if route/period mismatch is shown, investigate lifecycle/source selection; if resolution still fails, use existing NAV51 reason counters. Avoid redundant diagnostics and do not claim audible success without the phone test.
+
+
+## 9. BETA31 NAV52 follow-up (2026-11-28)
+
+BETA31 follows the NAV51 identity-witness repair with a targeted committed-cursor lifetime correction. The original source setter now supersedes a selection without prematurely closing an already committed exact cursor; stale sources cannot reopen or re-arm, and the next source receives an independent cursor. The focused regression and existing JVM/native gates passed.
+
+- Source commit: `ef661ce23da8c50367b9aaaf0d27c65aed160ba1`.
+- Source/export run: `46121780348`, attempt 1 — SUCCESS.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA31-HONOR50-20261128.apk`, 71,602,156 bytes, SHA-256 `fed4b9c150e45eadc6cc424b2a904f5ac5951160ef1e1e8c9227c039f37562fe`.
+- Trusted Floki delivery: `46122831604`, attempt 3 — SUCCESS; root receipt and live HTTPS size/hash verification passed.
+- The direct owner capability URL was sent privately and is intentionally omitted here.
+
+The next owner test is BETA31 over BETA30, without uninstalling or clearing data/cache. Test «Ау» track `144530503` at `00:43–00:54`, then the second song with prior leading gaps; return a fresh BETA31 TXT and the actual listening outcome. Audible replacement remains unproven until the owner hears it.

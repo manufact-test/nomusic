@@ -1,4 +1,4 @@
-# CURRENT HANDOFF — BETA30 NAV51 delivered; fix audible replacement next
+# CURRENT HANDOFF — BETA31 NAV52 delivered; phone acceptance next
 
 Date: 2026-11-28
 Repository: `manufact-test/nomusic`
@@ -7,32 +7,40 @@ Working branch: `experiment/android-a1-metrica-init-state-observer-arm13-2026111
 ## Read first
 
 1. `docs/android/NEXT-CHAT.md` — this current handoff.
-2. `docs/android/CELIKOM-A1-BETA30-NAV51-LIVE-DATASOURCE-WITNESS-2026-11-27.md` — NAV50/NAV51 code and exact counters.
-3. `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md` — only if needed for delivery.
-4. `docs/android/CELIKOM-A1-BETA28-ALT-DATASOURCE-LIVE-RENDERER-CORRELATION-2026-11-27.md` and `docs/android/CELIKOM-A1-BETA28-OWNER-SESSION-RECOVERY-2026-11-27.md` — historical reference only when relevant.
-
-This checkpoint supersedes all earlier queued/stalled-delivery instructions. Do not spend the next chat re-investigating the completed BETA30 delivery.
+2. `docs/android/CELIKOM-A1-BETA31-NAV52-COMMITTED-CURSOR-LIFETIME-2026-11-28.md` — exact code correction, tests, build and delivery.
+3. `docs/android/CELIKOM-A1-BETA30-NAV51-LIVE-DATASOURCE-WITNESS-2026-11-27.md` — NAV50/NAV51 lineage and counters.
+4. `docs/android/CELIKOM-A1-FLOKI-DELIVERY-REPAIR-2026-11-25.md` — delivery history and trusted security boundary.
 
 ## Current state
 
-- BETA30 NAV51 has been built, signed, delivered and the verified direct APK URL was sent privately to the owner.
-- Source commit: `aef40439586304fd57dabcbf20dfcce3af52a181`; source/export run `46070081916`, attempt 1 — SUCCESS.
-- Owner JVM regression `RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS` and fresh Android 13 ARM64/ARMv7 native gate `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` passed.
-- APK: `CELIKOM-A1-RAMIL-AU-BETA30-HONOR50-20261127.apk`, 71602156 bytes, SHA-256 `e33c3e31721d76ee82df7554f0eddb311202566328eafcb50f3f0958b7b53dfe`.
-- Unpublished owner draft `461085315`, tag `celikom-a1-owner-46070081916-1`.
-- Trusted Floki delivery run `46070217462`, attempt 5, job `140793123974` — SUCCESS. Provenance, exact signer/package, size/hash, root-owned HTTPS receipt and private draft readback passed. No APK rebuild was needed.
-- The actual capability URL is private; never include it in Git, documentation or logs.
-- BETA30 phone listening result and fresh NAV51 TXT are not yet present in this handoff. The owner will supply them in the next chat. **Audible replacement is not yet proven.**
+- **BETA31 NAV52 is built, signed and delivered through celikom.com.**
+- Android source commit: `ef661ce23da8c50367b9aaaf0d27c65aed160ba1`.
+- Source/export workflow run `46121780348`, attempt 1 — SUCCESS.
+- Owner JVM gate and fresh Android 13 ARM64/ARMv7 native gate — SUCCESS.
+- Targeted output included `RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS` and `NATIVE_EXO_SINGLE_PLAYER_ENCODED_BYTES_ROUTE_PASS`.
+- Native verdict remains `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- APK: `CELIKOM-A1-RAMIL-AU-BETA31-HONOR50-20261128.apk`, 71,602,156 bytes.
+- SHA-256: `fed4b9c150e45eadc6cc424b2a904f5ac5951160ef1e1e8c9227c039f37562fe`.
+- Unpublished owner draft release ID: `461389699`.
+- Trusted delivery run `46122831604`, attempt 3, job `140919835283` on `celikom-floki-ci02` — SUCCESS. The exact signer/package, provenance, size and digest passed. Root receipt and independent live HTTPS HTTP 200/content-type/size/SHA checks passed; the draft URL was read back successfully.
+- The capability URL was delivered privately to the owner. Never copy it into Git, documentation, Actions logs or public summaries.
+- **Phone listening result and fresh BETA31 diagnostic TXT are pending. Audible replacement is not yet proven.**
+
+## BETA31 NAV52 correction
+
+The original source setter now calls `NativeExoAlternateByteRoute.supersedeSelection()` rather than immediately cancelling the route. An already committed exact cursor can finish reads until its own native close; it cannot be reopened or re-armed. The next source remains independent. A focused regression covers overlapping source selection, cursor continuity, stale-source rejection, independent next-source bytes, unrelated-source rejection and exact close behavior.
+
+See the BETA31 document for the precise implementation and test/build receipts. Do not repeat NAV51 work or build another telemetry-only version without a concrete reason.
 
 ## What was already established
 
-BETA29 had a negative listening result. The earlier report names TXT `CELIKOM-A1-Diagnostics-1795806916651.txt`; a subsequent BETA29 TXT `CELIKOM-A1-Diagnostics-1795812695254.txt` was reported in the transferred chat with the same NAV50 outcomes. Authorization, alternate grant, DataSource arm/open and positive byte reads worked (`AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`). NAV50 had no same-current-period or different-period confirmation; `NO_ROUTE_CURRENT_PERIOD=FEW`, `DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW`. The process-wide counts cannot prove per-song or selection-generation causality. `BUFFER_EOS_ACCESS=NO_HOOK` was reported; do not treat unknown EOS as non-EOS.
+BETA29 had a negative listening result. Authorization, alternate grant, DataSource arm/open and positive byte reads worked, but NAV50 could not correlate those reads to the active renderer period. NAV51 fixed the exact DataSource identity-witness lifetime error in `StageBAudioEvidence.java`: after exact Descriptor → Factory → DataSource binding, the resolver no longer depends on the vendor Descriptor/Factory weak references remaining alive. The durable `factorySourceIdentityBound` witness is invalidated on rebind; creator, wrapper, Track, source, reverse-link and Beta/Album checks remain.
 
-NAV51 fixed a specific identity-witness lifetime error in `StageBAudioEvidence.java`: the first-open path releases the strong descriptor pin, but NAV50 required Descriptor and Factory weak references to remain alive after exact DataSource binding. The durable value-free `factorySourceIdentityBound` witness is set only after exact lineage verification and invalidated on rebind. The exact creator/wrapper/Track/source/reverse link and Beta/Album checks remain. This is a witness repair, not an audio-routing change. The targeted weak-reference/rebind regression passed. The other previously identified candidate, `NativeEarlySourceLifecycleBridge.cancelForNext()`, may reset the route at a subsequent selection; causation on the active song has not been demonstrated.
+BETA31 NAV52 addresses the next concrete lifecycle boundary. A new original source setter can run before the renderer closes the already committed previous source. The old `cancelForNext()` reset could close that committed cursor too early. The new `supersedeSelection()` retires the exact previous source but lets its already committed cursor finish reads until its own native close; it never grants a new open/re-arm right. The new source receives an independent grant/cursor. This is a targeted lifecycle correction, **not proof that this was the only phone-side cause** and not proof of audible replacement.
 
 ## Owner's overriding development priority — speed to a working mobile version
 
-The owner clarified that the goal is not merely to avoid diagnostic-only APKs: **deliver a functioning Android music replacement as quickly as possible.** Optimize the entire development loop for time to actual audible success. Diagnostics, source inspection and tests are tools, not milestones in themselves. Read the fresh TXT, select the most direct justified route, implement the correction, run the necessary gates and deliver a testable build. If the route is already known, act immediately; do not delay implementation by exploring additional theories or unrelated subsystems. If a concrete blocker requires deeper investigation, investigate only as far as necessary to unblock the fix. Diagnostic builds and targeted experiments are allowed when they are genuinely the fastest way to the working product; they are not categorically prohibited. Avoid long speculative detours, repetitive status reports, unnecessary research, and waiting on redundant checks. Preserve required safety/signing/release checks and existing working behavior. Measure progress by working mobile playback and time to the next meaningful correction, not by the number of investigations or completed CI runs.
+The owner clarified that the goal is **a functioning Android music replacement as quickly as possible.** Optimize the entire development loop for time to actual audible success. Diagnostics, source inspection and tests are tools, not milestones in themselves. Read the fresh TXT, select the most direct justified route, implement the correction, run the necessary gates and deliver a testable build. If the route is already known, act immediately; do not delay implementation by exploring additional theories or unrelated subsystems. If a concrete blocker requires deeper investigation, investigate only as far as necessary to unblock the fix. Diagnostic builds and targeted experiments are allowed when they are genuinely the fastest way to the working product; they are not categorically prohibited. Avoid long speculative detours, repetitive status reports, unnecessary research, and waiting on redundant checks. Preserve required safety/signing/release checks and existing working behavior. Measure progress by working mobile playback and time to the next meaningful correction, not by the number of investigations or completed CI runs.
 
 ## Next task — prioritize an actual fix
 
@@ -55,6 +63,24 @@ Install over BETA29 without uninstalling or clearing app data/cache (if not alre
 ## Delivery recovery reference (resolved for BETA30)
 
 The shared self-hosted runner accepted jobs but cancelled workers before the first step. Host storage/memory/DNS were healthy. Existing owner-enabled maintenance channel was used; read-only host check run `46083699896` succeeded. CI02 logs showed JobDispatcher immediately cancelling the worker. First restart guard failed on docker top; a corrected PID-tree guard confirmed no worker, then restarted only existing `celikom-ci-runner2.service` in run `46084579328` — SUCCESS. Maintenance request cleared in main commit `684c4298ab6518f91c87d838f46b1d5bfa68eff0`. BETA30 attempt 5 delivered successfully afterward. This proves CI02 worked for that delivery, not that CI01 or all infrastructure is permanently repaired. Do not repeat this recovery unless a real new delivery failure warrants it. See Floki delivery document for details. Keep owner drafts unpublished; do not bypass the root verifier, expose credentials, change security permissions or publish the APK.
+
+
+## Next step — real phone acceptance
+
+Install BETA31 **over BETA30** on the existing Honor 50. Do not uninstall CELIKOM or clear app data/cache.
+
+1. Confirm CELIKOM status is `ВКЛ`.
+2. Play Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, and listen to `00:43–00:54`.
+3. Test the second song that previously had leading gaps.
+4. Export a fresh BETA31 TXT and report separately whether the alternate sound was actually heard.
+
+If it works, preserve this path and verify the remaining reproducible cases. If it does not, use the BETA31 TXT plus the listening result to choose the next narrow correction; do not ask for BETA30 diagnostics again and do not repeat already passed authorization/source-lineage investigations.
+
+## Delivery recovery reference
+
+The last delivery failure was isolated to CI01 accepting a job without starting a worker. Two BETA31 delivery attempts on CI01 ended before any step. A read-only host audit showed CI01 listener present but no worker; CI02 was healthy. The existing trusted spool was retried without rebuilding the APK; attempt 3 ran on CI02 and completed successfully. The root-owned timer is active, the service completed successfully, and the exact BETA31 receipt records `https_verified=true`. No runner restart, permission change, server product change, Windows change or delivery-security bypass was made. Do not re-investigate delivery unless a new concrete failure occurs.
+
+Owner drafts remain unpublished. No GitHub APK URL should be sent instead of the celikom.com capability URL.
 
 ## Boundaries
 
