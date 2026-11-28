@@ -92,9 +92,7 @@ public final class NativeExoAlternateByteRouteTest {
             "SEEK_REOPENS_APPROVED_RANGE_AT_EXACT_BYTE_OFFSET");
         check(route.readIfApproved(yandexDataSource,b,0,3)==3,
             "SEEK_STREAM_READ");
-        NativeEarlySourceLifecycleBridge originalSelection=new NativeEarlySourceLifecycleBridge(
-            ()->100L,route,()->now);
-        originalSelection.invalidated(2); // the real original source setter's Next hook
+        route.cancelForNext(); // strict cancellation contract
         check(factory.instances.get(1).closed,"NEXT_CLOSES_ALT_CURSOR");
         check(route.readStatusForSource(yandexDataSource)==0,
             "NEXT_REVOKES_OLD_SOURCE_READ_WITNESS");
@@ -129,6 +127,55 @@ public final class NativeExoAlternateByteRouteTest {
             180000,grant,"https://audio.example",now,
             NativeSourceGate.Choice.ALTERNATE),
             "NEXT_CANNOT_REUSE_OLD_SIGNED_SELECTION_GENERATION");
+
+        // Regression: a new setter may run before the previous renderer
+        // closes its exact, already approved DataSource. Keep only the
+        // existing cursor, never a new open or grant on the old identity.
+        Factory overlapFactory=new Factory();
+        NativeExoAlternateByteRoute overlap=new NativeExoAlternateByteRoute(overlapFactory);
+        Object previous=new Object(),next=new Object(),unrelated=new Object();
+        check(overlap.armApproved(10,previous,"42884423","41","main",
+            180000,grant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),"OVERLAP_FIRST_GRANT");
+        check(overlap.openIfApproved(previous,0)==overlapFactory.data.length,
+            "OVERLAP_FIRST_OPEN");
+        check(overlap.readIfApproved(previous,b,0,3)==3,"OVERLAP_FIRST_READ");
+        NativeEarlySourceLifecycleBridge originalSelection=new NativeEarlySourceLifecycleBridge(
+            ()->100L,overlap,()->now);
+        originalSelection.invalidated(11);
+        check(!overlapFactory.instances.get(0).closed,
+            "SETTER_SUPERSESSION_DOES_NOT_TRUNCATE_COMMITTED_CURSOR");
+        check(overlap.readStatusForSource(previous)==1,
+            "SUPERSEDED_EXACT_READ_WITNESS_RETAINED");
+        boolean reopenRejected=false;
+        try {overlap.openIfApproved(previous,0);}
+        catch(IOException expected) {reopenRejected=true;}
+        check(reopenRejected,"SUPERSEDED_SOURCE_CANNOT_REOPEN");
+        check(!overlap.armApproved(11,previous,"42884423","41","main",
+            180000,grant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),"SUPERSEDED_SOURCE_CANNOT_REARM");
+        check(overlap.armApproved(11,next,"39949113","42","main",
+            180000,nextGrant,"https://audio.example",now,
+            NativeSourceGate.Choice.ALTERNATE),"OVERLAP_INDEPENDENT_EXACT_NEXT_GRANT");
+        check(overlap.openIfApproved(next,0)==overlapFactory.data.length,
+            "OVERLAP_SECOND_OPEN");
+        check(overlap.readIfApproved(previous,b,0,3)==3
+                && "IKO".equals(new String(b,0,3,StandardCharsets.US_ASCII)),
+            "OLD_CURSOR_CONTINUES_ITS_OWN_BYTES");
+        check(overlap.readIfApproved(next,b,0,3)==3
+                && "CEL".equals(new String(b,0,3,StandardCharsets.US_ASCII)),
+            "NEXT_CURSOR_INDEPENDENT");
+        check(overlap.readIfApproved(unrelated,b,0,3)==null,
+            "UNRELATED_NEVER_GETS_ALTERNATE_BYTES");
+        check(overlap.closeIfApproved(previous)
+                && overlapFactory.instances.get(0).closed
+                && !overlapFactory.instances.get(1).closed,
+            "NATIVE_CLOSE_RETIRES_ONLY_ITS_OWN_CURSOR");
+        boolean closedReadRejected=false;
+        try {overlap.readIfApproved(previous,b,0,3);}
+        catch(IOException expected){closedReadRejected=true;}
+        check(closedReadRejected,"CLOSED_DRAIN_NEVER_FALLS_BACK");
+        check(overlap.closeIfApproved(next),"OVERLAP_NEXT_CLOSE");
 
         Factory broken=new Factory();
         broken.fail=true;

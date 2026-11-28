@@ -93,22 +93,40 @@ final class NativeExoAlternateByteRoute {
     }
 
     private final CursorFactory factory;
-    // Retired alternate-owning instances must never silently resume vendor
-    // reads after Next. Weak identity references avoid pinning old players.
-    private final ArrayList<WeakReference<Object>> retiredSources=new ArrayList<>();
-    private void retire(Object source) {
-        if(source!=null && !wasRetired(source))
-            retiredSources.add(new WeakReference<>(source));
+    // A superseded selection must never authorize an old instance to open
+    // again or fall back to vendor bytes. An already committed loader can
+    // finish its own cursor until the native player actually closes it.
+    private static final class RetiredSource {
+        final WeakReference<Object> source;
+        Cursor drainingCursor;
+        long positiveReads;
+        RetiredSource(Object source) {this.source=new WeakReference<>(source);}
     }
-    private boolean wasRetired(Object source) {
-        if(source==null)return false;
-        boolean found=false;
+    private final ArrayList<RetiredSource> retiredSources=new ArrayList<>();
+    private RetiredSource findRetired(Object source) {
+        if(source==null)return null;
+        RetiredSource found=null;
         for(int i=retiredSources.size()-1;i>=0;i--) {
-            Object saved=retiredSources.get(i).get();
-            if(saved==null)retiredSources.remove(i);
-            else if(saved==source)found=true;
+            RetiredSource retired=retiredSources.get(i);
+            Object saved=retired.source.get();
+            if(saved==null) {
+                if(retired.drainingCursor!=null)retired.drainingCursor.close();
+                retiredSources.remove(i);
+            } else if(saved==source)found=retired;
         }
         return found;
+    }
+    private RetiredSource retire(Object source) {
+        if(source==null)return null;
+        RetiredSource retired=findRetired(source);
+        if(retired==null) {
+            retired=new RetiredSource(source);
+            retiredSources.add(retired);
+        }
+        return retired;
+    }
+    private boolean wasRetired(Object source) {
+        return findRetired(source)!=null;
     }
     private WeakReference<Object> originalSource;
     private String signedUrl,expectedMime;
@@ -118,7 +136,8 @@ final class NativeExoAlternateByteRoute {
     private boolean opening,everCommitted,aborted;
     // Positive alternate reads are scoped to this exact DataSource identity.
     // They are retained after close so a buffered live renderer can be joined
-    // to the same source; Next/re-arm resets the counter.
+    // to the same source; selection supersession preserves only the exact
+    // retired source's own read witness, never a new grant or an open right.
     private long positiveReadCount;
     NativeExoAlternateByteRoute() {
         this((url,mime)->new HttpsCursor(url,mime));
@@ -154,9 +173,30 @@ final class NativeExoAlternateByteRoute {
         positiveReadCount=0;
         return true;
     }
+    // Selection callbacks can precede the actual renderer switch. Never
+    // truncate an already opened exact stream merely because another
+    // selection started. Pending/unopened grants are still invalidated.
+    synchronized void supersedeSelection() {
+        resetForNext(true);
+    }
     synchronized void cancelForNext() {
+        resetForNext(false);
+        for(RetiredSource retired:retiredSources) {
+            if(retired.drainingCursor!=null)retired.drainingCursor.close();
+            retired.drainingCursor=null;
+            retired.positiveReads=0;
+        }
+    }
+    private void resetForNext(boolean drainCommitted) {
         Object previous=originalSource==null?null:originalSource.get();
-        if(everCommitted || opening)retire(previous);
+        if(everCommitted || opening) {
+            RetiredSource retired=retire(previous);
+            if(retired!=null && drainCommitted && everCommitted && !opening) {
+                retired.drainingCursor=openedCursor;
+                retired.positiveReads=positiveReadCount;
+                openedCursor=null;
+            }
+        }
         revision=-1;
         aborted=true;
         originalSource=null;
@@ -235,15 +275,21 @@ final class NativeExoAlternateByteRoute {
             throws IOException {
         Cursor cursor;
         synchronized(this) {
-            if(wasRetired(source))throw new IOException("stale_alternate_source");
-            if(source==null || originalSource==null
-                    || originalSource.get()!=source)return null;
-            if(opening)throw new IOException("alternate_open_in_progress");
-            if(openedCursor==null) {
-                if(everCommitted)throw new IOException("alternate_read_without_open");
-                return null;
+            RetiredSource retired=findRetired(source);
+            if(retired!=null) {
+                if(retired.drainingCursor==null)
+                    throw new IOException("stale_alternate_source");
+                cursor=retired.drainingCursor;
+            } else {
+                if(source==null || originalSource==null
+                        || originalSource.get()!=source)return null;
+                if(opening)throw new IOException("alternate_open_in_progress");
+                if(openedCursor==null) {
+                    if(everCommitted)throw new IOException("alternate_read_without_open");
+                    return null;
+                }
+                cursor=openedCursor;
             }
-            cursor=openedCursor;
         }
         // No additional player or buffer/PCM transformation. Blocking read
         // happens on the original Exo loader thread, not the UI thread.
@@ -253,6 +299,12 @@ final class NativeExoAlternateByteRoute {
                     && originalSource.get()==source && openedCursor==cursor
                     && positiveReadCount<Long.MAX_VALUE)
                 positiveReadCount++;
+            else {
+                RetiredSource retired=findRetired(source);
+                if(retired!=null && retired.drainingCursor==cursor
+                        && retired.positiveReads<Long.MAX_VALUE)
+                    retired.positiveReads++;
+            }
         }
         return count;
     }
@@ -260,22 +312,28 @@ final class NativeExoAlternateByteRoute {
     boolean closeIfApproved(Object source) {
         Cursor cursor;
         synchronized(this) {
-            if(wasRetired(source))return true; // vendor was never opened
-            if(originalSource==null || originalSource.get()!=source)
-                return false;
-            if(opening) {
-                // A concurrent close invalidates the in-flight alternate
-                // before it can publish a stream for the old DataSource.
-                aborted=true;
-                revision=-1;
-                originalSource=null;
-                signedUrl=null;
-                expectedMime=null;
-                return true;
+            RetiredSource retired=findRetired(source);
+            if(retired!=null) {
+                cursor=retired.drainingCursor;
+                retired.drainingCursor=null;
+                if(cursor==null)return true; // vendor was never opened
+            } else {
+                if(originalSource==null || originalSource.get()!=source)
+                    return false;
+                if(opening) {
+                    // A concurrent close invalidates the in-flight alternate
+                    // before it can publish a stream for the old DataSource.
+                    aborted=true;
+                    revision=-1;
+                    originalSource=null;
+                    signedUrl=null;
+                    expectedMime=null;
+                    return true;
+                }
+                if(openedCursor==null)return everCommitted;
+                cursor=openedCursor;
+                openedCursor=null;
             }
-            if(openedCursor==null)return everCommitted;
-            cursor=openedCursor;
-            openedCursor=null;
         }
         cursor.close();
         return true;
@@ -293,6 +351,11 @@ final class NativeExoAlternateByteRoute {
      * 0 = no live route/source is available.
      */
     synchronized int readStatusForSource(Object source) {
+        RetiredSource retired=findRetired(source);
+        if(retired!=null) {
+            if(retired.positiveReads>0)return 1;
+            if(retired.drainingCursor!=null)return 2;
+        }
         if(source==null || aborted || originalSource==null)return 0;
         Object active=originalSource.get();
         if(active==null)return 0;

@@ -83,7 +83,7 @@ public final class ExitCallsiteWitness extends XposedModule {
     // BETA26 pauses the request-only MP3 rewrite until the native source is armed.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA29_NAV50_LIVE_RENDERER_CORRELATION_20261127";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA31_NAV52_COMMITTED_CURSOR_LIFETIME_20261128";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
