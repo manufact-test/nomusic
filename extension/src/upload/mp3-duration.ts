@@ -1,3 +1,4 @@
+import { stripMp3MetadataTail } from "./mp3-metadata.js";
 /* Bounded lossless MP3 normalization. Never searches past broken audio. */
 export function inspectMp3(buffer) {
   const data = new Uint8Array(buffer), size = data.length;
@@ -71,29 +72,9 @@ export function inspectMp3(buffer) {
     if(++frames>500000||samples/rate>86400)return null;
   }
   const audioEnd=position;
-  let end=size;
-  if(end-position>=128&&marker(end-128,"TAG"))end-=128;
-  if(end-position>=32&&marker(end-32,"APETAGEX")){
-    const at=end-32, av=view.getUint32(at+8,true), bytes=view.getUint32(at+12,true);
-    if(av!==2000||bytes<32||bytes>1048576||view.getUint32(at+16,true)>128||bytes>end-position)return null;
-    end-=bytes;
-    if(end-position>=32&&marker(end-32,"APETAGEX")){
-      if(view.getUint32(end-24,true)!==av||view.getUint32(end-20,true)!==bytes)return null;
-      end-=32;
-    }
-  }
-  if(end-position>=128&&marker(end-128,"TAG"))end-=128;
-  if(end-position>=128&&marker(position,"TAG")){
-    const length=end-position;
-    if(length===128||data.subarray(position+128,end).every(x=>x===0))position=end;
-    else {
-      /* Some downloaders count UTF-8 characters instead of ID3v1 bytes. */
-      if(length>512)return null;
-      let text;try{text=new TextDecoder("utf-8",{fatal:true}).decode(data.subarray(position+3,end-1));}catch{return null;}
-      if([...text].length!==124||/[\x01-\x1f\x7f]/u.test(text))return null;
-      position=end;
-    }
-  }
+  const tail=stripMp3MetadataTail(data,audioEnd);
+  if(!tail)return null;
+  position=tail.position;let end=tail.end;
   // Some tagged downloads leave an orphaned XMP property/closing-tag tail
   // after complete MPEG frames and zero padding. Match the ENTIRE bounded
   // ASCII fragment, not arbitrary bytes containing an XML-looking substring.
@@ -129,7 +110,7 @@ export function inspectMp3(buffer) {
   if(durationMs<1000||durationMs>86400000)return null;
   const bytes=new Uint8Array((firstInfo?.length||0)+audioEnd-start+(repairedAncillaryByte?1:0));
   if(firstInfo)bytes.set(firstInfo);bytes.set(data.subarray(start,audioEnd),firstInfo?.length||0);
-  return {durationMs,bytes,changed:bytes.length!==size||repairedAncillaryByte,repairedAncillaryByte,removedXmpTail};
+  return {durationMs,bytes,changed:bytes.length!==size||repairedAncillaryByte,repairedAncillaryByte,removedXmpTail,metadataKinds:tail.kinds};
 }
 export function mp3DurationMs(buffer): number | null { return inspectMp3(buffer)?.durationMs??null; }
 

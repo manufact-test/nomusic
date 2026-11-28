@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Celikom\Application;
 
-/* Lossless, bounded metadata cleanup. A bad frame is never skipped or repaired. */
+/* Lossless, bounded metadata cleanup. Coded audio is never skipped; only a proven missing ancillary slot may be restored. */
 final class Mp3Normalizer
 {
     /** @return array{path:string,duration_ms:int,size:int} Caller must unlink path. */
@@ -42,40 +42,25 @@ final class Mp3Normalizer
             if ($firstInfo === '') $firstInfo = substr($data, $position, $frame['bytes']);
             $position += $frame['bytes']; $skipTags();
         }
-        $start = $position; $frames = 0; $samples = 0; $rate = $signature['rate'] ?? 0; $version = $signature['version'] ?? null;
-        while (($frame = self::frame($data, $position)) !== null) {
+        $start = $position; $frames = 0; $repairedAncillaryByte = false; $samples = 0; $rate = $signature['rate'] ?? 0; $version = $signature['version'] ?? null;
+        while (($frame = self::frame($data, $position, $frames >= 2)) !== null) {
             if ($frame['metadata'] || ($rate && ($rate !== $frame['rate'] || $version !== $frame['version']))) throw new \DomainException('invalid_mp3');
             $rate = $frame['rate']; $version = $frame['version']; $samples += $frame['samples']; $position += $frame['bytes'];
+            $repairedAncillaryByte = $repairedAncillaryByte || $frame['repair'];
             if (++$frames > 500000 || $samples / $rate > 86400) throw new \DomainException('invalid_mp3');
         }
         if ($frames < 2) throw new \DomainException('invalid_mp3');
-        $audioEnd = $position; $end = $size;
-        if ($end - $position >= 128 && substr($data, $end - 128, 3) === 'TAG') $end -= 128;
-        if ($end - $position >= 32 && substr($data, $end - 32, 8) === 'APETAGEX') {
-            $ape = unpack('Vversion/Vbytes/Vitems', substr($data, $end - 24, 12));
-            if ($ape['version'] !== 2000 || $ape['bytes'] < 32 || $ape['bytes'] > 1048576 || $ape['items'] > 128 || $ape['bytes'] > $end - $position) throw new \DomainException('invalid_mp3');
-            $end -= $ape['bytes'];
-            if ($end - $position >= 32 && substr($data, $end - 32, 8) === 'APETAGEX') {
-                $head = unpack('Vversion/Vbytes', substr($data, $end - 24, 8));
-                if ($head['version'] !== $ape['version'] || $head['bytes'] !== $ape['bytes']) throw new \DomainException('invalid_mp3');
-                $end -= 32;
-            }
-        }
-        if ($end - $position >= 128 && substr($data, $end - 128, 3) === 'TAG') $end -= 128;
-        if ($end - $position >= 128 && substr($data, $position, 3) === 'TAG') {
-            $length = $end - $position;
-            if ($length !== 128 && trim(substr($data, $position + 128, $end - $position - 128), "\0") !== '') {
-                $text = substr($data, $position + 3, $length - 4);
-                if ($length > 512 || preg_match('//u', $text) !== 1 || preg_match_all('/./us', $text) !== 124 || preg_match('/[\x01-\x1f\x7f]/u', $text)) throw new \DomainException('invalid_mp3');
-            }
-            $position = $end;
-        }
+        $audioEnd = $position;
+        $tail = Mp3Metadata::tail($data, $audioEnd);
+        if ($tail === null) throw new \DomainException('invalid_mp3');
+        $position = $tail['position']; $end = $tail['end'];
+        if (Mp3Metadata::orphanXmp(substr($data, $position, $end - $position))) $position = $end;
         if ($end < $position || $end - $position > 4096 || trim(substr($data, $position, $end - $position), "\0") !== '') throw new \DomainException('invalid_mp3');
         $output = tempnam(sys_get_temp_dir(), 'celikom-mp3-');
         if ($output === false) throw new \RuntimeException('upload_storage_failed');
         try {
             chmod($output, 0600);
-            $clean = $firstInfo . substr($data, $start, $audioEnd - $start);
+            $clean = $firstInfo . substr($data, $start, $audioEnd - $start) . ($repairedAncillaryByte ? "\0" : '');
             if (file_put_contents($output, $clean) !== strlen($clean)) throw new \RuntimeException('upload_storage_failed');
             $duration = (new Mp3Inspector())->durationMs($output);
             if ($duration === null) throw new \DomainException('invalid_mp3');
@@ -83,7 +68,7 @@ final class Mp3Normalizer
         } catch (\Throwable $e) { unlink($output); throw $e; }
     }
 
-    private static function frame(string $data, int $p): ?array
+    private static function frame(string $data, int $p, bool $allowFinalRepair = false): ?array
     {
         if ($p + 4 > strlen($data)) return null;
         $h = unpack('N', substr($data, $p, 4))[1];
@@ -92,11 +77,31 @@ final class Mp3Normalizer
         $rate = intdiv([44100,48000,32000][$ri], $v === 3 ? 1 : ($v === 2 ? 2 : 4));
         $bitrate = ($v === 3 ? [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320] : [0,8,16,24,32,40,48,56,64,80,96,112,128,144])[$index];
         $bytes = (int) floor(($v === 3 ? 144 : 72) * $bitrate * 1000 / $rate) + (($h >> 9) & 1);
-        if ($bytes < 24 || $bytes > 1441 || $p + $bytes > strlen($data)) return null;
+        if ($bytes < 24 || $bytes > 1441) return null;
+        $repair = $p + $bytes > strlen($data);
+        if ($repair && (!$allowFinalRepair || !self::ancillaryByteMissing($data, $p, $h, $bytes))) return null;
         $crc = ($h >> 16) & 1 ? 0 : 2; $mono = (($h >> 6) & 3) === 3;
         $side = $v === 3 ? ($mono ? 17 : 32) : ($mono ? 9 : 17);
         $info = $p + 4 + $crc + $side;
         $metadata = $info + 8 <= $p + $bytes && in_array(substr($data, $info, 4), ['Info','Xing'], true) && trim(substr($data, $p + 4 + $crc, $side), "\0") === '';
-        return ['bytes' => $bytes, 'rate' => $rate, 'version' => $v, 'samples' => $v === 3 ? 1152 : 576, 'metadata' => $metadata];
+        return ['bytes' => $repair ? $bytes - 1 : $bytes, 'repair' => $repair, 'rate' => $rate, 'version' => $v, 'samples' => $v === 3 ? 1152 : 576, 'metadata' => $metadata];
+    }
+
+    private static function ancillaryByteMissing(string $data, int $p, int $h, int $bytes): bool
+    {
+        $size = strlen($data);
+        if ($p + $bytes !== $size + 1 || (($h >> 19) & 3) !== 3 || !(($h >> 16) & 1) || !(($h >> 9) & 1)) return false;
+        $channels = (($h >> 6) & 3) === 3 ? 1 : 2; $side = $channels === 1 ? 17 : 32;
+        if ($p + 4 + $side > $size) return false;
+        $bit = 0;
+        $read = static function (int $n) use ($data, $p, &$bit): int {
+            $value = 0;
+            for ($i = 0; $i < $n; ++$i, ++$bit) $value = ($value << 1) | ((ord($data[$p + 4 + ($bit >> 3)]) >> (7 - ($bit & 7))) & 1);
+            return $value;
+        };
+        $back = $read(9); $bit += ($channels === 1 ? 5 : 3) + $channels * 4;
+        $codedBits = 0;
+        for ($i = 0; $i < $channels * 2; ++$i) { $codedBits += $read(12); $bit += 47; }
+        return $codedBits > 0 && $codedBits <= ($back + $size - $p - 4 - $side) * 8;
     }
 }

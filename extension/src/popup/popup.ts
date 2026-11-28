@@ -164,11 +164,11 @@ function checkFileDuration(){
   durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(bytes=>{
     if(/\.m4a$/i.test(file.name))return {durationMs:inspectM4a(bytes).durationMs,file};
     const inspected=inspectMp3(bytes);
-    return inspected ? {durationMs:inspected.durationMs,file:inspected.changed?new Blob([inspected.bytes],{type:"audio/mpeg"}):file} : null;
+    return inspected ? {durationMs:inspected.durationMs,file:inspected.changed?new Blob([inspected.bytes],{type:"audio/mpeg"}):file} : {durationMs:null,file,serverValidation:true};
   }).catch(()=>null).then(result=>{
     if(generation!==durationGeneration||pinnedTrack?.id!==target.id||uploadFile?.files?.[0]!==file)return;
     preparedUploadFile=result?.file||null;
-    const notice=durationNotice(target.durationMs,result?.durationMs);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
+    const notice=result?.serverValidation ? {blocked:false,kind:"warning",text:"Не удалось определить длительность заранее. Проверим файл при отправке."} : durationNotice(target.durationMs,result?.durationMs);durationNote.textContent=notice.text;durationNote.dataset.kind=notice.kind;durationBlocked=notice.blocked===true;
     if(uploadButton&&!uploading)uploadButton.disabled=durationBlocked;
     // Never scroll the popup on background validation: the user controls the viewport.
   });

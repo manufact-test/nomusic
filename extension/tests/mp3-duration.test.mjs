@@ -162,7 +162,7 @@ test('orphaned XMP property tail after zero padding is removed without changing 
 });
 test('XMP cleanup rejects arbitrary trailers, broken frame headers, binary/control data and over-limit tails',()=>{
  const audio=mp3(),encode=s=>new TextEncoder().encode(s),padding=new Uint8Array(64);
- for(const bad of [xmpOrphan+'garbage',xmpOrphan+'\0',xmpOrphan+'\x01','random '+xmpOrphan,xmpOrphan.replace('</rdf:RDF>',''),xmpOrphan.replace('xmp.did:','file:///secret'),xmpOrphan+'<script/>']){
+ for(const bad of [xmpOrphan+'garbage',xmpOrphan.replace('stRef:', 'st\0Ref:'),xmpOrphan+'\x01','random '+xmpOrphan,xmpOrphan.replace('</rdf:RDF>',''),xmpOrphan.replace('xmp.did:','file:///secret'),xmpOrphan+'<script/>']){
   assert.equal(inspectMp3(concatenate(audio,padding,encode(bad))),null);
  }
  assert.equal(inspectMp3(concatenate(audio,encode(xmpOrphan))),null,'no cleanup without the explicit zero-padding boundary');

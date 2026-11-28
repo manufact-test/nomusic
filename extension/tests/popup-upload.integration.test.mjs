@@ -74,11 +74,13 @@ globalThis.fetch = async (url,options={}) => {
   return { ok: true, async json() { return { baseUrl: "https://isolated-owner-test.example/" }; } };
 };
 class FakeXHR {
+  static response = null;
   static throwOnSend = false;
   static hold = false;
   constructor() {
     this.status = 202;
     this.responseText = JSON.stringify({ status: "pending", replacement_id: 71, duplicate: false });
+    if (FakeXHR.response) {this.status=FakeXHR.response.status;this.responseText=JSON.stringify(FakeXHR.response.body);}
     this.listeners = new Map();
     this.upload = { addEventListener() {} };
   }
@@ -90,7 +92,7 @@ class FakeXHR {
     if (FakeXHR.throwOnSend) throw new Error("network startup denied");
     if (FakeXHR.hold) return;
     queueMicrotask(() => {
-      pendingTracks.add(String(body.get("track_id")));
+      if(this.status===202)pendingTracks.add(String(body.get("track_id")));
       this.listeners.get("loadend")?.();
     });
   }
@@ -692,4 +694,46 @@ test('XMP trailer cleanup reaches actual multipart bytes while the selected sour
  const sent=requests.at(-1).body.get('file');assert.equal(sent.name,file.name);assert.equal(sent.size,fixtureAudio.length);
  assert.deepEqual(new Uint8Array(await sent.arrayBuffer()),fixtureAudio);
  assert.equal(file.size,fixtureAudio.length+64+tail.length);
+});
+
+test('Lyrics3 cleanup sends intact MPEG bytes through the real form',async()=>{
+ const {lyrics2,id3v1}=await import('./fixtures/mp3-metadata-fixtures.mjs');
+ const id='944530632';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const file=new Blob([fixtureAudio,lyrics2(),id3v1()],{type:'audio/mpeg'});
+ Object.defineProperty(file,'name',{value:'standard-tags.mp3'});
+ find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
+ const before=requests.length;await form().fire('submit');assert.equal(requests.length,before+1);
+ assert.deepEqual(new Uint8Array(await requests.at(-1).body.get('file').arrayBuffer()),fixtureAudio);
+ assert.ok(file.size>fixtureAudio.length);
+});
+
+test('unknown MP3 preflight reaches authoritative server validation and retains its rejection',async()=>{
+ const id='944530633';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const file=new Blob([new Uint8Array(2000).fill(65)],{type:'audio/mpeg'});
+ Object.defineProperty(file,'name',{value:'unrecognized.mp3'});
+ find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
+ FakeXHR.response={status:422,body:{error:'invalid_mp3'}};
+ try {
+  const before=requests.length;await form().fire('submit');assert.equal(requests.length,before+1);
+  assert.match(find('[data-upload-duration]').textContent,/Проверим файл при отправке/);
+  assert.equal(find('[data-upload-duration]').dataset.kind,'warning');
+  assert.deepEqual(await requests.at(-1).body.get('file').arrayBuffer(),await file.arrayBuffer());
+  assert.equal(pendingTracks.has(id),false,'a server rejection cannot create pending moderation');
+  assert.equal(result().hidden,true);assert.match(find('[data-upload-status]').textContent,/MP3 повреждён/);
+ } finally {FakeXHR.response=null;}
+});
+
+test('unreadable MP3 and invalid M4A still stop before any upload',async()=>{
+ const id='944530634';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ for(const file of [
+  {name:'unreadable.mp3',size:2000,arrayBuffer:async()=>{throw new Error('read failed');}},
+  Object.assign(new Blob([new Uint8Array(2000)],{type:'audio/mp4'}),{name:'invalid.m4a'})
+ ]){
+  find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
+  const before=requests.length;await form().fire('submit');assert.equal(requests.length,before);
+  assert.equal(find('[data-upload-duration]').dataset.kind,'error');
+ }
 });
