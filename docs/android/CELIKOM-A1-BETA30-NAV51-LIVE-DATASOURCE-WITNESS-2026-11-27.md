@@ -76,7 +76,7 @@ The test passed in BETA30's owner JVM gate. Its output included `RAMIL_AU_ORIGIN
 
 ## 5. BETA30 build and artifact
 
-- Working branch head: `aef40439586304fd57dabcbf20dfcce3af52a181`.
+- APK source commit (not current documentation branch head): `aef40439586304fd57dabcbf20dfcce3af52a181`.
 - Owner/export workflow: `46070081916`, attempt `1` — SUCCESS.
 - Owner JVM contract and NAV51 regression — SUCCESS.
 - Fresh Android 13 ARM64 + ARMv7 native gate — SUCCESS.
@@ -89,18 +89,13 @@ The test passed in BETA30's owner JVM gate. Its output included `RAMIL_AU_ORIGIN
 
 The artifact is a diagnostic build. No audible replacement is claimed.
 
-## 6. Trusted delivery status
+## 6. Trusted delivery status — COMPLETE (2026-11-28)
 
-- Main metadata commit: `fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c`.
-- Only `.github/workflows/android-a1-owner-floki-spool.yml` and `.github/deploy/a1-owner-download-request.json` were changed on main. No Android app source was merged.
-- Trusted Floki push run: `46070217462` — QUEUED.
-- Self-hosted JVM run `46068440633` is reported IN_PROGRESS without step output and may be occupying the `celikom-ci-smoke-only` runner. The same targeted Java test already passed in the BETA30 owner JVM gate.
-
-Do not retrieve or send the owner URL until the trusted Floki workflow verifies the root-owned receipt and live HTTPS readback. Never use a GitHub APK URL as a workaround.
+CI02 was recovered by restarting its existing service after confirming no active worker (maintenance run `46084579328`, SUCCESS). The original trusted Floki run `46070217462`, attempt 5, job `140793123974` on CI02 completed SUCCESS. The exact BETA30 APK passed provenance, signer/package, size/hash, root receipt/live HTTPS and unpublished draft URL readback checks. Draft `461085315` remains unpublished. Direct owner URL was sent privately; do not record it here. No rebuild or source change. No further delivery work is needed for BETA30.
 
 ## 7. Next owner test
 
-After trusted delivery completes, install BETA30 over BETA29. Do not uninstall CELIKOM or clear app data/cache.
+BETA30 has already been delivered. Install over BETA29 if not already done. Do not uninstall CELIKOM or clear app data/cache.
 
 1. Check CELIKOM status is `ВКЛ`.
 2. Test Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, segment `00:43–00:54`.
@@ -109,3 +104,7 @@ After trusted delivery completes, install BETA30 over BETA29. Do not uninstall C
 5. Report separately whether the alternate sound was actually heard.
 
 The NAV51 same-DataSource result would establish source-path identity, not audible output. The phone listening test remains mandatory.
+
+## 8. Owner-directed next development step (2026-11-28)
+
+Fresh BETA30 TXT and listening result are pending in this checkpoint. The next chat should use those existing results to implement a justified functional fix, not automatically add telemetry. Follow the decision branches in NEXT-CHAT.md. Investigate only the concrete unresolved boundary; use targeted tests and required release gates, then deliver a corrected APK. If the same-period witness resolves, investigate downstream audio; if route/period mismatch is shown, investigate lifecycle/source selection; if resolution still fails, use existing NAV51 reason counters. Avoid redundant diagnostics and do not claim audible success without the phone test.
