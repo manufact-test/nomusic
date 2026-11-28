@@ -1,0 +1,48 @@
+name: CELIKOM Windows live signed OTA reproduction
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "windows-companion/w15/Celikom.Companion.Tests/**"
+      - ".github/workflows/windows-stable-ota-live-repro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-windows-live-ota-repro-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-ota-repro:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      CELIKOM_STABLE_OTA_LIVE_REPRO: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install 7-Zip for read-only Inno payload extraction
+        shell: pwsh
+        run: |
+          choco install 7zip -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "W196_7ZIP_INSTALL_FAILED" }
+          $sevenZip = (Get-Command 7z.exe -ErrorAction Stop).Source
+          "CELIKOM_7ZIP_PATH=$sevenZip" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Run existing Windows contracts and exact live .NET OTA validation
+        shell: pwsh
+        run: |
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "W196_DOTNET_LIVE_OTA_REPRO_FAILED" }
