@@ -130,39 +130,63 @@ jobs:
           console.log('CUSTOMER_STABLE_P256_SIGNATURE_VERIFIED',data.version,identity.sequence);
           NODE
 
-          p=.github/release/windows-customer-stable.json
-          gh api "repos/$GITHUB_REPOSITORY/contents/$p?ref=main" > "$tmp/current"
-          jq -r '.content' "$tmp/current" | base64 -d > "$tmp/current.json"
-          python3 - "$tmp/current.json" "$tmp/new.json" "$tmp/latest.json" "$RELEASE_VERSION" "$RELEASE_SEQUENCE" <<'PY'
-          import json,re,sys
-          old_path,new_path,manifest_path,version,sequence=sys.argv[1:]
+          python3 - "$RELEASE_VERSION" "$RELEASE_SEQUENCE" "$tmp/latest.json" <<'PY'
+          import base64,json,os,re,sys,urllib.error,urllib.request
+          version,sequence,manifest_path=sys.argv[1:]
           sequence=int(sequence)
-          manifest=json.load(open(manifest_path))
+          repository=os.environ["GITHUB_REPOSITORY"]
+          run_id=os.environ["GITHUB_RUN_ID"]
+          token=os.environ["GH_TOKEN"]
+          assert repository=="manufact-test/nomusic" and token and run_id.isdigit()
+          base="https://api.github.com/repos/"+repository
+          def api(path,method="GET",payload=None):
+              data=None if payload is None else json.dumps(payload,separators=(",",":")).encode()
+              request=urllib.request.Request(base+path,data=data,method=method,headers={
+                  "Authorization":"Bearer "+token,
+                  "Accept":"application/vnd.github+json",
+                  "X-GitHub-Api-Version":"2022-11-28",
+                  "Content-Type":"application/json"
+              })
+              try:
+                  with urllib.request.urlopen(request,timeout=30) as response:
+                      raw=response.read(2*1024*1024+1)
+                      assert len(raw)<=2*1024*1024
+                      return json.loads(raw)
+              except urllib.error.HTTPError as error:
+                  raise RuntimeError("GITHUB_API_"+str(error.code)+"_"+path) from error
+          approvals=api("/actions/runs/"+run_id+"/approvals")
+          assert any(item.get("state")=="approved" and
+                     any(env.get("name")=="windows-stable-production"
+                         for env in item.get("environments",[]))
+                     for item in approvals), "PROTECTED_PRODUCTION_APPROVAL_NOT_RECORDED"
+          manifest=json.load(open(manifest_path,encoding="utf-8"))
           candidate={"version":version,"sequence":sequence,
                      "sha256":manifest["sha256"],"owner_accepted":True}
-          current=json.load(open(old_path))
-          assert current=={"schema":1,"channel":"customer-stable","approved":current.get("approved")}
-          old=current["approved"]
+          path="/contents/.github/release/windows-customer-stable.json?ref=main"
+          current=api(path)
+          old_bytes=base64.b64decode(current["content"])
+          old_doc=json.loads(old_bytes)
+          assert old_doc=={"schema":1,"channel":"customer-stable","approved":old_doc.get("approved")}
+          old=old_doc["approved"]
           def version_tuple(value):
-              assert isinstance(value,str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4})",value)
+              assert isinstance(value,str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,3})\\.(?:0|[1-9][0-9]{0,3})\\.(?:0|[1-9][0-9]{0,4})",value)
               return tuple(map(int,value.split(".")))
           if old is not None and old!=candidate:
               assert old.get("owner_accepted") is True
+              assert type(old.get("sequence")) is int
               assert sequence>old["sequence"] and version_tuple(version)>version_tuple(old["version"]), "CUSTOMER_STABLE_DOWNGRADE_REFUSED"
-          with open(new_path,"w") as out:
-              json.dump({"schema":1,"channel":"customer-stable","approved":candidate},out,indent=2)
-              out.write("\n")
+          new_bytes=(json.dumps({"schema":1,"channel":"customer-stable","approved":candidate},indent=2)+"\\n").encode()
+          if old!=candidate:
+              api("/contents/.github/release/windows-customer-stable.json","PUT",{
+                  "message":"Windows: owner-approved stable "+version+" (Actions "+run_id+")",
+                  "content":base64.b64encode(new_bytes).decode(),
+                  "sha":current["sha"],
+                  "branch":"main"
+              })
+          final=api(path)
+          final_doc=json.loads(base64.b64decode(final["content"]))
+          assert final_doc.get("approved")==candidate, "CUSTOMER_STABLE_APPROVAL_READBACK_MISMATCH"
+          print("CELIKOM_WINDOWS_CUSTOMER_STABLE_APPROVAL_RECORDED",version,sequence,candidate["sha256"])
           PY
-
-          if ! cmp -s "$tmp/current.json" "$tmp/new.json"; then
-            sha=$(jq -er '.sha' "$tmp/current")
-            encoded=$(base64 -w0 "$tmp/new.json")
-            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$p" \
-              -f message="Windows: owner-approved stable $RELEASE_VERSION (Actions $GITHUB_RUN_ID)" \
-              -f branch=main -f sha="$sha" -f content="$encoded" --silent
-          fi
-          gh api "repos/$GITHUB_REPOSITORY/contents/$p?ref=main" > "$tmp/final"
-          jq -r '.content' "$tmp/final" | base64 -d > "$tmp/final.json"
-          cmp "$tmp/new.json" "$tmp/final.json"
           echo "CELIKOM_WINDOWS_CUSTOMER_STABLE_APPROVAL_RECORDED $RELEASE_VERSION $RELEASE_SEQUENCE" >> "$GITHUB_STEP_SUMMARY"
 
