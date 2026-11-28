@@ -4784,7 +4784,8 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             .armDeferredOriginalDataSource(
                                                 (Long)setter[0],creator[1],creator[2],
                                                 setter[1],chain.getThisObject());
-                                        STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed);
+                                        STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(
+                                            armed,chain.getThisObject());
                                         if(armed)emit("AUDIO_EXO_FIRST_OPEN_ARM",
                                             "ORIGINAL_FACTORY","EXACT_BOUND");
                                     }

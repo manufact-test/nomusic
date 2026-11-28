@@ -40,10 +40,11 @@ A second concrete source-identity bug was found in StageBAudioEvidence:
 - A later sibling/prefetch DataSource could therefore replace the exact DataSource accepted at first open.
 - The live renderer lookup could then resolve a source that had no matching armed route, consistent with the BETA32 NO_ROUTE / no same-current-period evidence.
 
-NAV53 adds a firstOpenSourceCommitted pin:
-- Set only when the exact original DataSource passes the existing first-open identity gate.
-- Later products from the same factory are still recorded as births, but cannot overwrite the committed source or reset its open/read state.
-- The pin is cleared only when the exact descriptor is rebuilt for a new lineage.
+NAV53 adds a pending/committed first-open source pin:
+- The exact source is protected as pending while its deferred arm is in flight.
+- It becomes committed only when armDeferredOriginalDataSource returns true for that exact DataSource.
+- Later products from the same factory are still recorded as births, but cannot overwrite a pending/committed source or reset its open/read state.
+- A rejected arm clears the pending pin; the exact descriptor rebuild clears both pending and committed state for a new lineage.
 - The existing fail-closed creator, track, factory, descriptor, generation and grant checks remain.
 
 The JVM regression creates a later sibling DataSource after the first source has opened/read and verifies that the live source remains the exact first-open DataSource, the sibling cannot replace/re-arm it, and a descriptor rebind allows a new source.

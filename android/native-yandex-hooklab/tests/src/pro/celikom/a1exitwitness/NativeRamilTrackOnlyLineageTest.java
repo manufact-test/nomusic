@@ -241,7 +241,14 @@ public final class NativeRamilTrackOnlyLineageTest {
             && link[2]==wrapper,"EXACT_EXO_FACTORY_SOURCE_WITHOUT_ALBUM");
         Object[] firstOpen=stage.exactFreshCreatorOrBetaAtFirstOpen(dataSource);
         check(firstOpen!=null && firstOpen[0]==wrapper && firstOpen[1]==track
-            && firstOpen[2]==wrapper,"NAV53_EXACT_FIRST_OPEN_COMMITS_SOURCE");
+            && firstOpen[2]==wrapper,"NAV53_EXACT_FIRST_OPEN_SELECTS_PENDING_SOURCE");
+        Object pendingSibling=new Object();
+        stage.onExoSourceInstanceCreated(pendingSibling,factory);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "NAV53_PENDING_ARM_PROTECTS_SOURCE_FROM_SIBLING_PRODUCT");
+        check(stage.exactFreshCreatorOrBetaAtFirstOpen(pendingSibling)==null,
+            "NAV53_PENDING_SOURCE_REJECTS_COMPETING_SIBLING_OPEN");
+        stage.onExoFirstOpenDeferredArmResult(true,dataSource);
         Object[] publisher=renderer.exactSetterForFreshSourceCreator(
             link[0],link[1],link[2]);
         check(publisher!=null && ((Long)publisher[0])==1
@@ -264,6 +271,25 @@ public final class NativeRamilTrackOnlyLineageTest {
         clearWeakFactoryWitnesses(stage,wrapper);
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "LIVE_RENDERER_SOURCE_IDENTITY_SURVIVES_WEAK_DESCRIPTOR_FACTORY_LOSS");
+
+        Object failedTrack=new Object(),failedWrapper=new Object();
+        StageBAudioEvidence failedArm=fresh(ramil,failedTrack,failedWrapper,true,true);
+        Object failedDescriptor=new Object(),failedFactory=new Object();
+        Object failedSource=new Object();
+        failedArm.enterNativePlayerSourceSelection(failedWrapper);
+        failedArm.onNativeExoDescriptorBuiltForCurrentWrapper(failedDescriptor);
+        failedArm.exitNativePlayerSourceSelection();
+        failedArm.onExoFactoryCreated(failedDescriptor,failedFactory);
+        failedArm.onExoSourceInstanceCreated(failedSource,failedFactory);
+        check(failedArm.exactFreshCreatorOrBetaAtFirstOpen(failedSource)!=null,
+            "NAV53_FAILED_ARM_FIXTURE_HAS_EXACT_FIRST_OPEN");
+        failedArm.onExoFirstOpenDeferredArmResult(false,failedSource);
+        Object unarmedSibling=new Object();
+        failedArm.onExoSourceInstanceCreated(unarmedSibling,failedFactory);
+        check(failedArm.linkedSourceInstanceForCreatorOrBeta(failedWrapper)
+                ==unarmedSibling,
+            "NAV53_REJECTED_ARM_DOES_NOT_PIN_UNARMED_SOURCE");
+
         Object replacementDescriptor=new Object(),replacementFactory=new Object();
         Object replacementDataSource=new Object();
         stage.enterNativePlayerSourceSelection(wrapper);

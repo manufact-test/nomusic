@@ -108,6 +108,7 @@ final class StageBAudioEvidence {
         Object firstOpenDescriptorPin;
         WeakReference<Object> factoryResult;
         WeakReference<Object> sourceInstance;
+        WeakReference<Object> pendingFirstOpenSource;
         WeakReference<Object> albumInstance;
         // True only for the signed creator-owned tCa born BEFORE its Track
         // entered Flow. Keep NAV40 historical 12/16 verdicts unchanged,
@@ -124,9 +125,9 @@ final class StageBAudioEvidence {
         // objects may be collected after first OPEN; this bit remains bound to
         // the current weak sourceInstance and resets on every lineage rebind.
         boolean factorySourceIdentityBound;
-        // NAV53: the first exact DataSource accepted at native first-open is
-        // the committed source for this descriptor generation. Later sibling
-        // products must not overwrite the live renderer identity.
+        // NAV53: only a DataSource whose deferred route arm succeeded is
+        // committed for this descriptor generation. Pending arm is protected
+        // separately so concurrent sibling products cannot race the decision.
         boolean firstOpenSourceCommitted;
     }
     private static final class TrackAlbumLink {
@@ -1718,6 +1719,7 @@ final class StageBAudioEvidence {
             link.firstOpenDescriptorPin=null;
             link.factoryResult=null;
             link.sourceInstance=null;
+            link.pendingFirstOpenSource=null;
             link.factorySourceIdentityBound=false;
             link.firstOpenSourceCommitted=false;
             link.sourceOpened=false;
@@ -1961,12 +1963,17 @@ final class StageBAudioEvidence {
     }
 
     private boolean hasLiveFirstOpenSource(NativeTrackSourceLink link) {
-        if(link==null || !link.firstOpenSourceCommitted)return false;
-        if(link.sourceInstance==null || link.sourceInstance.get()==null) {
+        if(link==null)return false;
+        if(link.firstOpenSourceCommitted) {
+            if(link.sourceInstance!=null && link.sourceInstance.get()!=null)
+                return true;
             link.firstOpenSourceCommitted=false;
-            return false;
         }
-        return true;
+        if(link.pendingFirstOpenSource!=null) {
+            if(link.pendingFirstOpenSource.get()!=null)return true;
+            link.pendingFirstOpenSource=null;
+        }
+        return false;
     }
 
     synchronized void onExoDescriptorBuilt(Object source) {
@@ -1999,8 +2006,8 @@ final class StageBAudioEvidence {
         if (link!=null && factoryResult!=null) {
             // findByDescriptor already verified exact Java identity. A strong
             // pin here prevents GC between this handoff and source first OPEN.
-            // Once first-open committed a DataSource, a later factory callback
-            // on this descriptor is a sibling, not a new selected lineage.
+            // Once a first-open source is pending or committed, a later
+            // factory callback on this descriptor is not a new selected lineage.
             if(hasLiveFirstOpenSource(link)) {
                 link.firstOpenDescriptorPin=null;
             } else {
@@ -2130,7 +2137,13 @@ final class StageBAudioEvidence {
     synchronized void onExoFirstOpenDeferredArmCalled() {
         mark(firstOpenDeferredArmCalled);
     }
-    synchronized void onExoFirstOpenDeferredArmResult(boolean armed) {
+    synchronized void onExoFirstOpenDeferredArmResult(boolean armed,Object source) {
+        NativeTrackSourceLink link=findBySource(source);
+        if(link!=null && link.pendingFirstOpenSource!=null
+                && link.pendingFirstOpenSource.get()==source) {
+            link.pendingFirstOpenSource=null;
+            if(armed)link.firstOpenSourceCommitted=true;
+        }
         mark(armed?firstOpenDeferredArmAccepted:firstOpenDeferredArmRejected);
     }
     synchronized void onExoFirstOpenArmException() {
@@ -2254,12 +2267,19 @@ final class StageBAudioEvidence {
         if(creator[1]!=wrapper && link.albumInstance!=null
                 && link.albumInstance.get()!=creator[1])
             return rejectFirstOpenCandidate(firstOpenAlbumMismatch);
+        if(hasLiveFirstOpenSource(link)) {
+            Object selected=link.pendingFirstOpenSource!=null
+                ?link.pendingFirstOpenSource.get()
+                :(link.sourceInstance==null?null:link.sourceInstance.get());
+            if(selected!=source)
+                return rejectFirstOpenCandidate(firstOpenAlreadyOpened);
+        }
         // The birth above proves that THIS source came from THIS exact
-        // signed factory. Rebind the historical observation to the one
-        // actually about to open (without ever rewinding a touched source).
+        // signed factory. Protect it while the deferred arm is in flight;
+        // promote to committed only if the route arm succeeds.
         link.sourceInstance=new WeakReference<>(source);
+        link.pendingFirstOpenSource=new WeakReference<>(source);
         link.factorySourceIdentityBound=true;
-        link.firstOpenSourceCommitted=true;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;

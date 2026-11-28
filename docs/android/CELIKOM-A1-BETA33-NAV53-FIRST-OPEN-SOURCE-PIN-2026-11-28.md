@@ -53,10 +53,10 @@ The diagnostic does not prove this was the only runtime cause. It does justify f
 
 NativeTrackSourceLink now has a firstOpenSourceCommitted flag.
 
-- Set only when exactFreshCreatorOrBetaAtFirstOpen() has validated the exact source birth, factory, descriptor, wrapper, creator Track and owner-approved beta token.
-- Later DataSource products are still recorded as exact factory births.
-- While the committed source remains live, later factory callbacks/products do not replace sourceInstance or reset its open/read state.
-- The exact descriptor rebuild is the reset boundary for a new source lineage.
+- exactFreshCreatorOrBetaAtFirstOpen() validates the exact source birth, factory, descriptor, wrapper, creator Track and owner-approved beta token, then holds that source as pending while the deferred arm runs.
+- The pin becomes committed only when armDeferredOriginalDataSource returns true for that exact DataSource.
+- Later DataSource products are still recorded as exact factory births and cannot replace a pending/committed source or reset its open/read state.
+- A rejected arm clears the pending pin. The exact descriptor rebuild clears both pending and committed state for a new source lineage.
 - If the committed weak source has been collected, the pin is cleared and normal fail-closed candidate handling resumes.
 
 No new player, source URL inference, track-name matching, broader allowlist, server/catalog change, authorization change, Windows change, stable Android change or OTA change.
@@ -65,12 +65,14 @@ No new player, source URL inference, track-name matching, broader allowlist, ser
 
 NativeRamilTrackOnlyLineageTest now:
 1. Creates the exact owner-approved wrapper/descriptor/factory/DataSource lineage.
-2. Accepts first-open, opens and reads the exact source.
-3. Creates a later sibling DataSource from the same factory.
-4. Verifies the live resolver still returns the first-open source.
-5. Verifies the sibling cannot replace or re-arm the committed source.
-6. Verifies descriptor rebind clears the old pin and permits a new exact factory/DataSource lineage.
-7. Retains the existing weak descriptor/factory lifetime, wrong-track, wrong-issuer and unrelated-wrapper checks.
+2. Selects the exact first-open source and holds it pending during the deferred arm.
+3. Creates a sibling while the arm is pending and verifies it cannot replace the selected source.
+4. Promotes the pin after a successful arm, then opens and reads the exact source.
+5. Creates a later sibling DataSource and verifies the live resolver still returns the committed source.
+6. Verifies the sibling cannot replace or re-arm the committed source.
+7. Verifies a rejected arm does not pin an unarmed source.
+8. Verifies descriptor rebind clears the old pin and permits a new exact factory/DataSource lineage.
+9. Retains the existing weak descriptor/factory lifetime, wrong-track, wrong-issuer and unrelated-wrapper checks.
 
 The original NativeExoAlternateByteRouteTest, native JVM gates and publisher-first Android 13 ARM64/ARMv7 gates remain required.
 
