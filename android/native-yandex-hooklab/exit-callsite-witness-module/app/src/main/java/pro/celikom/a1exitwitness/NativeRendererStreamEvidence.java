@@ -1044,6 +1044,8 @@ final class NativeRendererStreamEvidence {
     // These bins never imply STATE_STARTED or audible output.
     private int queueSlotReadNotStartedSame,queueSlotReadNotStartedOther;
     private int queueSlotReadNotStartedUnavailable;
+    private int queueSlotReadNotStartedPeriodIdSame,queueSlotReadNotStartedPeriodIdOther;
+    private int queueSlotReadNotStartedPeriodIdUnavailable;
     private final ArrayList<Link> engineHolderLinks = new ArrayList<>();
     private final ArrayList<ComparatorLink> comparatorLinks = new ArrayList<>();
     private final ArrayList<Link> links = new ArrayList<>();
@@ -2148,20 +2150,25 @@ final class NativeRendererStreamEvidence {
             int fresh=liveQueueSlotMatches(live.engine.get(),live.holder.get());
             if(fresh==1) {
                 queueSlotReadNotStartedSame=inc(queueSlotReadNotStartedSame);
-                int beforeUidInts=periodUnknownEosUidInts;
-                int beforeSameRef=periodUnknownEosSame;
-                int beforeCurrentSameRef=currentPeriodSameReferenceAtRead;
-                int beforeCurrentUidInts=currentPeriodUidAndIntsAtRead;
                 boolean eligibleRendererRead=
                     originalResult==-4 && !Boolean.TRUE.equals(endOfStream);
-                if(eligibleRendererRead)
-                    observeCurrentPlaybackPeriodAtRead(
-                        live.engine.get(),live.holder.get(),endOfStream==null);
-                boolean currentPeriodMatched=
-                    currentPeriodSameReferenceAtRead>beforeCurrentSameRef
-                    || currentPeriodUidAndIntsAtRead>beforeCurrentUidInts
-                    || periodUnknownEosUidInts>beforeUidInts
-                    || periodUnknownEosSame>beforeSameRef;
+                boolean periodFieldsReady=currentEnginePlaybackInfoField!=null
+                    && currentPlaybackIdField!=null && currentHolderInfoField!=null
+                    && currentHolderIdField!=null && currentPeriodUidField!=null
+                    && currentPeriodFirstIntField!=null && currentPeriodSecondIntField!=null;
+                // Use the same exact UID + both PeriodID ints + current SLOT_B
+                // check without writing to the STATE_STARTED-only read cohorts.
+                boolean currentPeriodMatched=periodFieldsReady
+                    && originalPeriodIdStillCurrent(live.engine.get(),live.holder.get());
+                if(!periodFieldsReady)
+                    queueSlotReadNotStartedPeriodIdUnavailable=
+                        inc(queueSlotReadNotStartedPeriodIdUnavailable);
+                else if(currentPeriodMatched)
+                    queueSlotReadNotStartedPeriodIdSame=
+                        inc(queueSlotReadNotStartedPeriodIdSame);
+                else
+                    queueSlotReadNotStartedPeriodIdOther=
+                        inc(queueSlotReadNotStartedPeriodIdOther);
                 // Read-only source identity/alternate-byte correlation. Even
                 // a positive result is NOT proof that the renderer has started
                 // or that the alternate bytes reached audible PCM.
@@ -2452,6 +2459,9 @@ final class NativeRendererStreamEvidence {
             line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_MATCH",queueSlotReadNotStartedSame),
             line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_OTHER",queueSlotReadNotStartedOther),
             line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_UNAVAILABLE",queueSlotReadNotStartedUnavailable),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_PERIOD_ID_SAME",queueSlotReadNotStartedPeriodIdSame),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_PERIOD_ID_OTHER",queueSlotReadNotStartedPeriodIdOther),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_PERIOD_ID_UNAVAILABLE",queueSlotReadNotStartedPeriodIdUnavailable),
             line("PLAYER_PERIOD_AT_READ_SAME_REFERENCE",currentPeriodSameReferenceAtRead),
             line("PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH",currentPeriodUidAndIntsAtRead),
             line("PLAYER_PERIOD_AT_READ_UID_ONLY",currentPeriodUidOnlyAtRead),
