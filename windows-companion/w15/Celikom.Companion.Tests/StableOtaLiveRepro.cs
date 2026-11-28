@@ -49,14 +49,13 @@ internal static class StableOtaLiveRepro
                 "W196 .NET package stager downloads both exact signed installers");
             Console.WriteLine("W196_DOTNET_CURRENT_AND_LATEST_INSTALLERS_SHA256_AND_PE_OK");
 
-            var extractionRoot = Path.Combine(scratchRoot, "w196-02462-installer-extract");
-            Directory.CreateDirectory(extractionRoot);
-            ExtractWithInnoUnp(currentPackage.Path, extractionRoot);
+            var installedRoot = Path.Combine(scratchRoot, "w196-02462-package-install");
+            InstallPackageToIsolatedDirectory(currentPackage.Path, installedRoot, scratchRoot);
 
-            var app = FindSingle(extractionRoot, "CELIKOM.Companion.exe");
-            var nativeHost = FindSingle(extractionRoot, "host.cjs");
-            var renderer = FindSingle(extractionRoot, "renderer.js");
-            var supervisor = FindSingle(extractionRoot, "CELIKOM.UpdateSupervisor.exe");
+            var app = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
+            var nativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
+            var renderer = Path.Combine(installedRoot, "integration", "renderer.js");
+            var supervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
 
             test(StableUpdatePayloadVerifier.MatchesFile(app, current.ApplicationSha256),
                 "W196 extracted 0.24.62 application matches signed installed-payload hash");
@@ -136,37 +135,33 @@ internal static class StableOtaLiveRepro
         }
     }
 
-    private static void ExtractWithInnoUnp(string installerPath, string destination)
+    private static void InstallPackageToIsolatedDirectory(
+        string installerPath, string destination, string scratchRoot)
     {
-        var sevenZip = Environment.GetEnvironmentVariable("CELIKOM_INNOUNP_PATH");
-        if (string.IsNullOrWhiteSpace(sevenZip))
-            sevenZip = "innounp.exe";
-
+        Directory.CreateDirectory(destination);
+        var logPath = Path.Combine(scratchRoot, "w196-02462-inno-install.log");
         using var process = Process.Start(new ProcessStartInfo
         {
-            FileName = sevenZip,
+            FileName = installerPath,
             UseShellExecute = false,
             CreateNoWindow = true,
+            WorkingDirectory = scratchRoot,
             ArgumentList =
             {
-                "-x",
-                "-d" + destination,
-                installerPath
+                "/VERYSILENT",
+                "/SUPPRESSMSGBOXES",
+                "/NORESTART",
+                "/NOICONS",
+                "/DIR=" + destination,
+                "/LOG=" + logPath
             }
         });
         if (process is null)
-            throw new IOException("W196_INNOUNP_PROCESS_START_FAILED");
+            throw new IOException("W196_INNO_INSTALL_PROCESS_START_FAILED");
         process.WaitForExit();
         if (process.ExitCode != 0)
-            throw new IOException("W196_INNOUNP_EXTRACT_FAILED");
+            throw new IOException("W196_INNO_INSTALL_TO_ISOLATED_DIRECTORY_FAILED");
     }
 
-    private static string FindSingle(string root, string fileName)
-    {
-        var matches = Directory.EnumerateFiles(
-            root, fileName, SearchOption.AllDirectories).ToArray();
-        if (matches.Length != 1)
-            throw new IOException("W196_EXTRACTED_PAYLOAD_COUNT_INVALID_" + fileName);
-        return matches[0];
-    }
+
 }
