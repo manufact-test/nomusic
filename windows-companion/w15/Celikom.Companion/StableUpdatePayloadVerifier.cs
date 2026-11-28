@@ -10,6 +10,8 @@ namespace Celikom.Companion;
 /// </summary>
 public static class StableUpdatePayloadVerifier
 {
+    // Self-contained x64 app and supervisor images are about 144 MB each;
+    // the 125 MB limit remains reserved for compressed installer packages.
     private const long DefaultInstalledPayloadMaxBytes = 250_000_000;
     /// <summary>
     /// Opens the exact SHA-256-verified image while denying write and delete
