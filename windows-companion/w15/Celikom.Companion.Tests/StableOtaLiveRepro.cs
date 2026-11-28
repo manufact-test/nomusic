@@ -57,15 +57,28 @@ internal static class StableOtaLiveRepro
             var renderer = Path.Combine(installedRoot, "integration", "renderer.js");
             var supervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
 
-            test(StableUpdatePayloadVerifier.MatchesFile(app, current.ApplicationSha256),
-                "W196 extracted 0.24.62 application matches signed installed-payload hash");
-            test(StableUpdatePayloadVerifier.MatchesFile(nativeHost, current.NativeHostSha256),
-                "W196 extracted 0.24.62 native host matches signed installed-payload hash");
-            test(StableUpdatePayloadVerifier.MatchesFile(renderer, current.RendererSha256),
-                "W196 extracted 0.24.62 renderer matches signed installed-payload hash");
-            test(StableUpdatePayloadVerifier.MatchesFile(supervisor, current.SupervisorSha256),
-                "W196 extracted 0.24.62 supervisor matches signed installed-payload hash");
-            Console.WriteLine("W196_DOTNET_02462_ALL_FOUR_SIGNED_PAYLOAD_HASHES_OK");
+            var currentPayloadsMatch =
+                LogPayloadHash("0.24.62", "application", app, current.ApplicationSha256) &
+                LogPayloadHash("0.24.62", "native-host", nativeHost, current.NativeHostSha256) &
+                LogPayloadHash("0.24.62", "renderer", renderer, current.RendererSha256) &
+                LogPayloadHash("0.24.62", "supervisor", supervisor, current.SupervisorSha256);
+
+            InstallPackageToIsolatedDirectory(latestPackage.Path, installedRoot, scratchRoot);
+            var latestApp = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
+            var latestNativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
+            var latestRenderer = Path.Combine(installedRoot, "integration", "renderer.js");
+            var latestSupervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
+            var latestPayloadsMatch =
+                LogPayloadHash("0.24.63", "application", latestApp, latest.ApplicationSha256) &
+                LogPayloadHash("0.24.63", "native-host", latestNativeHost, latest.NativeHostSha256) &
+                LogPayloadHash("0.24.63", "renderer", latestRenderer, latest.RendererSha256) &
+                LogPayloadHash("0.24.63", "supervisor", latestSupervisor, latest.SupervisorSha256);
+
+            test(currentPayloadsMatch,
+                "W196 installed 0.24.62 package payloads match its signed manifest");
+            test(latestPayloadsMatch,
+                "W196 installed 0.24.63 package payloads match its signed manifest");
+            Console.WriteLine("W196_DOTNET_PACKAGE_PAYLOAD_HASH_COMPARISON_COMPLETE");
 
             var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
             var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
@@ -133,6 +146,22 @@ internal static class StableOtaLiveRepro
             if (latestPackage is not null)
                 StableUpdatePackageStager.CleanupVerifiedStage(latestPackage);
         }
+    }
+
+    private static bool LogPayloadHash(
+        string releaseVersion, string payloadName, string path, string expectedHash)
+    {
+        if (!File.Exists(path))
+        {
+            Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} path=MISSING expected={expectedHash} actual=MISSING match=false");
+            return false;
+        }
+
+        using var stream = File.OpenRead(path);
+        var actualHash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        var matches = StableUpdatePayloadVerifier.MatchesFile(path, expectedHash);
+        Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} expected={expectedHash} actual={actualHash} match={matches}");
+        return matches;
     }
 
     private static void InstallPackageToIsolatedDirectory(
