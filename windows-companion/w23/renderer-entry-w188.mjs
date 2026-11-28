@@ -30,6 +30,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   // without a post-attach getFileInfo call. Never inspect prefetched tracks.
   let currentCatchup = null;
   let networkRecoveryPending = false;
+  let lastCurrentTrackRevalidationEpoch = 0;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
@@ -227,9 +228,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   };
   deferredRecovery = createDeferredTrackRecovery({
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
-    active: () => !stopped && attached && adapter.enabled &&
-      playerSourceRefresh.attached,
-    canSchedule: () => !networkRecoveryPending,
+    active: () => !stopped && attached && playerSourceRefresh.attached &&
+      (adapter.enabled || networkRecoveryPending),
+    canSchedule: () => !networkRecoveryPending && adapter.enabled,
     schedule: id => sourceRecovery.schedule(id),
     onEvent: (code, id) => {
       report(code, id);
@@ -298,6 +299,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
     if (initialAttemptId === current.id) currentCatchup.attempted = true;
     // The W175 initial attach check owns its first 3.5-second window.
     // W178 gets one bounded attempt for each later current ID; no polling loop.
+    if (deferredSourceTrack === current.id) {
+      currentCatchup.attempted = true;
+      return;
+    }
     if (initialCurrentSourceCheck || currentCatchup.attempted ||
         now - currentCatchup.firstSeenAt < 3500) return;
     currentCatchup.attempted = true;
@@ -397,6 +402,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           uri.origin === next.apiOrigin) origin = uri.origin;
     } catch {}
     const originChanged = origin !== apiOrigin;
+    const wasNetworkRecoveryPending = networkRecoveryPending;
     const nextNetworkRecoveryPending = !originChanged &&
       next?.networkRecoveryPending === true;
     const recoveryStateChanged = networkRecoveryPending !== nextNetworkRecoveryPending;
@@ -415,11 +421,21 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       apiOrigin = origin;
       adapter.disable();
     }
+    // A Next selected during VPN handoff is an exact current-player candidate,
+    // not a prefetch. Retain its ID until the route is valid; promotion still
+    // verifies that the same Yandex entity is current and the bridge is enabled.
+    if (!originChanged && !!origin && next?.signedIn === true &&
+        (nextNetworkRecoveryPending ||
+         (wasNetworkRecoveryPending && next?.enabled === true)) &&
+        currentTrackId &&
+        (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED") &&
+        !currentWasMapped) {
+      deferredRecovery.record(currentTrackId);
+    }
     if (recoveryStateChanged) {
       sourceRecovery.setPaused(networkRecoveryPending);
       report(networkRecoveryPending ? "NATIVE_ROUTE_RECOVERY_PAUSED" :
         "NATIVE_ROUTE_RECOVERY_RESUMED");
-      if (!networkRecoveryPending) deferredRecovery.check();
     }
     const shouldEnable = next?.enabled === true && next?.signedIn === true &&
       !!origin && attached;
@@ -445,6 +461,61 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       adapter.disable();
     }
     const nextActive = adapter.enabled;
+    const currentTrackRevalidationEpoch =
+      Number.isSafeInteger(next?.currentTrackRevalidationEpoch) &&
+      next.currentTrackRevalidationEpoch > 0
+        ? next.currentTrackRevalidationEpoch : 0;
+    const currentTrackRevalidationId =
+      typeof next?.currentTrackRevalidationId === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(next.currentTrackRevalidationId)
+        ? next.currentTrackRevalidationId : "";
+    let approvalRevalidationStarted = false;
+    // Consume a ticket only when this exact current Yandex entity is playable.
+    // Keep it pending through VPN recovery or a temporary ID-less player pulse.
+    if (currentTrackRevalidationEpoch > 0 &&
+        currentTrackRevalidationEpoch !== lastCurrentTrackRevalidationEpoch &&
+        !networkRecoveryPending && nextActive && currentTrackId &&
+        (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED")) {
+      lastCurrentTrackRevalidationEpoch = currentTrackRevalidationEpoch;
+      if (currentTrackRevalidationId === currentTrackId &&
+          !adapter.hasMappedTrack(currentTrackId)) {
+        approvalRevalidationStarted = true;
+        report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE", currentTrackId);
+        void adapter.revalidate(currentTrackId).then(found => {
+          if (!found) {
+            report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS", currentTrackId);
+            if (adapter.classificationForTrack(currentTrackId) !== "ORIGINAL" &&
+                !adapter.hasMappedTrack(currentTrackId) && !stopped && adapter.enabled) {
+              deferredRecovery.record(currentTrackId);
+              if (!networkRecoveryPending) deferredRecovery.check();
+            }
+            return;
+          }
+          if (adapter.hasMappedTrack(currentTrackId)) return;
+          if (stopped || !adapter.enabled || networkRecoveryPending ||
+              playerSourceRefresh.currentTrackId() !== currentTrackId) {
+            report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_STALE", currentTrackId);
+            return;
+          }
+          report("NATIVE_CURRENT_TRACK_APPROVAL_RELOAD", currentTrackId);
+          void playerSourceRefresh.request(currentTrackId).then(ok => {
+            report(ok ? "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_OK" :
+              "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_DEFERRED", currentTrackId);
+          }, () => report("NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_DEFERRED", currentTrackId));
+        }, () => report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS", currentTrackId));
+      }
+    }
+    // The exact current candidate owns its bounded recovery; do not start a
+    // second W175/W178 source check for the same track.
+    const deferredRecoveryScheduled = !approvalRevalidationStarted &&
+      !networkRecoveryPending && nextActive && currentTrackId &&
+      !adapter.hasMappedTrack(currentTrackId)
+        ? deferredRecovery.check() : false;
+    if (approvalRevalidationStarted || deferredRecoveryScheduled) {
+      initialCurrentSourceCheck = null;
+      if (currentCatchup?.id === currentTrackId)
+        currentCatchup.attempted = true;
+    }
     const transitionChanged = previousActive !== nextActive || originChanged;
     const transitionGeneration = transitionChanged
       ? ++stateTransitionGeneration : stateTransitionGeneration;
@@ -489,7 +560,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         const preservedTrack = next?.preserveCurrentSource === true &&
           next?.preserveCurrentTrackId === currentTrackId &&
           (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED");
-        if (networkRecoveryPending && preservedTrack && currentWasMapped) {
+        if (approvalRevalidationStarted && currentTrackId) {
+          // The exact approval ticket owns this source-only refresh.
+        } else if (deferredRecoveryScheduled && currentTrackId) {
+          report("NATIVE_ROUTE_RECOVERY_TRACK_DEFERRED", currentTrackId);
+        } else if (networkRecoveryPending && preservedTrack && currentWasMapped) {
           // This is a no-reload continuity hold, not source verification.
           // Keep the existing mapped source untouched; host status remains
           // UNKNOWN until the native decoder exposes exact signed kUrl proof.
