@@ -9,7 +9,7 @@
 
 - **BETA32 MP3 override — НЕ РАБОТАЕТ:** ломал воспроизведение. Не повторять MP3/AAC override без новой доказанной причины.
 - **NAV54 работает до чтения альтернативных байтов:** BETA34 и BETA35: FIRST_OPEN_CANDIDATE_ACCEPTED=ONE, DATASOURCE_ARMED=ONE, AUDIO_OPEN=ONE, AUDIO_READ=MANY. Сохранять.
-- **BETA35 NAV55 на Honor 50 — слышимой подмены НЕТ.** Диагностика CELIKOM-A1-Diagnostics-1795873462104.txt: CELIKOM_REPLACEMENT=NOT_CONNECTED.
+- **BETA35 NAV55 на Honor 50 — слышимой подмены НЕТ.** Диагностика `CELIKOM-A1-Diagnostics-1795873462104.txt` относится к этому тесту, но её встроенный маркер `A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128` устарел: проверенный исходник BETA35 (`44e917754c32a06ef73ba63435e0cbf1efef5a36`) ещё содержал старую строку BETA34. Не считать этот маркер доказательством запуска BETA34.
 - NAV55 подтвердил точный класс **o96**, интерфейс wh6 и тот же объект при select, attach и read. Фактический путь прямой (LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT=MANY), не up1. Повторять проверку holder не нужно.
 - LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY, но LIVE_RENDERER_ALT_SOURCE_READ_SAME=NONE; NO_ROUTE_CURRENT_PERIOD=FEW, DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW. В диагностике также есть TCA_CREATOR_WRAPPER_NOT_FLOW=FEW и TCA_CREATOR_WRAPPER_NO_ALBUM=FEW.
 - **NAV56 / BETA36 code change:** live lookup теперь сохраняет exact creator/source proof через firstOpenSourceCommitted после успешного first-open arm. После commit он не переопрашивает ограниченные wrapperBirths/BETA/Flow registries; до commit строгая creator-проверка остаётся. Audio route/admission/codec не менялись.
