@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - ".github/release/owner-bootstrap-0.24.63.trigger"
+      - ".github/release/owner-bootstrap-0.24.64.trigger"
   workflow_dispatch:
     inputs:
       version:
         description: Version already committed to main
         required: true
-        default: '0.24.63'
+        default: '0.24.64'
         type: string
       sequence:
         description: Strictly increasing signed release sequence
         required: true
-        default: '10'
+        default: '11'
         type: string
       expires_at:
         description: Leave blank to use an automatic 7-day UTC expiry
@@ -51,8 +51,8 @@ jobs:
       public_key_der_base64: ${{ steps.derive-public-key.outputs.public_key_der_base64 }}
     env:
       CELIKOM_STABLE_ORIGIN: https://celikom.com
-      RELEASE_VERSION: ${{ inputs.version || '0.24.63' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '10' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.64' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '11' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
       CELIKOM_STABLE_PUBLISHER: ${{ vars.CELIKOM_STABLE_PUBLISHER }}
     steps:
@@ -191,13 +191,13 @@ jobs:
           "CELIKOM_WINDOWS_SIGNED_TRANSFER_READY version=$env:RELEASE_VERSION sequence=$env:RELEASE_SEQUENCE sha256=$hash" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-P256-transfer-${{ inputs.version || '0.24.63' }}-${{ github.sha }}
+          name: CELIKOM-Windows-P256-transfer-${{ inputs.version || '0.24.64' }}-${{ github.sha }}
           path: ${{ runner.temp }}/CELIKOM-Windows-P256-transfer.zip
           if-no-files-found: error
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: CELIKOM-Windows-P256-stable-${{ inputs.version || '0.24.63' }}-${{ github.sha }}
+          name: CELIKOM-Windows-P256-stable-${{ inputs.version || '0.24.64' }}-${{ github.sha }}
           path: ${{ runner.temp }}/celikom-stable-ready/
           if-no-files-found: error
           retention-days: 1
@@ -212,8 +212,8 @@ jobs:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
     with:
-      version: ${{ inputs.version || '0.24.63' }}
-      sequence: ${{ inputs.sequence || '10' }}
+      version: ${{ inputs.version || '0.24.64' }}
+      sequence: ${{ inputs.sequence || '11' }}
       source_commit: ${{ github.sha }}
 
   publish:
