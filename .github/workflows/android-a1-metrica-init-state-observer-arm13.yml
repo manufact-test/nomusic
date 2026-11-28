@@ -97,7 +97,6 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/StageBAudioEvidence.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoAlternateByteRoute.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
-            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java \
             android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java
@@ -117,7 +116,6 @@ jobs:
             android/native-yandex-hooklab/app/src/main/java/pro/celikom/yandex/nativehooklab/NativeReplacementLifecycle.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeTrackIdBetaPolicy.java \
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
-            android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeExoFactoryProductWitness.java \
             android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java
           java -cp "$d" pro.celikom.a1exitwitness.NativeIssuerCodecPreferenceTest

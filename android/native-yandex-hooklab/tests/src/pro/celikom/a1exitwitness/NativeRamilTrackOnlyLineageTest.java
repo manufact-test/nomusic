@@ -286,18 +286,21 @@ public final class NativeRamilTrackOnlyLineageTest {
         NestedSourceFactoryFixture nestedFactory=new NestedSourceFactoryFixture();
         OuterSourceFactoryFixture outerFactory=
             new OuterSourceFactoryFixture(nestedFactory);
+        java.util.function.BiPredicate<Object,Object> exactNestedPath=
+            (candidateOuter,candidateNested)->
+                candidateOuter==outerFactory && candidateNested==nestedFactory;
         StageBAudioEvidence.ExactNestedFactorySourceScope nestedScope=
             delayedBirth.beginExactNestedFactorySourceScope();
         check(!delayedBirth.onExoNestedSourceInstanceCreated(delayedSource,
                 nestedFactory,
-                NativeExoFactoryProductWitness::uniquelyReferencesNestedFactory),
+                exactNestedPath),
             "NAV54_NESTED_SOURCE_CAPTURED_BEFORE_OUTER_LINK");
         check(delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource)==null,
             "NAV54_UNBOUND_NESTED_SOURCE_NOT_ADMITTED");
         delayedBirth.onExoFactoryCreated(delayedDescriptor,outerFactory);
         check(delayedBirth.finishExactNestedFactorySourceScope(nestedScope,
                 outerFactory,
-                NativeExoFactoryProductWitness::uniquelyReferencesNestedFactory)==1,
+                exactNestedPath)==1,
             "NAV54_OUTER_FACTORY_BACKFILLS_EARLY_NESTED_SOURCE");
         Object[] delayedCreator=
             delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource);

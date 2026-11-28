@@ -92,7 +92,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_owner_consented_trial(self):
-        self.assertIn("RAMIL-AU-BETA33", OUTPUT_NAME)
+        self.assertIn("RAMIL-AU-BETA34", OUTPUT_NAME)
         self.assertIn("HONOR50", OUTPUT_NAME)
 
     def test_delivery_keeps_native_success_gate_and_owner_draft(self):
@@ -103,7 +103,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         block = raw[start:end]
         self.assertIn("if: success() &&", block)
         self.assertIn("inputs.export_diagnostic_apk", block)
-        self.assertIn("Verify NAV53 first-open DataSource pin survives later factory products and weak descriptor/factory release", raw)
+        self.assertIn("Verify NAV54 nested-factory birth ordering and NAV53 first-open pin remain fail-closed", raw)
         self.assertIn("NativeRamilTrackOnlyLineageTest", raw)
         self.assertIn("contains(github.event.head_commit.message, '[export-beta-audio]')", block)
         self.assertIn('--target main --draft', block)
