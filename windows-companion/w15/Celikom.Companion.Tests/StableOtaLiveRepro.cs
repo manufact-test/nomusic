@@ -178,18 +178,20 @@ internal static class StableOtaLiveRepro
         var defaultMatch = StableUpdatePayloadVerifier.MatchesFile(path, expectedHash);
         var expandedMatch = StableUpdatePayloadVerifier.MatchesFile(
             path, expectedHash, 250_000_000);
-        var defaultOpen = TryOpenVerifiedPayload(path, expectedHash, 125_000_000);
+        var defaultOpen = TryOpenVerifiedPayload(path, expectedHash);
         var expandedOpen = TryOpenVerifiedPayload(path, expectedHash, 250_000_000);
         Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} size={info.Length} attributes={attributes} expected={expectedHash} actual={actualHash} defaultMatch={defaultMatch} expandedMatch={expandedMatch} defaultOpen={defaultOpen} expandedOpen={expandedOpen}");
         return (defaultMatch, expandedMatch, defaultOpen, expandedOpen);
     }
 
-    private static bool TryOpenVerifiedPayload(string path, string expectedHash, long maxBytes)
+    private static bool TryOpenVerifiedPayload(string path, string expectedHash, long? maxBytes = null)
     {
         try
         {
-            using var stream = StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
-                path, expectedHash, maxBytes: maxBytes);
+            using var stream = maxBytes.HasValue
+                ? StableUpdatePayloadVerifier.OpenVerifiedReadHandle(
+                    path, expectedHash, maxBytes: maxBytes.Value)
+                : StableUpdatePayloadVerifier.OpenVerifiedReadHandle(path, expectedHash);
             return true;
         }
         catch (IOException)
