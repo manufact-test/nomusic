@@ -58,9 +58,11 @@ The owner relaunched 0.24.62 after the public route repair. Fresh W54 diagnostic
 
 The two new uploaded diagnostics are duplicate copies of the same snapshot; there is no distinct after-Stop snapshot. The route repair itself remains verified, but it was not sufficient to make this client update. The earlier conclusion that missing public 0.24.62 files were the sole cause was premature. See `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` for the source analysis and next engineering task.
 
-## Remaining owner acceptance
+## Remaining owner acceptance (superseded by W196)
 
-The currently open 0.24.62 app must perform a fresh startup check against the now-complete public chain:
+The relaunch procedure below was the proposed retest at the time W195 was written. It was attempted and failed; see `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md`. Do not ask the owner to repeat it. Continue with the exact client-side failure investigation in W196.
+
+The currently open 0.24.62 app must perform a fresh startup check against the now-complete public chain (historical procedure):
 
 1. Fully close and relaunch the existing CELIKOM 0.24.62 normally. Do not download or run an installer manually.
 2. Let CELIKOM perform its background check. It is not expected to show a manual “download update” prompt; the updater is automatic and waits for a safe point.
