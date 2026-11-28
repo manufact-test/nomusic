@@ -96,6 +96,21 @@ echo WIN_NGINX_WINDOWS_ROUTE_CONFIG_END
 echo WINDOWS_ROOT_CONSUMER_STATE_END
 
 echo WINDOWS_CUSTOMER_STABLE_CONSUMER_STATE_BEGIN
+MIRROR=/home/celikom-mirror/github-mirror.git
+for unit in celikom-mirror-sync.timer celikom-mirror-sync.service; do
+  printf 'WIN_MIRROR_SYSTEMD %s ' "$unit"
+  systemctl show "$unit" -p LoadState -p ActiveState -p UnitFileState -p LastTriggerUSec -p ExecMainStatus --no-pager 2>/dev/null | tr '\n' ' ' || true
+  echo
+done
+if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
+  mirror_head=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" rev-parse refs/heads/main 2>/dev/null || true)
+  echo "WIN_MIRROR_MAIN_COMMIT=$mirror_head"
+  runuser -u celikom-mirror -- git --git-dir="$MIRROR" show refs/heads/main:.github/release/windows-customer-stable.json 2>/dev/null |
+    python3 -c 'import json,sys; d=json.load(sys.stdin); a=d.get("approved") or {}; print("WIN_MIRROR_CUSTOMER_APPROVAL", "version="+str(a.get("version","none")), "sequence="+str(a.get("sequence","")), "sha256="+str(a.get("sha256","")), "owner_accepted="+str(a.get("owner_accepted","")))' || true
+else
+  echo WIN_MIRROR_DIRECTORY=missing
+fi
+journalctl -u celikom-mirror-sync.service -n 25 --no-pager -o cat 2>/dev/null | tail -n 50 || true
 CUSTOMER=/srv/celikom-releases/public/windows-customer-stable
 for unit in celikom-windows-customer-stable.timer celikom-windows-customer-stable.service; do
   printf 'WIN_CUSTOMER_SYSTEMD %s ' "$unit"
