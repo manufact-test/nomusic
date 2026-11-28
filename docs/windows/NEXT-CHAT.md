@@ -24,7 +24,7 @@
 - W192 / PR #74: Stop cancels delayed grants; a short fresh renderer-unavailable transition must not falsely show Yandex as disconnected.
 - UI state: shared bounded current-track metadata lease; 15-second presence cache/shared in-flight request; successful proposal/upload immediately updates pending state and invalidates older GETs; stale-track async responses are discarded.
 - Admin upload and `«Предложить песню»` API contracts are preserved.
-- W174 audio baseline remains accepted except the narrowly tested `renderer-entry.mjs` route-recovery correction in W198 PR #80; `native-resource-adapter.mjs` and `current-source-refresh.mjs` are unchanged. W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
+- W174 audio baseline remains accepted. W198 PR #80 adds only narrowly tested Windows control-flow changes in `renderer-entry.mjs` (exact-current route recovery and approval-triggered source refresh) and `native-resource-adapter.mjs` (force revalidation of a stale negative lookup for the exact approved current track). `current-source-refresh.mjs` remains unchanged; its existing source-only reload preserves play/pause. W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
 - Resolve diagnostics are privacy-safe. Never log tokens, signed audio URLs, credentials, grant contents or response bodies.
 
 ## Current owner task
