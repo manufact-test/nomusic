@@ -39,7 +39,7 @@ MAX_INSTRUCTIONS_PER_METHOD = 12000
 MAX_TOTAL_INSTRUCTIONS = 12000000
 MAX_OPEN_CALLERS = 24
 MAX_CLASS_INTERFACES = 256
-MAX_CALL_GRAPH_EDGES = 1000000
+MAX_CALL_GRAPH_EDGES = 4000000
 MAX_UPSTREAM_DEPTH = 8
 MAX_UPSTREAM_NODES_PER_TARGET = 512
 MAX_OWNER_FIELDS = 128
@@ -153,6 +153,18 @@ def loader_contract_for_method(owner, method, class_rows, methods_by_owner):
     if len(matches) > 4:
         raise ValueError("LOADABLE_LOADER_INTERFACE_MATCH_LIMIT")
     return sorted(matches)
+
+
+def add_reverse_call_edge(reverse_calls, callee, caller, edge_count,
+                            max_edges=MAX_CALL_GRAPH_EDGES):
+    """Add one unique call-graph edge; duplicate call sites do not add graph nodes."""
+    callers = reverse_calls.setdefault(callee, set())
+    if caller in callers:
+        return edge_count
+    if edge_count >= max_edges:
+        raise ValueError("LOADABLE_CALL_GRAPH_EDGE_LIMIT")
+    callers.add(caller)
+    return edge_count + 1
 
 
 def scan_candidate_constructor_callers(dexes, candidate_owners, media_period_owners):
@@ -378,10 +390,9 @@ def scan_signed(apks):
                 if opcode not in audit.INVOKES or not 0x6E <= opcode <= 0x78:
                     continue
                 callee = dex.method(words[1])
-                reverse_calls.setdefault(callee, set()).add(method)
-                call_edge_count += 1
-                if call_edge_count > MAX_CALL_GRAPH_EDGES:
-                    raise ValueError("LOADABLE_CALL_GRAPH_EDGE_LIMIT")
+                call_edge_count = add_reverse_call_edge(
+                    reverse_calls, callee, method, call_edge_count
+                )
                 if callee in read_dispatch_targets:
                     read_count += 1
                 elif callee in close_dispatch_targets:

@@ -6,6 +6,7 @@ from a1_exact_datasource_loadable_owner import (
     CLOSE, DATA_SOURCE, DATA_SPEC, OPEN, PERIOD, READ,
     collect_dispatch_targets, hierarchy_owners, loader_contract_for_method,
     is_exact_datasource_target, implements, trace_upstream_methods,
+    add_reverse_call_edge,
 )
 
 
@@ -120,6 +121,18 @@ class ExactDatasourceLoadableOwnerTests(unittest.TestCase):
         self.assertIn(helper, traced[target])
         self.assertIn(period, traced[target])
         self.assertEqual(traced[target][period], 2)
+
+    def test_reverse_call_graph_counts_unique_edges_not_repeated_callsites(self):
+        target = ("Ltarget;", "open", "()V")
+        helper = ("Lhelper;", "load", "()V")
+        period = (PERIOD, "prepare", "()V")
+        reverse = {}
+        count = add_reverse_call_edge(reverse, target, helper, 0, max_edges=1)
+        count = add_reverse_call_edge(reverse, target, helper, count, max_edges=1)
+        self.assertEqual(count, 1)
+        self.assertEqual(reverse[target], {helper})
+        with self.assertRaisesRegex(ValueError, "LOADABLE_CALL_GRAPH_EDGE_LIMIT"):
+            add_reverse_call_edge(reverse, target, period, count, max_edges=1)
 
     def test_period_hierarchy_walk_is_bounded_and_exact(self):
         classes = {
