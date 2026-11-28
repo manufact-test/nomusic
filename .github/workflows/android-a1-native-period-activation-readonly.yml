@@ -93,6 +93,8 @@ jobs:
           loadables=[r for r in calls if r.get("method_matches_exact_loader_contract")]
           owner=loadables[0].get("method", [None])[0] if len(loadables)==1 else None
           periods=set(d.get("signed_media_period_implementers", []))
+          read_calls=d.get("exact_read_direct_callers", [])
+          read_loadables=[r for r in read_calls if r.get("method_matches_exact_loader_contract")]
           lo96_sites=[x for x in d.get("candidate_constructor_callsites", [])
                       if owner is not None and x.get("constructed_owner")==owner
                       and x.get("caller_is_exact_Lo96_method")]
@@ -115,6 +117,14 @@ jobs:
           print("A1_UPSTREAM_LOADABLE_CONSTRUCTED_INSIDE_EXACT_LO96="+str(bool(d.get("upstream_loadable_owner_constructed_inside_exact_Lo96_method"))).upper())
           print("A1_UPSTREAM_LOADABLE_EXACT_LO96_CONSTRUCTOR_SITE_COUNT="+str(d.get("upstream_loadable_exact_Lo96_constructor_site_count", 0)))
           print("A1_UPSTREAM_VERDICT="+str(d.get("upstream_verdict", "MISSING")))
+          print("A1_EXACT_READ_DIRECT_CALLER_COUNT="+str(len(read_calls)))
+          print("A1_EXACT_READ_LOADABLE_CALLER_COUNT="+str(len(read_loadables)))
+          print("A1_READ_UPSTREAM_METHOD_COUNT="+str(d.get("read_upstream_method_count", 0)))
+          print("A1_READ_CALLERS_WITH_LOADABLE_ANCESTOR="+str(d.get("read_upstream_callers_with_loadable_count", 0)))
+          print("A1_READ_CALLERS_WITH_EXACT_LO96_ANCESTOR="+str(d.get("read_upstream_callers_with_exact_Lo96_ancestor_count", 0)))
+          print("A1_READ_CALLERS_WITH_MEDIA_PERIOD_ANCESTOR="+str(d.get("read_upstream_callers_with_media_period_ancestor_count", 0)))
+          print("A1_READ_UPSTREAM_LOADABLE_OWNER_COUNT="+str(d.get("read_upstream_loadable_owner_count", 0)))
+          print("A1_READ_UPSTREAM_VERDICT="+str(d.get("read_upstream_verdict", "MISSING")))
           for row in d.get("upstream_open_caller_summaries", []):
               prefix="A1_UPSTREAM_CALLER_"+str(row.get("index", 0))+"_"
               print(prefix+"REACHABLE_METHODS="+str(row.get("reachable_method_count", 0)))
@@ -135,6 +145,20 @@ jobs:
                   print(prefix+key.upper()+"="+str(row.get(key, 0)))
               print(prefix+"OPEN_READ_SAME_METHOD="+str(bool(row.get("exact_open_and_read_same_method"))).upper())
               print(prefix+"OPEN_CLOSE_SAME_METHOD="+str(bool(row.get("exact_open_and_close_same_method"))).upper())
+          for i, row in enumerate(read_calls, 1):
+              method=row.get("method", [None, None, None])
+              owner=method[0] if len(method)>0 else None
+              name=method[1] if len(method)>1 else None
+              signature=method[2] if len(method)>2 else None
+              prefix="A1_READ_CALLER_"+str(i)+"_"
+              print(prefix+"OWNER="+str(owner))
+              print(prefix+"METHOD="+str(name))
+              print(prefix+"SIGNATURE="+str(signature))
+              print(prefix+"LOADABLE_CONTRACT="+str(bool(row.get("method_matches_exact_loader_contract"))).upper())
+              print(prefix+"IS_EXACT_LO96="+str(bool(row.get("is_exact_Lo96"))).upper())
+              print(prefix+"IS_MEDIA_PERIOD="+str(bool(row.get("is_signed_MediaPeriod_implementer"))).upper())
+              print(prefix+"OPEN_SAME_METHOD="+str(bool(row.get("exact_open_same_method"))).upper())
+              print(prefix+"CLOSE_SAME_METHOD="+str(bool(row.get("exact_close_same_method"))).upper())
           ' 
           if [ "$audit_status" -ne 0 ]; then
             echo "A1_AUDIT_INCOMPLETE_REVIEW_SAFE_ERROR_CODE_ABOVE"
