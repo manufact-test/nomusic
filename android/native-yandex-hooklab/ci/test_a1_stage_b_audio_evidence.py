@@ -1151,7 +1151,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoNestedSourceInstanceCreated( result,chain.getThisObject(), NativeExoFactoryProductWitness ::uniquelyReferencesNestedFactory);", normalized)
         scope_pos = normalized.index("STAGE_B_AUDIO.beginExactNestedFactorySourceScope()")
         proceed_pos = normalized.index("result=chain.proceed();", scope_pos)
-        factory_link_pos = normalized.index("STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result)", proceed_pos)
+        factory_link_pos = normalized.index("STAGE_B_AUDIO.onExoFactoryCreated( chain.getArg(1),result)", proceed_pos)
         bind_pos = normalized.index("STAGE_B_AUDIO.finishExactNestedFactorySourceScope(", factory_link_pos)
         self.assertLess(scope_pos, proceed_pos)
         self.assertLess(proceed_pos, factory_link_pos)
