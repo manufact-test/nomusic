@@ -7,19 +7,14 @@
 
 ## Что уже проверено
 
-- **BETA32 MP3 override — НЕ РАБОТАЕТ.** Request-only подмена ломала воспроизведение. Не возвращать и не повторять без новой доказанной причины.
-- **BETA34 NAV54 — работает до чтения альтернативных байтов:** `FIRST_OPEN_CANDIDATE_ACCEPTED=ONE`, `DATASOURCE_ARMED=ONE`, `AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`. NAV54 сохраняем.
-- **BETA34 на Honor 50 — слышимой подмены НЕТ.** `CELIKOM_REPLACEMENT=NOT_CONNECTED`; чтение альтернативного источника в текущем renderer period не подтверждено; `ENGINE_HOLDER_READ_RETURN_MINUS3=MANY`, `ENGINE_HOLDER_TYPE1_STATE2=NONE`.
-- Счётчики собраны по процессу. Не приписывать AAC/MPEG или отдельные чтения конкретной песне без связи по объектам.
-- **Патч observer `80f42ed`**: при renderer read из `up1` извлекается внутренний `wh6`; его identity сверяется с объектами select и attach. Альтернативный DataSource read и renderer stream теперь атрибутируются только при совпадении обеих ссылок. Аудиомеханизм NAV54 не менялся.
-- Добавлены JVM positive/negative tests для wrapped `wh6`.
-- CI: clone-only differential `46146347294` PASS, но не product/acoustic pass. Publisher-first ARM13 `46146347357` PASS: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` — музыка не запускалась, renderer counters не получены.
-- Observer JVM `46147441043` PASS: wrapped-wh6 positive/negative identity tests passed.
-- Корректный BETA35 run `46148935304` PASS; создан private draft `celikom-a1-owner-46148935304-1`.
-- APK `CELIKOM-A1-RAMIL-AU-BETA35-HONOR50-20261128.apk`: 71,606,252 bytes; SHA256 `31699752a6234d01a6db53aaf1cc1e5a624756ebbbb2f7da78dc20185af067c2`.
-- Persistent signer verified; `UPDATE_EXISTING`; `owner_phone_touched=false`.
-- ARM13 verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: audio was not played, so runtime MediaPeriod/DataSource/renderer proof is still absent.
-- First export run `46147938426` failed only on stale BETA34 package filename; corrected in `517905c`.
+- **BETA32 MP3 override — НЕ РАБОТАЕТ:** ломал воспроизведение. Не повторять MP3/AAC override без новой доказанной причины.
+- **NAV54 работает до чтения альтернативных байтов:** BETA34 и BETA35: FIRST_OPEN_CANDIDATE_ACCEPTED=ONE, DATASOURCE_ARMED=ONE, AUDIO_OPEN=ONE, AUDIO_READ=MANY. Сохранять.
+- **BETA35 NAV55 на Honor 50 — слышимой подмены НЕТ.** Диагностика CELIKOM-A1-Diagnostics-1795873462104.txt: CELIKOM_REPLACEMENT=NOT_CONNECTED.
+- NAV55 (`80f42ed`) подтвердил точный класс **o96**, интерфейс wh6 и тот же объект при select, attach и read: все четыре HOLDER_OTHER_WH6/LO96/SELECT_SAME/ATTACH_SAME_AT_READ=MANY. Фактический путь прямой (LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT=MANY), не up1. Повторять проверку holder не нужно.
+- LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY, ENGINE_AUDIO_TYPE1_STATE2_RETURN_MINUS4=MANY. Но LIVE_RENDERER_ALT_SOURCE_READ_SAME=NONE; NO_ROUTE_CURRENT_PERIOD=FEW, DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW. Вторая категория связана с отказом creator lookup; первая — с отсутствием живого/сохранённого маршрута для проверки. Причина отсутствия связи ещё не доказана. Не считать, что decoder получил альтернативные байты.
+- BUFFER_EOS_ACCESS=NO_HOOK; EOS неизвестен. PERIOD_ADAPTER_RENDERER_STREAM_UNAVAILABLE=MANY; прямой o96 не доказывается через adapter-only наблюдение. Не выдавать структурную проверку за PCM/audio proof.
+- BETA35 build `517905c`, CI `46148935304` PASS; owner draft `celikom-a1-owner-46148935304-1`. JVM `46147441043` PASS. ARM13 только запуск, NOT_AUDIO. Экспорт ошибочно сохранил метку BETA34_NAV54 в BETA_BUILD; исправить при следующей реальной сборке, отдельную APK ради метки не делать.
+- Счётчики относятся ко всему процессу, а не только к одному треку.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -34,13 +29,7 @@ Read-only анализ подписанного Yandex 2025, CI run `46144076359
 
 ## Следующий шаг
 
-JVM-проверка патча `80f42ed` пройдена. Для runtime proof нужен запуск реального трека на телефоне с этой версией observer:
-- `HOLDER_OTHER_WH6_AT_READ` — внутренний объект `wh6` из `up1` действительно виден при read.
-- `HOLDER_OTHER_LO96_AT_READ` вместе с `HOLDER_OTHER_SELECT_SAME_AT_READ` и `HOLDER_OTHER_ATTACH_SAME_AT_READ` подтверждает, что выбранный/подключённый объект имеет точный класс `o96` и это та же ссылка.
-- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь с DataSource альтернативных байтов и renderer stream.
-- Renderer → decoder пока не доказано. После подтверждения предыдущих связей искать только этот последний переход.
-
-BETA35 NAV55: установить как update поверх существующего clone, не удалять его и не трогать оригинальный Яндекс. Запустить один реальный трек и прислать diagnostics. Проверить `HOLDER_OTHER_WH6_AT_READ`, `HOLDER_OTHER_LO96_AT_READ`, same select/attach и `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH`. Это подтвердит или опровергнет связь active period → DataSource → renderer. Renderer → decoder остаётся открытым. NAV54 audio route не менять; MP3/AAC не возвращать.
+Проверка класса и identity holder завершена. Не повторять NAV51–NAV55. Реальный разрыв — между доказанным прямым o96 и DataSource альтернативных байтов. В текущем коде связь проверяется через TrackWrapper → StageBAudioEvidence.linkedSourceInstanceForCreatorOrBeta → NativeExoAlternateByteRoute.readStatusForSource; этот путь на телефоне не дал совпадения. Не приписывать отсутствие совпадения определённому экземпляру DataSource или decoder без доказательства. Сначала установить точную причинную связь и только затем менять функциональный маршрут. Не ослаблять проверку источника, не возвращать MP3/AAC override и не экспортировать APK ради новых счётчиков. При следующей функциональной сборке исправить BETA_BUILD.
 
 ## Не трогать
 
