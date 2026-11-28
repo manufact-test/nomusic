@@ -133,13 +133,17 @@ if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
   SOURCE_REMOTE=""
   TARGET_REMOTE=""
   TARGET_PUSH_URL=""
+  MIRROR_SSH_DIR=/home/celikom-mirror/.ssh
+  MIRROR_GITHUB_SSH="ssh -i $MIRROR_SSH_DIR/github-readonly -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$MIRROR_SSH_DIR/known_hosts -o BatchMode=yes"
+  MIRROR_FORGEJO_SSH="ssh -i $MIRROR_SSH_DIR/forgejo-write -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$MIRROR_SSH_DIR/forgejo_known_hosts -o BatchMode=yes"
   while IFS= read -r remote; do
     fetch_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url "$remote" 2>/dev/null || true)
     push_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url --push "$remote" 2>/dev/null || true)
     safe_fetch=$(printf '%s' "$fetch_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#; s#([?&](token|key|password|secret)=)[^& ]+#\1[redacted]#Ig')
     safe_push=$(printf '%s' "$push_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#; s#([?&](token|key|password|secret)=)[^& ]+#\1[redacted]#Ig')
     echo "WIN_MIRROR_REMOTE name=$remote fetch=$safe_fetch push=$safe_push"
-    if [[ "$fetch_url" == *github.com/manufact-test/nomusic.git* ]]; then SOURCE_REMOTE="$remote"; fi
+    if [[ "$fetch_url" == *github.com:manufact-test/nomusic.git* ||
+          "$fetch_url" == *github.com/manufact-test/nomusic.git* ]]; then SOURCE_REMOTE="$remote"; fi
     if [[ "$push_url" == *127.0.0.1:celadmin/nomusic.git* ||
           "$push_url" == *127.0.0.1/celadmin/nomusic.git* ]]; then
       TARGET_REMOTE="$remote"
@@ -151,8 +155,10 @@ if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
   for remote in "$SOURCE_REMOTE" "$TARGET_REMOTE"; do
     [[ -n "$remote" ]] || continue
     ls_remote_target="$remote"
+    remote_ssh="$MIRROR_GITHUB_SSH"
     if [[ "$remote" == "$TARGET_REMOTE" && -n "$TARGET_PUSH_URL" ]]; then
       ls_remote_target="$TARGET_PUSH_URL"
+      remote_ssh="$MIRROR_FORGEJO_SSH"
     fi
     echo "WIN_MIRROR_REMOTE_HEADS_BEGIN $remote"
     while read -r remote_sha remote_ref; do
@@ -174,7 +180,7 @@ if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
         relation=REMOTE_OBJECT_NOT_LOCAL
       fi
       [[ "$relation" == EQUAL ]] || echo "WIN_MIRROR_REF_COMPARE remote=$remote ref=$remote_ref local=$local_sha remote_sha=$remote_sha relation=$relation"
-    done < <(timeout 20s runuser -u celikom-mirror -- git --git-dir="$MIRROR" ls-remote --heads "$ls_remote_target" 2>/dev/null || true)
+    done < <(timeout 20s runuser -u celikom-mirror -- env GIT_SSH_COMMAND="$remote_ssh" git --git-dir="$MIRROR" ls-remote --heads "$ls_remote_target" 2>/dev/null || true)
     echo "WIN_MIRROR_REMOTE_HEADS_END $remote"
   done
   echo WIN_MIRROR_REMOTES_END
