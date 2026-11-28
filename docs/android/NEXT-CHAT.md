@@ -15,7 +15,8 @@
 - Добавлены JVM positive/negative tests для wrapped `wh6`.
 - CI: clone-only differential `46146347294` PASS, но не product/acoustic pass. Publisher-first ARM13 `46146347357` PASS: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` — музыка не запускалась, renderer counters не получены.
 - Observer JVM `46147441043` PASS: wrapped-wh6 positive/negative identity tests passed.
-- APK не экспортировалась: owner artifact gate требует постоянную проверенную подпись и разрешённый режим установки. Не обходить gate.
+- Предыдущий ARM13 run подтвердил `PERSISTENT_OWNER_SIGNER` и `UPDATE_EXISTING`; fresh install не требуется.
+- Первый BETA35 export run `46147938426` остановился на упаковке из-за оставшегося пути BETA34. Исправлено в `517905c`; корректный run `46148935304` выполняется. APK ещё не выдана.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -36,7 +37,7 @@ JVM-проверка патча `80f42ed` пройдена. Для runtime proof
 - `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь с DataSource альтернативных байтов и renderer stream.
 - Renderer → decoder пока не доказано. После подтверждения предыдущих связей искать только этот последний переход.
 
-Для owner APK нужен настроенный persistent signer и разрешённый install mode; CI сейчас блокирует экспорт disposable signer. Не обходить защиту и не собирать APK ради счётчиков. NAV54 audio route не менять.
+BETA35 NAV55 — целевая owner-test сборка с исправленной связью `up1 → wh6 → select/attach → DataSource/renderer`, а не сборка ради новых счётчиков. Дождаться `46148935304` и проверить draft asset. На телефоне устанавливать как UPDATE_EXISTING, не удалять существующий clone и не трогать оригинальный Яндекс. Затем один реальный трек и diagnostics. Это ещё не доказательство слышимой подмены; Renderer → decoder остаётся открытым. NAV54 audio route не менять.
 
 ## Не трогать
 
