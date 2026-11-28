@@ -1837,14 +1837,21 @@ public final class NativeRendererStreamEvidenceTest {
         Object uid=new Object(),renderer=new Object(),wrapper=new Object();
         FakeSource source=new FakeSource();
         FakeStreamAdapter adapter=new FakeStreamAdapter(new FakeChildStream());
+        FakePeriod selectedPeriod=new FakePeriod(source);
         Nav41Id id=new Nav41Id(uid,-1,5);
         Nav41Holder holder=new Nav41Holder(id,adapter);
-        holder.nested=new FakeNested(new FakePeriod(source));
-        ((FakeNested)holder.nested).adapters=new FakeStreamAdapter[]{adapter};
+        holder.nested=selectedPeriod;
         Nav41Engine engine=new Nav41Engine(holder,id);
         NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
         try {e.onNativePlayerSourceSetter(source);} finally {e.exitTrackPlayerSource(player);}
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
         nav41Attach(e,engine,holder,renderer,adapter);
+        FakeNested activeWrapper=new FakeNested(selectedPeriod);
+        activeWrapper.adapters=new FakeStreamAdapter[]{adapter};
+        holder.nested=activeWrapper;
         e.onRendererTypeStateRead(renderer,adapter,1,1,-4,Boolean.FALSE);
         check(contains(e.exportLines(),"origin=PERIOD_ADAPTER_RENDERER_STREAM_MATCH;error=ONE"),
               "NAV47_EXACT_ADAPTER_REFERENCE_MATCH_WHILE_ENABLED");
@@ -1908,14 +1915,19 @@ public final class NativeRendererStreamEvidenceTest {
         Object uid=new Object(),wrapper=new Object(),renderer=new Object(),stream=new Object();
         FakeSource source=new FakeSource();
         Nav41Id id=new Nav41Id(uid,-1,5);
+        FakePeriod selectedPeriod=new FakePeriod(source);
         Nav41Holder holder=new Nav41Holder(id,stream);
-        holder.nested=new FakePeriod(source); // exact direct Lo96 holder path
+        holder.nested=selectedPeriod; // exact direct Lo96 holder path
         Nav41Engine engine=new Nav41Engine(holder,id);
         NativeRendererStreamEvidence.TrackPlayerScope player=
             e.enterTrackPlayerSource(wrapper);
         try {e.onNativePlayerSourceSetter(source);}
         finally {e.exitTrackPlayerSource(player);}
         e.setAlternateSourceReadEvidence(w -> w==wrapper ? 1 : -2);
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
         nav41Attach(e,engine,holder,renderer,stream);
         e.onRendererTypeStateRead(renderer,stream,1,2,-4,null);
         check(contains(e.exportLines(),
@@ -1935,14 +1947,19 @@ public final class NativeRendererStreamEvidenceTest {
         Object otherRenderer=new Object(),otherStream=new Object();
         FakeSource otherSource=new FakeSource();
         Nav41Id otherId=new Nav41Id(otherUid,-1,6);
+        FakePeriod otherSelectedPeriod=new FakePeriod(otherSource);
         Nav41Holder otherHolder=new Nav41Holder(otherId,otherStream);
-        otherHolder.nested=new FakePeriod(otherSource);
+        otherHolder.nested=otherSelectedPeriod;
         Nav41Engine otherEngine=new Nav41Engine(otherHolder,otherId);
         NativeRendererStreamEvidence.TrackPlayerScope otherPlayer=
             different.enterTrackPlayerSource(otherWrapper);
         try {different.onNativePlayerSourceSetter(otherSource);}
         finally {different.exitTrackPlayerSource(otherPlayer);}
         different.setAlternateSourceReadEvidence(w -> -1);
+        different.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        different.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        different.onExactHolderSelectPhase(otherHolder,false);
+        different.onExactHolderSelectPhase(otherHolder,true);
         nav41Attach(different,otherEngine,otherHolder,otherRenderer,otherStream);
         different.onRendererTypeStateRead(otherRenderer,otherStream,1,2,-4,Boolean.FALSE);
         check(contains(different.exportLines(),
@@ -1951,6 +1968,85 @@ public final class NativeRendererStreamEvidenceTest {
         check(contains(different.exportLines(),
             "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD;error=NONE"),
             "NAV50_DIFFERENT_DATASOURCE_NEVER_COUNTS_AS_ACTIVE_ALTERNATE");
+    }
+
+    private static void testWrappedWh6IdentityGatesSameAlternateDataSourceAndRenderer() {
+        NativeRendererStreamEvidence same=new NativeRendererStreamEvidence();
+        nav47Setup(same);
+        same.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        same.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object uid=new Object(),wrapper=new Object(),renderer=new Object();
+        FakeSource source=new FakeSource();
+        FakePeriod selectedPeriod=new FakePeriod(source);
+        FakeStreamAdapter stream=new FakeStreamAdapter(new FakeChildStream());
+        Nav41Id id=new Nav41Id(uid,-1,5);
+        Nav41Holder holder=new Nav41Holder(id,stream);
+        holder.nested=selectedPeriod;
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=
+            same.enterTrackPlayerSource(wrapper);
+        try {same.onNativePlayerSourceSetter(source);}
+        finally {same.exitTrackPlayerSource(player);}
+        same.setAlternateSourceReadEvidence(w -> w==wrapper ? 1 : -2);
+        same.onExactHolderSelectPhase(holder,false);
+        same.onExactHolderSelectPhase(holder,true);
+        nav41Attach(same,engine,holder,renderer,stream);
+        FakeNested activeWrapper=new FakeNested(selectedPeriod);
+        activeWrapper.adapters=new FakeStreamAdapter[]{stream};
+        holder.nested=activeWrapper;
+        same.onRendererTypeStateRead(renderer,stream,1,2,-4,Boolean.FALSE);
+        String[] lines=same.exportLines();
+        check(contains(lines,"origin=HOLDER_OTHER_WH6_AT_READ;error=ONE"),
+              "WRAPPED_WH6_INNER_OBJECT_COUNTED_AT_ACTIVE_READ");
+        check(contains(lines,"origin=HOLDER_OTHER_LO96_AT_READ;error=ONE"),
+              "WRAPPED_WH6_CONCRETE_CLASS_IS_EXACT_O96");
+        check(contains(lines,"origin=HOLDER_OTHER_SELECT_SAME_AT_READ;error=ONE"),
+              "WRAPPED_WH6_IS_SAME_OBJECT_FROM_SELECT");
+        check(contains(lines,"origin=HOLDER_OTHER_ATTACH_SAME_AT_READ;error=ONE"),
+              "WRAPPED_WH6_IS_SAME_OBJECT_FROM_ATTACH");
+        check(contains(lines,
+              "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS;error=ONE"),
+              "SAME_SELECTED_WH6_REACHES_DATASOURCE_THAT_RETURNED_ALTERNATE_BYTES");
+        check(contains(lines,"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=ONE"),
+              "SAME_SELECTED_WH6_PERIOD_REACHES_EXACT_RENDERER_STREAM");
+
+        NativeRendererStreamEvidence different=new NativeRendererStreamEvidence();
+        nav47Setup(different);
+        different.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        different.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        Object otherUid=new Object(),otherWrapper=new Object(),otherRenderer=new Object();
+        FakeSource otherSource=new FakeSource();
+        FakePeriod selected=new FakePeriod(otherSource);
+        FakePeriod active=new FakePeriod(otherSource); // same DataSource, different period object
+        FakeStreamAdapter otherStream=new FakeStreamAdapter(new FakeChildStream());
+        Nav41Id otherId=new Nav41Id(otherUid,-1,6);
+        Nav41Holder otherHolder=new Nav41Holder(otherId,otherStream);
+        otherHolder.nested=selected;
+        Nav41Engine otherEngine=new Nav41Engine(otherHolder,otherId);
+        NativeRendererStreamEvidence.TrackPlayerScope otherPlayer=
+            different.enterTrackPlayerSource(otherWrapper);
+        try {different.onNativePlayerSourceSetter(otherSource);}
+        finally {different.exitTrackPlayerSource(otherPlayer);}
+        different.setAlternateSourceReadEvidence(w -> w==otherWrapper ? 1 : -2);
+        different.onExactHolderSelectPhase(otherHolder,false);
+        different.onExactHolderSelectPhase(otherHolder,true);
+        nav41Attach(different,otherEngine,otherHolder,otherRenderer,otherStream);
+        FakeNested changedWrapper=new FakeNested(active);
+        changedWrapper.adapters=new FakeStreamAdapter[]{otherStream};
+        otherHolder.nested=changedWrapper;
+        different.onRendererTypeStateRead(otherRenderer,otherStream,1,2,-4,Boolean.FALSE);
+        String[] changed=different.exportLines();
+        check(contains(changed,"origin=HOLDER_OTHER_SELECT_DIFFERENT_AT_READ;error=ONE"),
+              "DIFFERENT_INNER_WH6_REJECTED_AFTER_SELECT");
+        check(contains(changed,"origin=HOLDER_OTHER_ATTACH_DIFFERENT_AT_READ;error=ONE"),
+              "DIFFERENT_INNER_WH6_REJECTED_AFTER_ATTACH");
+        check(contains(changed,"origin=LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH;error=ONE"),
+              "SAME_SOURCE_ALONE_IS_NOT_SELECTED_PERIOD_IDENTITY");
+        check(contains(changed,
+              "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS;error=NONE"),
+              "DIFFERENT_INNER_WH6_CANNOT_CLAIM_ALT_DATASOURCE_READ");
+        check(contains(changed,"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=NONE"),
+              "DIFFERENT_INNER_WH6_CANNOT_CLAIM_RENDERER_STREAM");
     }
 
     private static void testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod() {
@@ -3470,6 +3566,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav47DifferentRendererStreamCannotMatchPeriodAdapter();
         testNav47AdapterWithoutChildCannotPromote();
         testNav50AlternateSourceReadIsJoinedToLiveCurrentPeriod();
+        testWrappedWh6IdentityGatesSameAlternateDataSourceAndRenderer();
         testNav41OnlySameNonEosSlotBReadExaminesCurrentPeriod();
         testNav41RejectUidOnlyAndOldPeriodSameUidNotEdition();
         testNav41NoFieldsOrNoActiveSlotCannotProduceMatch();

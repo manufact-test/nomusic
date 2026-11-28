@@ -655,6 +655,15 @@ final class NativeRendererStreamEvidence {
             this.source=source;this.track=track;this.album=album;
         }
     }
+    private static final class ActivePeriodSourceRead {
+        final boolean selectedWh6Same;
+        final ExactOriginalSourceRead exactLateSource;
+        ActivePeriodSourceRead(boolean selectedWh6Same,
+                ExactOriginalSourceRead exactLateSource) {
+            this.selectedWh6Same=selectedWh6Same;
+            this.exactLateSource=exactLateSource;
+        }
+    }
     private final ThreadLocal<Scope> inAttach = new ThreadLocal<>();
     private final ThreadLocal<CallerFrame> inSecondaryCaller = new ThreadLocal<>();
     private final ThreadLocal<EngineFrame> inEngineEnable = new ThreadLocal<>();
@@ -1387,6 +1396,30 @@ final class NativeRendererStreamEvidence {
         }
     }
 
+    // At read the holder may contain Lup1, while its signed wh6 field still
+    // contains the exact object observed at select/attach. Compare that inner
+    // object by Java reference and classify its concrete Lo96 class.
+    private boolean observeOtherPublisherPeriodAtRead(Object holder,Object observed) {
+        if(observed==null)return false;
+        boolean publisherPeriod=publisherMediaPeriodInterface!=null
+            && publisherMediaPeriodInterface.isInstance(observed);
+        if(publisherPeriod)otherReadPeriod=inc(otherReadPeriod);
+        else otherReadNotPeriod=inc(otherReadNotPeriod);
+        if(exactPeriodClass!=null && observed.getClass()==exactPeriodClass)
+            otherReadLo96=inc(otherReadLo96);
+        int selectRelation=otherReferenceRelation(otherSelectedLinks,holder,observed);
+        if(selectRelation==1)otherSelectReadSame=inc(otherSelectReadSame);
+        else if(selectRelation==-1)otherSelectReadDifferent=inc(otherSelectReadDifferent);
+        else if(selectRelation==2)otherSelectReadWeakLost=inc(otherSelectReadWeakLost);
+        else otherSelectReadNoHistory=inc(otherSelectReadNoHistory);
+        int attachRelation=otherReferenceRelation(otherAttachedLinks,holder,observed);
+        if(attachRelation==1)otherAttachReadSame=inc(otherAttachReadSame);
+        else if(attachRelation==-1)otherAttachReadDifferent=inc(otherAttachReadDifferent);
+        else if(attachRelation==2)otherAttachReadWeakLost=inc(otherAttachReadWeakLost);
+        else otherAttachReadNoHistory=inc(otherAttachReadNoHistory);
+        return publisherPeriod && selectRelation==1 && attachRelation==1;
+    }
+
     // NAV47: compare the exact renderer stream reference with the adapter array
     // retained by this exact live holder's Lup1 wrapper. Read only object
     // references; no sample bytes, metadata, IDs or decoder buffers are touched.
@@ -1501,13 +1534,14 @@ final class NativeRendererStreamEvidence {
             inc(liveRendererAlternateSourceEvidenceError);
     }
 
-    private ExactOriginalSourceRead observeActivePeriodSource(Object currentEngine,
+    private ActivePeriodSourceRead observeActivePeriodSource(Object currentEngine,
             Object currentHolder,boolean eligibleRendererRead,
             boolean currentPeriodMatched,Boolean endOfStream) {
         if(livePeriodSourceHook<=0 || currentHolder==null)return null;
         if(holderWrapperField==null || wrapperPeriodField==null
                 || periodSourceField==null)return null;
         Object source=null;
+        boolean selectedWh6SameAtRead=false;
         Object exactLateFlowSource=null;
         Object exactLateFlowTrack=null,exactLateFlowAlbum=null;
         try {
@@ -1520,27 +1554,14 @@ final class NativeRendererStreamEvidence {
                 return null;
             }
             if(!exactWrapperClass.isInstance(nested)) {
-                // NAV32: classify NAV31's non-Lup1 original holder Object
-                // without scanning its fields, methods, metadata or media.
-                if(publisherMediaPeriodInterface!=null
-                        && publisherMediaPeriodInterface.isInstance(nested))
-                    otherReadPeriod=inc(otherReadPeriod);
-                else otherReadNotPeriod=inc(otherReadNotPeriod);
-                if(exactPeriodClass!=null && exactPeriodClass.isInstance(nested))
-                    otherReadLo96=inc(otherReadLo96);
+                // NAV32: classify the non-Lup1 holder object by exact interface
+                // and reference identity. The same helper also handles Lup1's
+                // inner wh6 object below.
+                selectedWh6SameAtRead=
+                    observeOtherPublisherPeriodAtRead(currentHolder,nested);
                 if(exactWrapperClass!=null
                         && exactWrapperClass.getName().equals(nested.getClass().getName()))
                     otherReadSameNameDifferentLoader=inc(otherReadSameNameDifferentLoader);
-                int selectRelation=otherReferenceRelation(otherSelectedLinks,currentHolder,nested);
-                if(selectRelation==1)otherSelectReadSame=inc(otherSelectReadSame);
-                else if(selectRelation==-1)otherSelectReadDifferent=inc(otherSelectReadDifferent);
-                else if(selectRelation==2)otherSelectReadWeakLost=inc(otherSelectReadWeakLost);
-                else otherSelectReadNoHistory=inc(otherSelectReadNoHistory);
-                int attachRelation=otherReferenceRelation(otherAttachedLinks,currentHolder,nested);
-                if(attachRelation==1)otherAttachReadSame=inc(otherAttachReadSame);
-                else if(attachRelation==-1)otherAttachReadDifferent=inc(otherAttachReadDifferent);
-                else if(attachRelation==2)otherAttachReadWeakLost=inc(otherAttachReadWeakLost);
-                else otherAttachReadNoHistory=inc(otherAttachReadNoHistory);
                 livePeriodHolderOther=inc(livePeriodHolderOther);
                 // NAV33: exact direct Lo96 observed across owner select,
                 // live attach and started read. Use ONLY signed-pinned Sl6
@@ -1567,6 +1588,9 @@ final class NativeRendererStreamEvidence {
                 livePeriodUnavailable=inc(livePeriodUnavailable);
                 return null;
             }
+            // The outer Lup1 is not the selected wh6. Its exact inner period is.
+            selectedWh6SameAtRead=
+                observeOtherPublisherPeriodAtRead(currentHolder,observed);
             Object exactPeriod=observed;
             if(!exactPeriodClass.isInstance(observed)) {
                 // NAV29 assumed the underlying Lwh6 always IS Lo96. It
@@ -1616,7 +1640,7 @@ final class NativeRendererStreamEvidence {
         }
         if(!conflicting && matches==1) {
             livePeriodSourceMatched=inc(livePeriodSourceMatched);
-            if(eligibleRendererRead)
+            if(eligibleRendererRead && selectedWh6SameAtRead)
                 observeAlternateSourceReadEvidence(uniquelyScopedWrapper,source,
                     currentEngine,currentHolder,currentPeriodMatched,endOfStream);
             // No classification if source is unresolved, conflicted, stale,
@@ -1693,9 +1717,10 @@ final class NativeRendererStreamEvidence {
         } else if(matches==0 && !conflicting)
             livePeriodSourceNoLink=inc(livePeriodSourceNoLink);
         else livePeriodSourceDifferent=inc(livePeriodSourceDifferent);
-        return exactLateFlowSource==null ? null :
+        ExactOriginalSourceRead lateSource=exactLateFlowSource==null ? null :
             new ExactOriginalSourceRead(
                 exactLateFlowSource,exactLateFlowTrack,exactLateFlowAlbum);
+        return new ActivePeriodSourceRead(selectedWh6SameAtRead,lateSource);
     }
 
     synchronized void setLiveQueueSlotFields(Field engineField,Field slotField) {
@@ -2182,15 +2207,19 @@ final class NativeRendererStreamEvidence {
                 // Only independently proven exact holder + live SLOT_B.
                 // NAV50 additionally joins that period's wrapper to the exact
                 // DataSource that has already returned alternate bytes.
-                ExactOriginalSourceRead exactLateSource=
+                ActivePeriodSourceRead activePeriodRead=
                     observeActivePeriodSource(live.engine.get(),live.holder.get(),
                         eligibleRendererRead,currentPeriodMatched,endOfStream);
+                ExactOriginalSourceRead exactLateSource=activePeriodRead==null
+                    ?null:activePeriodRead.exactLateSource;
+                boolean selectedWh6SameAtRead=activePeriodRead!=null
+                    && activePeriodRead.selectedWh6Same;
                 // NAV47 full same-callback identity: renderer's exact stream
                 // is the adapter retained by this holder's active MediaPeriod,
                 // its child stream exists, and the same period source resolves
                 // to the current player source while the live slot is unchanged.
-                if(periodAdapterStreamMatch && originalResult==-4
-                        && Boolean.FALSE.equals(endOfStream)
+                if(periodAdapterStreamMatch && selectedWh6SameAtRead
+                        && originalResult==-4 && Boolean.FALSE.equals(endOfStream)
                         && livePeriodSourceMatched>beforeSourceSame
                         && originalPeriodIdStillCurrent(live.engine.get(),live.holder.get())
                         && liveQueueSlotMatches(live.engine.get(),live.holder.get())==1) {
