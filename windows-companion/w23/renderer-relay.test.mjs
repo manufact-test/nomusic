@@ -871,6 +871,7 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
   r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
   void player.state; r.runIntervals();
   assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.id,"123");
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.playbackState,"PLAYING");
 
   const original=new r.Resource().getFileInfo({trackId:"123"});
   await tick();
@@ -879,6 +880,7 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
   r.window.__celikomBridgeNativeReceive(first[0].requestId,null);
   await original;
   assert.deepEqual(player.reloadReasons,[]);
+  r.window.__celikomBridgeNativeDrainDiagnostics();
 
   // A stale ticket for another song is consumed but never reloads this player.
   r.window.__celikomBridgeNativeSetState({
@@ -887,15 +889,17 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
   });
   assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
   assert.deepEqual(player.reloadReasons,[]);
+  r.window.__celikomBridgeNativeDrainDiagnostics();
 
   // The exact current track gets a fresh resolve despite its still-live negative cache.
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin,
     currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
   });
-  await tick();
+  await tick(); await tick();
+  const approvalEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
   const fresh=r.window.__celikomBridgeNativeDrain();
-  assert.equal(fresh.length,1);
+  assert.equal(fresh.length,1,JSON.stringify(approvalEvents));
   assert.equal(fresh[0].trackId,"123");
   assert.equal(fresh[0].recovery,true);
   r.window.__celikomBridgeNativeReceive(fresh[0].requestId,makeGrant("123"));
@@ -958,9 +962,10 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
   });
-  await new Promise(resolve=>setTimeout(resolve,700));
+  await new Promise(resolve=>setTimeout(resolve,1100));
+  const recoveryEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
   const recovery=r.window.__celikomBridgeNativeDrain();
-  assert.equal(recovery.length,1);
+  assert.equal(recovery.length,1,JSON.stringify(recoveryEvents));
   assert.equal(recovery[0].trackId,"456");
   assert.equal(recovery[0].recovery,true);
   r.window.__celikomBridgeNativeReceive(recovery[0].requestId,makeGrant("456"));
@@ -969,7 +974,7 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   assert.equal(player.state.playerState.status.value,"paused",
     "the existing Yandex source refresh preserves the user's paused state");
   assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"456");
-  const events=r.window.__celikomBridgeNativeDrainDiagnostics();
+  const events=[...recoveryEvents,...r.window.__celikomBridgeNativeDrainDiagnostics()];
   assert.ok(events.some(x=>x[0]==="SOURCE_DEFERRED_PROMOTED"&&x[1]==="456"));
   assert.ok(events.some(x=>x[0]==="SOURCE_RECOVERY_RELOAD_OK"&&x[1]==="456"));
   r.handlers.beforeunload();
