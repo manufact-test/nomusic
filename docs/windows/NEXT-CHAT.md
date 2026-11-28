@@ -1,15 +1,18 @@
-# ACTIVE CELIKOM WINDOWS — W193: signed 0.24.63 ready, OTA publication pending (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — W194: 0.24.63 public OTA published; owner-device test pending (28 November 2026)
 
-**READ FIRST:** `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md`. This is the controlling current checkpoint; all older notes below are historical.
+**READ FIRST:** `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md`. W194 supersedes the pending-publication status in W193. W193 remains the route-audit and signed-release evidence.
 
-**User workflow:** test/private candidate -> owner acceptance -> main -> protected GitHub publication approval -> real in-app auto-update. CI is validation, not a separate release channel. No new test feed or manual installer detour. The user wants to test automatic updating from the already installed Windows product.
+**User workflow:** test/private candidate -> owner acceptance -> main -> protected GitHub publication approval -> real in-app auto-update. CI is validation, not a separate release channel. No new test feed or manual installer detour.
 
-**Ready:** 0.24.63.0 / signed sequence 10, source main `9c6721fdb273fc0850213b79d339b0f47d3e83b0`; build [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) SUCCESS. Both publish jobs skipped; transfer artifact 15237633233, stable artifact 15238491157, expire 2026-11-28 around 23:38 UTC. Exact installer SHA256 3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f. Reuse this exact verified package rather than rebuilding by default. PRs #72/#73/#74 already merged; W174 audio and W188 Yandex 5.129 bridge preserved.
+**Published:** CELIKOM Windows **0.24.63.0**, signed version 0.24.63, sequence 10. Original build [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) SUCCESS. Exact existing artifact was reused; no rebuild/re-sign. Protected publication [46084804919](https://github.com/manufact-test/nomusic/actions/runs/46084804919) SUCCESS; owner approval recorded. Public latest manifest/signature and versioned files match the signed artifact; public EXE was downloaded over HTTPS and full SHA256 verified: `3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f`.
 
-**Actual blocker:** hosted audit 46083534978 SUCCESS: Floki local current is 0.24.62 sequence 9, owner HTTPS receipt verified. Public stable still serves 0.24.55 sequence 2 (metadata probe 46082646485; signature not verified by that probe). DNS points to Floki. Prepared stable Nginx snippet exists but active public route does not expose the new local current. Need minimal reversible Windows-only route cutover and exact 0.24.63 promotion under existing protected `windows-stable-production` approval. Do not publish 0.24.62 accidentally by switching routes early. Self-hosted runner remains problematic; hosted read-only audit succeeded. No route change, production promotion, or real-device OTA confirmed.
+**Floki state:** existing signed root consumer promoted local current to `versions/0.24.63`; owner HTTPS receipt is `https_verified=True`. Immutable 0.24.55 and 0.24.62 versions remain preserved. The existing public stable route is already configured and serves the exact 0.24.63 package. A redundant route-cutover attempt stopped at its duplicate-route guard before changing Nginx. Temporary one-off helpers were removed.
 
-**Next:** follow W193 handoff, prepare existing GitHub approval button for exact release, then after owner confirms verify public signed feed + installer hash and owner in-app detect/download/install. Do not reopen audio development, touch Android/extension, reset main, invent a test channel, or ask owner to download another manual installer. Required-reviewer configuration and actual installed version still unverified. If a necessary GitHub action cannot be performed through connector, explain the exact action rather than bypass protections.
+**Remaining task:** verify actual in-app auto-update on the owner's existing Windows installation. The installed version is still unconfirmed. Ask the owner to fully close and normally relaunch CELIKOM (no manual EXE download), allow the in-app update if offered, then send a fresh diagnostic. Confirm app/supervisor 0.24.63.0, update discovery/download/signature verification/safe-point install/restart and account retention separately. Audio playback remains a separate acceptance check.
 
+**Hard boundaries:** do not touch Android, browser-extension runtime, W174 audio baseline, Yandex profile or server/API backend. Do not rebuild/re-sign 0.24.63. Do not ask for manual EXE installation. If the installed app fails to discover the update after normal restart, inspect a fresh diagnostic from that exact installation.
+
+---
 ---
 
 ## Historical W189 checkpoint (superseded by W193 above)
