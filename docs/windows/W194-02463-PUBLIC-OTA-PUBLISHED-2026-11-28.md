@@ -1,5 +1,8 @@
 # W194 — Windows 0.24.63 public stable OTA published (2026-11-28)
 
+> **W195 update (2026-11-28):** The owner device was confirmed on 0.24.62.0. Its first-run updater bootstrap failed because the public customer version store lacked the installed 0.24.62 immutable manifest/signature/installer. The exact signed 0.24.62 bootstrap/rollback package has now been copied from Floki's private immutable store to the existing public versioned route and verified over HTTPS. Public latest remains 0.24.63 / sequence 10 unchanged. See `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md`. Only owner-device auto-update acceptance remains.
+
+
 ## Result
 
 **Public stable OTA publication completed successfully.** The owner explicitly approved the existing protected GitHub environment gate. The existing public updater route now serves the exact signed 0.24.63 release.
