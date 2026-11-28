@@ -211,9 +211,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   };
   deferredRecovery = createDeferredTrackRecovery({
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
-    active: () => !stopped && attached && adapter.enabled &&
-      playerSourceRefresh.attached,
-    canSchedule: () => !networkRecoveryPending,
+    active: () => !stopped && attached && playerSourceRefresh.attached,
+    canSchedule: () => !networkRecoveryPending && adapter.enabled,
     schedule: id => sourceRecovery.schedule(id),
     onEvent: (code, id) => {
       report(code, id);
@@ -281,6 +280,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           uri.origin === next.apiOrigin) origin = uri.origin;
     } catch {}
     const originChanged = origin !== apiOrigin;
+    const wasNetworkRecoveryPending = networkRecoveryPending;
     const nextNetworkRecoveryPending = !originChanged &&
       next?.networkRecoveryPending === true;
     const recoveryStateChanged = networkRecoveryPending !== nextNetworkRecoveryPending;
@@ -299,11 +299,22 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       apiOrigin = origin;
       adapter.disable();
     }
+    // A Next selected during VPN handoff is an exact current-player candidate,
+    // not a prefetch. Keep it until the route is valid; promotion still checks
+    // that the same Yandex entity is current and the native bridge is enabled.
+    if (!originChanged && !!origin && next?.signedIn === true &&
+        (nextNetworkRecoveryPending ||
+         (wasNetworkRecoveryPending && next?.enabled === true)) &&
+        currentTrackId &&
+        (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED") &&
+        !currentWasMapped &&
+        adapter.classificationForTrack(currentTrackId) !== "ORIGINAL") {
+      deferredRecovery.record(currentTrackId);
+    }
     if (recoveryStateChanged) {
       sourceRecovery.setPaused(networkRecoveryPending);
       report(networkRecoveryPending ? "NATIVE_ROUTE_RECOVERY_PAUSED" :
         "NATIVE_ROUTE_RECOVERY_RESUMED");
-      if (!networkRecoveryPending) deferredRecovery.check();
     }
     const shouldEnable = next?.enabled === true && next?.signedIn === true &&
       !!origin && attached;
@@ -329,6 +340,10 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       adapter.disable();
     }
     const nextActive = adapter.enabled;
+    // Run after adapter.enable(): a route-held candidate may have been recorded
+    // while the entitlement bridge was temporarily disabled.
+    const deferredRecoveryScheduled = !networkRecoveryPending && nextActive
+      ? deferredRecovery.check() : false;
     const transitionChanged = previousActive !== nextActive || originChanged;
     const transitionGeneration = transitionChanged
       ? ++stateTransitionGeneration : stateTransitionGeneration;
@@ -364,7 +379,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         const preservedTrack = next?.preserveCurrentSource === true &&
           next?.preserveCurrentTrackId === currentTrackId &&
           (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED");
-        if (networkRecoveryPending && preservedTrack && currentWasMapped) {
+        if (deferredRecoveryScheduled && currentTrackId) {
+          // The exact current track was queued during route recovery. Its
+          // existing bounded retry owns revalidation; do not start a second prime.
+          report("NATIVE_ROUTE_RECOVERY_TRACK_DEFERRED", currentTrackId);
+        } else if (networkRecoveryPending && preservedTrack && currentWasMapped) {
           // This is a no-reload continuity hold, not source verification.
           // Keep the existing mapped source untouched; host status remains
           // UNKNOWN until the native decoder exposes exact signed kUrl proof.

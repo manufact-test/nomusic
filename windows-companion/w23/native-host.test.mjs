@@ -1549,6 +1549,35 @@ test("W157 no-kUrl VPN hold rejects Next to a different current track",async()=>
   assert.ok(resumed.includes('"preserveCurrentTrackId":""'));
 });
 
+test("W198 VPN Next recaptures the new current track only with its own mapping witness",async()=>{
+  let clockNow=Date.now();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[clockNow]));}
+    static now(){return clockNow;}
+  }
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false};
+  const currentTrack={id:"123",title:"Старая",artist:"Тест",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",mappedCurrentTrackId:"456",
+    currentTrack,stateOverride:state,primaryAudible:true,clock:FakeDate
+  });
+  await new Promise(resolve=>setTimeout(resolve,40));
+
+  state.enabled=false;state.networkRecoveryPending=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  currentTrack.id="456";
+  state.enabled=true;
+  clockNow+=350;r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+
+  const resumed=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState(")).at(-1)||"";
+  assert.ok(resumed.includes('"preserveCurrentSource":true'));
+  assert.ok(resumed.includes('"preserveCurrentTrackId":"456"'),
+    "the newly selected track is held only against its own current mapping witness");
+  assert.ok(r.diagnostics.includes("NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED|456"));
+});
+
 test("W157 no-kUrl VPN hold is cleared by Manual Stop",async()=>{
   let clockNow=Date.now();
   class FakeDate extends Date {

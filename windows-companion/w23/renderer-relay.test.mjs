@@ -865,6 +865,66 @@ test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
   r.handlers.beforeunload();
 });
 
+test("W198 VPN Next during route recovery is revalidated only when the same current track returns",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state; r.runIntervals();
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,makeGrant("123"));
+  await first;
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  player.snapshot.playerState.status.value="paused";
+  void player.state;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
+    x[0]==="SOURCE_DEFERRED_WAITING"&&x[1]==="456"),
+    "the new exact current track is retained while the bridge is disabled");
+
+  // Yandex briefly hides the current entity during the reconnect.
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="";
+  void player.state;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  assert.deepEqual(player.reloadReasons,[],
+    "no source reload is allowed while the current Yandex entity is unavailable");
+
+  // The same paused entity becomes observable after the route has settled.
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  void player.state;
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  await new Promise(resolve=>setTimeout(resolve,700));
+  const recovery=r.window.__celikomBridgeNativeDrain();
+  assert.equal(recovery.length,1);
+  assert.equal(recovery[0].trackId,"456");
+  assert.equal(recovery[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(recovery[0].requestId,makeGrant("456"));
+  await new Promise(resolve=>setTimeout(resolve,240));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.state.playerState.status.value,"paused",
+    "the existing Yandex source refresh preserves the user's paused state");
+  assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"456");
+  const events=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(events.some(x=>x[0]==="SOURCE_DEFERRED_PROMOTED"&&x[1]==="456"));
+  assert.ok(events.some(x=>x[0]==="SOURCE_RECOVERY_RELOAD_OK"&&x[1]==="456"));
+  r.handlers.beforeunload();
+});
+
 test("W157 no-kUrl VPN hold fails closed after Manual Stop or unavailable player state",async()=>{
   for(const status of ["stopped","invalid"]){
     const r=createRenderer({withPlayer:true});

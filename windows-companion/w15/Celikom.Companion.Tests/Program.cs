@@ -1567,6 +1567,17 @@ try
           !CompactPlaybackPresentation.PresenceCacheFresh("error",
               presenceNow.AddSeconds(-1), presenceNow),
           "W189 presence cache is bounded to 15 seconds and only authoritative states are cacheable");
+     Test(CompactPlaybackPresentation.PendingPresenceRefreshDue("pending",
+              presenceNow.AddSeconds(-2), presenceNow) &&
+          !CompactPlaybackPresentation.PendingPresenceRefreshDue("pending",
+              presenceNow.AddMilliseconds(-1999), presenceNow) &&
+          CompactPlaybackPresentation.PendingPresenceRefreshDue("pending",
+              DateTimeOffset.MinValue, presenceNow) &&
+          !CompactPlaybackPresentation.PendingPresenceRefreshDue("approved",
+              presenceNow.AddMinutes(-1), presenceNow) &&
+          !CompactPlaybackPresentation.PendingPresenceRefreshDue("none",
+              presenceNow.AddMinutes(-1), presenceNow),
+          "W198 only a pending current-track status becomes due for the two-second visible-window refresh");
      Test(CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 7, "123", 7) &&
           !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("456", 7, "123", 7) &&
           !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 8, "123", 7),

@@ -43,6 +43,15 @@ public static class CompactPlaybackPresentation
         checkedAt != DateTimeOffset.MinValue && now >= checkedAt &&
         now - checkedAt < PresenceCacheLifetime;
 
+    // W198: while the compact window is visible, recheck only a pending
+    // current-track status every two seconds. Approved/absent states retain
+    // the shared 15-second cache and never enter this fast refresh path.
+    public static bool PendingPresenceRefreshDue(string? presenceStatus,
+        DateTimeOffset checkedAt, DateTimeOffset now) =>
+        presenceStatus == "pending" &&
+        (checkedAt == DateTimeOffset.MinValue ||
+         (now >= checkedAt && now - checkedAt >= TimeSpan.FromSeconds(2)));
+
     public static bool PresenceResponseMatchesCurrent(string? currentTrackId,
         int currentEpoch, string? responseTrackId, int responseEpoch) =>
         GrantValidator.IsTrackId(currentTrackId) &&
