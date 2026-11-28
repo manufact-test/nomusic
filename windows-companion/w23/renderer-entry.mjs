@@ -365,12 +365,13 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           if (!found) {
             report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS", currentTrackId);
             if (adapter.classificationForTrack(currentTrackId) !== "ORIGINAL" &&
-                !stopped && adapter.enabled) {
+                !adapter.hasMappedTrack(currentTrackId) && !stopped && adapter.enabled) {
               deferredRecovery.record(currentTrackId);
               if (!networkRecoveryPending) deferredRecovery.check();
             }
             return;
           }
+          if (adapter.hasMappedTrack(currentTrackId)) return;
           if (stopped || !adapter.enabled || networkRecoveryPending ||
               playerSourceRefresh.currentTrackId() !== currentTrackId) {
             report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_STALE", currentTrackId);

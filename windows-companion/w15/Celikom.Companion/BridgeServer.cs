@@ -189,8 +189,6 @@ public sealed class BridgeServer : IAsyncDisposable
                     ? 1 : _nativeNetworkRecoveryEpoch + 1;
             // A newer route signal invalidates any earlier re-enable handshake.
             _nativeNetworkRecoveryAwaitingHeartbeat = false;
-            if (!pending && !_enabled)
-                _nativeCurrentTrackRevalidationId = "";
         }
     }
 
@@ -247,10 +245,7 @@ public sealed class BridgeServer : IAsyncDisposable
             if (_enabled == enabled)
             {
                 if (!enabled && !_nativeNetworkRecoveryPending)
-                {
                     _playerUnavailable = false;
-                    _nativeCurrentTrackRevalidationId = "";
-                }
                 return;
             }
             var wasEnabled = _enabled;
@@ -261,10 +256,7 @@ public sealed class BridgeServer : IAsyncDisposable
             {
                 _nativeNetworkRecoveryAwaitingHeartbeat = false;
                 if (!_nativeNetworkRecoveryPending)
-                {
                     _playerUnavailable = false;
-                    _nativeCurrentTrackRevalidationId = "";
-                }
             }
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSource = "UNKNOWN";
