@@ -169,13 +169,13 @@ jobs:
           assert old_doc=={"schema":1,"channel":"customer-stable","approved":old_doc.get("approved")}
           old=old_doc["approved"]
           def version_tuple(value):
-              assert isinstance(value,str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,3})\\.(?:0|[1-9][0-9]{0,3})\\.(?:0|[1-9][0-9]{0,4})",value)
+              assert isinstance(value,str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4})",value)
               return tuple(map(int,value.split(".")))
           if old is not None and old!=candidate:
               assert old.get("owner_accepted") is True
               assert type(old.get("sequence")) is int
               assert sequence>old["sequence"] and version_tuple(version)>version_tuple(old["version"]), "CUSTOMER_STABLE_DOWNGRADE_REFUSED"
-          new_bytes=(json.dumps({"schema":1,"channel":"customer-stable","approved":candidate},indent=2)+"\\n").encode()
+          new_bytes=(json.dumps({"schema":1,"channel":"customer-stable","approved":candidate},indent=2)+"\n").encode()
           if old!=candidate:
               api("/contents/.github/release/windows-customer-stable.json","PUT",{
                   "message":"Windows: owner-approved stable "+version+" (Actions "+run_id+")",
