@@ -61,6 +61,17 @@ PR CI: generic [46142163668](https://github.com/manufact-test/nomusic/actions/ru
 
 Current public approval record remains **0.24.63 / sequence 10**. The previous owner candidate artifact from run 46140222345 is not used by the corrected flow; the next manual run rebuilds the exact signed package from current main. **0.24.64 remains unpublished until that run passes its protected gate and public HTTPS verification.**
 
+## 0.24.64 protected promotion and recovery (28 November 2026)
+
+- Manual release run [46143048815](https://github.com/manufact-test/nomusic/actions/runs/46143048815) built and signed **0.24.64 / sequence 11** successfully. Manifest package SHA-256: `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`; EXE size: `85,162,732` bytes. Transfer artifact [15262626691](https://github.com/manufact-test/nomusic/actions/runs/46143048815) and stable package artifact [15262856384](https://github.com/manufact-test/nomusic/actions/runs/46143048815) were uploaded.
+- The owner explicitly approved environment `windows-stable-production`; GitHub approvals API confirms `state=approved`.
+- Floki staging passed and logged `CELIKOM_WINDOWS_SIGNED_RUNNER_SPOOL_READY 0.24.64 11 d1360531539fa4257d456b8ea035b727caa2da9ae5f1e5dc3989c323a867ba69 85162732 private-staged`.
+- The same job then failed because `gh: command not found` in a redundant precheck. The existing Python GitHub API approval verification immediately below that line was already present. The public promotion and `verify_customer_stable` jobs were skipped. **Do not describe the public release as verified yet.**
+- PR [#77](https://github.com/manufact-test/nomusic/pull/77) merged as `1950228c8db05a7375820b69902417b8d01d9fd4`. It removes the unavailable GitHub CLI call and retains the authenticated Python API approval check. Regression test added. Generic CI [46146131136](https://github.com/manufact-test/nomusic/actions/runs/46146131136) and Windows integration CI [46146131169](https://github.com/manufact-test/nomusic/actions/runs/46146131169) — SUCCESS.
+- The already-approved candidate was not rebuilt. After independently rechecking the recorded environment approval and the successful signed/staging logs, the existing `.github/release/windows-customer-stable.json` approval record was advanced to **0.24.64 / sequence 11**, SHA above, `owner_accepted=true`, in commit `bcc4aade47174a0445e41775bf62397718c426d9`.
+- The existing Floki customer consumer timer runs every 120 seconds. It reads the main mirror approval, verifies the signed immutable package, publishes the public latest pair/version files/stable installer, verifies exact HTTPS bytes and full installer SHA-256, then writes `accepted.json`. Public consumer completion still needs independent confirmation; the original release workflow's post-promotion verifier was skipped due to the missing CLI command.
+- No new channel, rebuild, Android, extension, Windows audio engine, or customer audio data changes.
+
 ## Next actions — preserve the existing gates
 
 1. Open [the signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml), run it with version `0.24.64`, sequence `11`, and `publish_to_production=true`. Complete the existing `windows-stable-production` environment approval. Do not bypass the gate.
