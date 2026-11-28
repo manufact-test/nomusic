@@ -10,6 +10,8 @@ CELIKOM Android A1 — BETA36 NAV56 (HONOR 50 / Android 13)
 - NAV56 меняет только read-only связь renderer → committed DataSource; сам audio route, admission и codec requests не менялись.
 - Оригинальный Яндекс Музыки остаётся единственным плеером. Сервер, каталог, авторизация и grant не менялись.
 
+Важно: CI/ARM13 PASS подтверждает только технический запуск и совместную установку, НЕ слышимую подмену. На телефоне решающий признак — LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS и фактическое прослушивание.
+
 Установка:
 - Установить BETA36 поверх BETA35 на существующем Honor 50.
 - Не удалять CELIKOM и не очищать данные или кеш.
