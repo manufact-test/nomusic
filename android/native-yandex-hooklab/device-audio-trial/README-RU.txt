@@ -1,17 +1,17 @@
-CELIKOM Android A1 — BETA34 (HONOR 50 / Android 13)
+CELIKOM Android A1 — BETA36 NAV56 (HONOR 50 / Android 13)
 28.11.2026. Приватная тестовая сборка для владельца. Не stable/OTA.
 
-Что исправлено после BETA33:
-- BETA33 теряла точную связь DataSource с Factory, если вложенный $b.for возвращал источник до того, как внешний c.for успевал зарегистрировать descriptor → factory.
-- Первый open в таком случае отклонялся как FIRST_OPEN_BIRTH_NOT_FOUND, после чего сам original open помечал объект touched. Повторно разрешать такой источник нельзя.
-- BETA34 временно удерживает только точные Java identity source + nested factory в пределах вызова внешнего c.for. После возврата c.for и регистрации точного factory link выполняется backfill по единственному проверенному пути outer → nested factory.
-- Если путь отсутствует, неоднозначен, источник уже touched или фабрика конфликтует, кандидат остаётся отклонённым. Проверка touched не ослаблена.
+Что изменено после BETA35:
+- BETA35 NAV55 подтвердил прямой активный MediaPeriod o96 и ту же identity при select, attach и renderer read.
+- NAV56 сохраняет уже проверенную creator/source lineage после успешного first-open arm: live lookup больше не зависит от повторного чтения ограниченных creator/Flow registries, которые могут исчезнуть после admission.
+- Для незафиксированного или отклонённого first-open прежняя строгая проверка creator остаётся обязательной. Никаких новых разрешений на подмену не добавлено.
 - Оригинальные codec-запросы Яндекса не меняются. MP3 override выключен.
 - NAV53 pending/committed pin сохраняется: поздние sibling/prefetch DataSource не могут затереть уже выбранный источник.
+- NAV56 меняет только read-only связь renderer → committed DataSource; сам audio route, admission и codec requests не менялись.
 - Оригинальный Яндекс Музыки остаётся единственным плеером. Сервер, каталог, авторизация и grant не менялись.
 
 Установка:
-- Установить BETA34 поверх BETA33 на существующем Honor 50.
+- Установить BETA36 поверх BETA35 на существующем Honor 50.
 - Не удалять CELIKOM и не очищать данные или кеш.
 - Убедиться, что статус CELIKOM — ВКЛ.
 
@@ -23,7 +23,7 @@ CELIKOM Android A1 — BETA34 (HONOR 50 / Android 13)
 5. Обычным коротким нажатием CELIKOM сохранить TXT после проверки обеих песен.
 
 Маркер сборки:
-A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128
+A1_TRACKID_BETA36_NAV56_COMMITTED_SOURCE_LINK_20261128
 
 В TXT проверить:
 - FIRST_OPEN_CANDIDATE_ACCEPTED
