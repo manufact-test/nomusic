@@ -529,7 +529,7 @@ public final class StageBAudioEvidenceTest {
                 && creator[2]==album);
         accepted.onExoFirstOpenSetterResult(true);
         accepted.onExoFirstOpenDeferredArmCalled();
-        accepted.onExoFirstOpenDeferredArmResult(false);
+        accepted.onExoFirstOpenDeferredArmResult(false,source);
         bucket(accepted.exportLines(),0,"FIRST_OPEN_HOOK_ENTERED","ONE");
         bucket(accepted.exportLines(),0,"FIRST_OPEN_CANDIDATE_ACCEPTED","ONE");
         bucket(accepted.exportLines(),0,"FIRST_OPEN_SETTER_MATCH","ONE");
@@ -1151,7 +1151,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
         self.assertIn("STAGE_B_AUDIO.onExoFirstOpenHookEnter()", code)
-        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed)", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed,chain.getThisObject())", code)
         self.assertIn("NATIVE_EARLY_ADMISSION.exportLines()", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceClose(", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenFailure(", code)
