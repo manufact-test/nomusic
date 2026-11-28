@@ -218,6 +218,7 @@ jobs:
     # The protected child records explicit acceptance after staging the signed bundle.
     if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'floki' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both') && needs.prepare.result == 'success'
     permissions:
+      actions: read
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
     with:
