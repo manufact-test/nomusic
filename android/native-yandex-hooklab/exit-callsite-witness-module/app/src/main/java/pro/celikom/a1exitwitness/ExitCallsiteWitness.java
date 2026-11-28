@@ -80,10 +80,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     // actual diagnostic export carries a distinct new beta build marker.
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     // BETA25 added first-open rejection evidence; all gates remain fail-closed.
-    // BETA26 pauses the request-only MP3 rewrite until the native source is armed.
+    // BETA31 preserves a committed alternate cursor across source supersession.
+    // BETA32 aligns MP3 negotiation only for the owner-enabled exact API/allowlist.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA31_NAV52_COMMITTED_CURSOR_LIFETIME_20261128";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA32_MP3_CODEC_ALIGNMENT_20261128";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3909,10 +3910,10 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
-                                        // BETA26: preserve the original publisher codec request until the
-                                        // CELIKOM native DataSource is actually armed. The helper is deliberately
-                                        // paused; a request-only MP3 rewrite with no alternate source can break
-                                        // normal Yandex playback without providing replacement audio.
+                                        // BETA32: the exact alternate DataSource route is now armable/readable.
+                                        // Prefer MP3 only for owner-enabled exact FileInfoApi and the three
+                                        // explicit trial track IDs. The helper verifies the @Query("trackId")
+                                        // and @Query("codecs") positions and changes only the codecs argument.
                                         NativeOwnerControlPlane owner=nativeOwnerControl;
                                         if (NativeIssuerCodecPreference
                                                 .preferMp3ForOwnedFileInfo(
