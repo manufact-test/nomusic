@@ -15,7 +15,7 @@
 - **NAV56 / BETA36 code change:** live lookup теперь сохраняет exact creator/source proof через firstOpenSourceCommitted после успешного first-open arm. После commit он не переопрашивает ограниченные wrapperBirths/BETA/Flow registries; до commit строгая creator-проверка остаётся. Audio route/admission/codec не менялись.
 - Добавлен JVM regression fixture: committed DataSource должен разрешаться после очистки creator history; rejected first-open не получает этот обход.
 - BETA35 build `517905c`, CI `46148935304` PASS; owner draft `celikom-a1-owner-46148935304-1`. JVM `46147441043` PASS. ARM13 только запуск, NOT_AUDIO.
-- **BETA36 ещё не прошёл CI и не собран для владельца.** Не устанавливать и не считать подмену исправленной до проверки.
+- **Результат push-triggered CI для BETA36 пока не зафиксирован в handoff; owner APK не экспортирован.** Не устанавливать и не считать подмену исправленной до проверки.
 
 ## Что выяснили по оригинальному Яндексу
 
