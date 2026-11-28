@@ -82,18 +82,23 @@ Current public approval record remains **0.24.63 / sequence 10**. The previous o
 - PR [#78](https://github.com/manufact-test/nomusic/pull/78) merged as `e5be65932b5bd2ad8b85ebb60dc909fabf9ad665`; PR [#79](https://github.com/manufact-test/nomusic/pull/79) merged as `6299863395412a50c608ae06e869d79fdcd5c499`. They add only read-only Floki audit coverage.
 - Residual mirror issue: `celikom-mirror-sync.service` is failed because its atomic push rejected stale branch tips. The mirror's `refs/heads/main` at commit `0719ed01bc8abd2daa81cacdb299ab38c649cabe` already contained the approved 0.24.64 record, so this release completed. Resolve mirror sync before the next release; do not disturb the current public 0.24.64 feed.
 
-## Owner device — one-time bootstrap required
+## Owner device — one-time bootstrap completed (28 November 2026)
 
-- Owner-installed version remains **0.24.62.0**. Its old 125 MB installed-payload verifier rejects the ~144 MB Companion and UpdateSupervisor even though their hashes match. It cannot self-update to the 250 MB verifier fix.
-- One-time bootstrap to public 0.24.64 is therefore unavoidable. Do not send the installer URL or ask the owner to download/run it until the owner explicitly consents.
-- After bootstrap, verify installed app and supervisor **0.24.64.0**, account/session retention and normal startup. Then verify subsequent OTA behavior without Stop or interrupting Yandex playback.
+- The owner explicitly consented to the one-time bootstrap and reports that public stable **0.24.64** appeared, installed successfully, and the application seems to work.
+- This was a **manual one-time bootstrap** using the already verified public stable installer. It is not evidence that in-app OTA discovery/download/install works.
+- No fresh owner diagnostic or detailed runtime acceptance has been supplied yet. Do not claim the app and Update Supervisor exact versions, account/session retention, or all UI/audio behavior are independently verified.
+- The old 0.24.62 installed-payload verifier had a 125 MB ceiling and could not self-update to the 250 MB fix. This bootstrap dependency is now satisfied; do not ask the owner to repeat the installer step.
 
-## Next actions — preserve the existing gates
+## Next actions — prepare the first real in-app OTA test
 
-1. Open [the signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml), run it with version `0.24.64`, sequence `11`, and `publish_to_production=true`. Complete the existing `windows-stable-production` environment approval. Do not bypass the gate.
-2. After publication, independently verify public latest, signature, immutable versioned manifest, installer URL and package SHA-256. Do not infer publication from the candidate artifact.
-3. The installed 0.24.62 and public 0.24.63 binaries still contain the old 125 MB limit; neither can self-update to the fix. A **one-time 0.24.64 bootstrap installation is technically unavoidable**. Do not send a manual installer or ask the owner to install it until the owner explicitly consents.
-4. After that one-time bootstrap, verify normal OTA: quiet background download while Yandex plays, verified package persisted after close, automatic installation at the next ordinary CELIKOM launch, and no Stop/forced playback interruption.
+1. Collect the owner's new Windows corrections/bug reports and map each against the existing W189/W191/W192 fixes before changing code. Do not repeat known-good work or request W196 diagnostics again.
+2. Work from current `main` on a short-lived Windows-only branch; add/fix regression tests, then merge verified changes through the normal PR process.
+3. Before the next release, repair the failed `celikom-mirror-sync.service` atomic push/stale-branch issue. Verify mirror parity without changing the currently published 0.24.64 feed.
+4. Do not rebuild/re-sign or republish 0.24.64. Read the live signed stable version/sequence floor and use the next allowed version/sequence only after the new changes are accepted.
+5. Use the existing signed release workflow and protected `windows-stable-production` approval. Confirm the stable feed's rollout scope before publication; do not bypass approval or silently expose an unapproved global rollout.
+6. Verify public latest, detached signature, immutable manifest and full installer SHA-256 over HTTPS.
+7. Test the next update from the owner's already installed 0.24.64: discovery and download in the background while Yandex plays; signature/hash verification; durable pending package after close/reboot; install at the next ordinary CELIKOM launch; app/Supervisor version after restart; account/session and Yandex profile retained. No Stop, forced close, playback interruption or manual EXE download.
+8. Record each OTA stage separately. The owner-installed 0.24.64 bootstrap is not a pass for the next in-app OTA test.
 
 ## Boundaries
 
