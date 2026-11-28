@@ -880,6 +880,7 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
   r.window.__celikomBridgeNativeReceive(first[0].requestId,null);
   await original;
   assert.deepEqual(player.reloadReasons,[]);
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_CONNECTED");
   r.window.__celikomBridgeNativeDrainDiagnostics();
 
   // A stale ticket for another song is consumed but never reloads this player.
@@ -939,9 +940,14 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   void player.state; r.runIntervals();
   assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.id,"456",
     "the exact paused Yandex entity is observable before the bridge state pulse");
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.playbackState,"PAUSED");
+  assert.equal(r.window.__celikomBridgeNativeMappedCurrentTrackId(),"");
   r.window.__celikomBridgeNativeSetState({
     enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
   });
+  const candidateEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(candidateEvents.some(x=>x[0]==="SOURCE_DEFERRED_WAITING"&&x[1]==="456"),
+    JSON.stringify(candidateEvents));
 
   // Yandex briefly hides the current entity during the reconnect.
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="";
@@ -974,7 +980,7 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   assert.equal(player.state.playerState.status.value,"paused",
     "the existing Yandex source refresh preserves the user's paused state");
   assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"456");
-  const events=[...recoveryEvents,...r.window.__celikomBridgeNativeDrainDiagnostics()];
+  const events=[...candidateEvents,...recoveryEvents,...r.window.__celikomBridgeNativeDrainDiagnostics()];
   assert.ok(events.some(x=>x[0]==="SOURCE_DEFERRED_PROMOTED"&&x[1]==="456"));
   assert.ok(events.some(x=>x[0]==="SOURCE_RECOVERY_RELOAD_OK"&&x[1]==="456"));
   r.handlers.beforeunload();
