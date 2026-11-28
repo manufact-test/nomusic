@@ -3,8 +3,8 @@
 Дата состояния: 2026-11-28  
 Репозиторий: `manufact-test/nomusic`  
 Рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
-Последний функциональный source commit: `6972ee7fbee06be8eec90be51f886deb48ef265b`  
-HEAD ветки до этого обновления документации: `4cce953ea88d003e754e38b981555236dda16f1e`
+Последний source HEAD: `a513e1045bc5fdd76beb06e697399c9b48c6e351`  
+HEAD ветки до этого обновления документации: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 
 ## Цель и границы
 
@@ -44,26 +44,44 @@ HEAD ветки до этого обновления документации: `
 - Owner build/export, JVM и clone-alone ARM13 на run `46132374238`, `46132374233`, `46132374224` прошли. Это не доказывает работу на телефоне.
 - BETA33 уже собрана, подписана, доставлена и проверена владельцем. Не пересобирать и не доставлять её повторно.
 
-## Точный участок следующей работы
+## BETA34 NAV54 — функциональная правка внесена
 
-В текущем коде:
+**Кодовый разрыв, который исправлен:**
+- Внешний `c.for` hook вызывает `chain.proceed()`, а `onExoFactoryCreated()` регистрирует точную связь descriptor → outer factory только после возврата `chain.proceed()`.
+- Вложенный `$b.for` hook мог вернуть DataSource внутри этого `chain.proceed()`. В этот момент `findByFactory(nestedFactory)` ещё не находил outer link; `exactOuterFactoryForNested()` проверял только уже зарегистрированные links. Source birth терялся, и последующего backfill не было.
+- Open hook сначала вызывает `exactFreshCreatorOrBetaAtFirstOpen(source)`, а затем `onExoSourceInstanceOpenAttempt(source)`. Поэтому при `BIRTH_NOT_FOUND` первый open отклонялся, после чего объект помечался `touched`; последующие попытки правильно отклонялись как `SOURCE_ALREADY_TOUCHED`.
 
-- `ExitCallsiteWitness.java`, около строк 4771–4800: open-hook вызывает `exactFreshCreatorOrBetaAtFirstOpen(source)`, затем `onExoSourceInstanceOpenAttempt(source)`.
-- `StageBAudioEvidence.java`, `exactFreshCreatorOrBetaAtFirstOpen()`: кандидат отклоняется, если `wasSourceTouched(source)` или не найден точный `ExactFactorySourceBirth`.
-- `onExoSourceInstanceCreated(source, factory)` записывает exact birth только при найденной связи с нужным factory.
-- `markSourceTouched()` навсегда помечает этот Java-объект как уже использованный для fresh-candidate admission после open/read/close.
+**Что изменено в BETA34:**
+- Вокруг точного `c.for` вызова добавлен ограниченный ThreadLocal scope.
+- Вложенный `$b.for` сохраняет только weak Java identity пары source + nested factory.
+- После `onExoFactoryCreated()` выполняется backfill только по проверенному bounded path outer → nested factory.
+- Для привязки требуются одновременно unique path и отсутствие другого outer, который может ссылаться на тот же nested factory. Неоднозначные/shared пути отклоняются.
+- Переполнение scope/birth history остаётся fail-closed.
+- Уже touched DataSource не становится кандидатом после backfill. `markSourceTouched()` и запрет после первого original I/O не ослаблялись.
+- NAV53 pending/committed first-open pin сохранён: поздний sibling/prefetch не может заменить уже выбранный source.
+- Не менялись авторизация, resolve, signed grant, сервер, каталог, codec-запросы Яндекса и единственный оригинальный плеер. MP3 override не возвращён.
 
-Диагностика показывает много `SOURCE_ALREADY_TOUCHED` и несколько `BIRTH_NOT_FOUND`, но пока не доказывает, почему именно объект уже touched к моменту admission.
+Маркер BETA34: `A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128`.
 
-**Рабочая гипотеза, не установленная причина:** первый original open может происходить раньше, чем точная factory/source birth привязка становится доступна. Тогда первый вызов отклоняется как `BIRTH_NOT_FOUND`, помечает объект touched, а следующий вызов уже отклоняется как `SOURCE_ALREADY_TOUCHED`. Также проверить вариант повторного использования ранее открытого DataSource. Не объявлять гипотезу фактом — сначала проследить порядок вызовов.
+**Регрессии:**
+- `NativeRamilTrackOnlyLineageTest`: nested source создаётся до outer factory link; после регистрации link выполняется backfill, first-open admission проходит, а после original open тот же объект снова отклоняется как touched.
+- `NativeExoFactoryProductWitnessTest`: проверяются unique и ambiguous reference paths; неоднозначная ссылка учитывается как возможная связь и блокирует admission.
+- Python static hook-order и owner artifact tests.
+
+## Проверки и доставка
+
+- Main JVM job `jvm-issuer-proxy-contract`, run `46138985741`: **PASS**. Включает Stage B Python tests, `NativeRamilTrackOnlyLineageTest`, Exo byte-route и `NativeExoFactoryProductWitnessTest` (24 assertions).
+- Отдельный `exact native renderer observer JVM regressions`, run `46138985796`: **PASS**.
+- Owner build/export ARM13, run `46138985741`: **IN_PROGRESS** на момент обновления.
+- Отдельный clone-alone ARM13, run `46138985739`: **IN_PROGRESS** на момент обновления.
+- BETA34 APK ещё не доставлен. Не считать сборку готовой, пока оба ARM13 job не завершились успешно.
 
 ## Следующее действие
 
-1. Продолжить с этого состояния, не начинать расследование заново и не просить владельца повторно присылать уже разобранную BETA33 диагностику.
-2. Проследить точный порядок для одного source object: создание DataSource → регистрация exact factory birth → первый `open()` → `markSourceTouched()` → последующие open. Проверить, кто и когда вызывает ранний touch либо почему birth отсутствует.
-3. Сверить путь с `NativeRamilTrackOnlyLineageTest` и добавить один focused regression, воспроизводящий фактический порядок из телефона.
-4. Исправлять точку привязки/порядок до первого I/O. **Не ослаблять** проверку touched, exact factory/descriptor/creator/track identity; не разрешать подмену после начала original I/O и не смешивать original и alternate bytes.
-5. После функциональной правки выполнить нужный JVM regression, owner build/export и clone-alone ARM13. Только после прохождения проверок собирать одну следующую тестовую версию.
+1. Дождаться owner build/export и отдельного clone-alone ARM13. При ошибке исправлять конкретную причину, не возвращаться к NAV51/NAV52/NAV53 и не начинать диагностику заново.
+2. После успешных проверок получить один подписанный owner APK `CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk`.
+3. Владелец устанавливает BETA34 поверх BETA33 без очистки данных. Проверяет «Ау» и вторую проблемную песню в оригинальном Яндекс Музыке.
+4. По новой диагностике проверить `FIRST_OPEN_CANDIDATE_ACCEPTED`, `FIRST_OPEN_BIRTH_NOT_FOUND`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ` и renderer-period read. Не объявлять слышимую подмену без фактического прослушивания.
 
 ## Не повторять
 
@@ -73,4 +91,4 @@ HEAD ветки до этого обновления документации: `
 - Не считать `DATASOURCE_ARMED`, `AUDIO_READ` или CI SUCCESS доказательством слышимой подмены.
 - Не трогать второй плеер, сервер, каталог, Windows, stable Android, OTA и `main`.
 
-**Текущий статус:** BETA33 не работает; функциональный код после неё не менялся; BETA34 не создана. Следующая задача — найти и исправить причину отказа точного DataSource на first-open admission.
+**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; owner build/export и clone-alone ARM13 ещё выполняются. APK пока не доставлен. После успешных ARM13 проверок — одна установка BETA34 и проверка звука владельцем.
