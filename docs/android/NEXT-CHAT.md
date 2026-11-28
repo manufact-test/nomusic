@@ -4,7 +4,7 @@
 Репозиторий: `manufact-test/nomusic`  
 Рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
 Последний source HEAD: `a513e1045bc5fdd76beb06e697399c9b48c6e351`  
-HEAD ветки до этого обновления документации: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
+Source commit used for BETA34 build: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 
 ## Цель и границы
 
@@ -72,16 +72,16 @@ HEAD ветки до этого обновления документации: `
 
 - Main JVM job `jvm-issuer-proxy-contract`, run `46138985741`: **PASS**. Включает Stage B Python tests, `NativeRamilTrackOnlyLineageTest`, Exo byte-route и `NativeExoFactoryProductWitnessTest` (24 assertions).
 - Отдельный `exact native renderer observer JVM regressions`, run `46138985796`: **PASS**.
-- Owner build/export ARM13, run `46138985741`: **IN_PROGRESS** на момент обновления.
+- Owner build/export ARM13, run `46138985741`: **PASS**. Publisher-first side-by-side 75s gate passed; original publisher and clone were concurrently installed; persistent owner signer verified.
 - Отдельный clone-alone ARM13, run `46138985739`: **PASS** по техническому gate. Его verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS` — это диагностический clone-alone прогон, не product acceptance; owner handset не затрагивался.
-- BETA34 APK ещё не доставлен. Clone-alone ARM13 уже прошёл; осталось дождаться owner build/export ARM13 job.
+- BETA34 APK exported as an unpublished owner-only draft release. APK size: `71,606,252` bytes. SHA-256: `516bbdb47dd7d5efdb010c0d57da2055f6f5e90972353aa62a77562b31b9e54a`. Release: https://github.com/manufact-test/nomusic/releases/tag/untagged-575ee4cab0a6f3ad6ff9. Direct APK: https://github.com/manufact-test/nomusic/releases/download/untagged-575ee4cab0a6f3ad6ff9/CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk. Draft only; do not publish. CI provenance explicitly says acoustic replacement is not proven.
 
 ## Следующее действие
 
-1. Дождаться owner build/export ARM13 в run `46138985741`. При ошибке исправлять конкретную причину, не возвращаться к NAV51/NAV52/NAV53 и не начинать диагностику заново.
-2. После успешных проверок получить один подписанный owner APK `CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk`.
-3. Владелец устанавливает BETA34 поверх BETA33 без очистки данных. Проверяет «Ау» и вторую проблемную песню в оригинальном Яндекс Музыке.
-4. По новой диагностике проверить `FIRST_OPEN_CANDIDATE_ACCEPTED`, `FIRST_OPEN_BIRTH_NOT_FOUND`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ` и renderer-period read. Не объявлять слышимую подмену без фактического прослушивания.
+1. Владелец устанавливает BETA34 поверх BETA33 на Honor 50. Не удалять приложение и не очищать данные/кеш.
+2. В оригинальном Яндекс Музыке проверить «Ау» (Ramil / 10AGE, album 38902809, track 144530503, сегмент 00:43–00:54), затем вторую проблемную песню.
+3. Подтвердить именно слышимую альтернативную музыку внутри оригинального Яндекс Музыки; успешный запуск или native launch gate сами по себе не доказывают подмену.
+4. Сохранить обычную TXT-диагностику после обеих песен. Проверить `FIRST_OPEN_CANDIDATE_ACCEPTED`, `FIRST_OPEN_BIRTH_NOT_FOUND`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ` и renderer-period read. Не объявлять слышимую подмену без фактического прослушивания.
 
 ## Не повторять
 
@@ -91,4 +91,4 @@ HEAD ветки до этого обновления документации: `
 - Не считать `DATASOURCE_ARMED`, `AUDIO_READ` или CI SUCCESS доказательством слышимой подмены.
 - Не трогать второй плеер, сервер, каталог, Windows, stable Android, OTA и `main`.
 
-**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; clone-alone ARM13 technical gate PASS (not product pass); owner build/export ещё выполняется. APK пока не доставлен.
+**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; clone-alone ARM13 technical gate PASS (not product pass); owner build/export ARM13 PASS; подписанный BETA34 APK доставлен в unpublished owner-only draft. Остаётся реальная проверка слышимой подмены на Honor 50.
