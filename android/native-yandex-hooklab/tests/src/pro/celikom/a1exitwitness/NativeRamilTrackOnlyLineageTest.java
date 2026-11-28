@@ -171,6 +171,57 @@ public final class NativeRamilTrackOnlyLineageTest {
         }
     }
 
+    private static void clearCreatorProofHistory(StageBAudioEvidence evidence) {
+        try {
+            for(String name:new String[]{"wrapperBirths","betaTrackIds"}) {
+                Field field=StageBAudioEvidence.class.getDeclaredField(name);
+                field.setAccessible(true);
+                ((java.util.List<?>)field.get(evidence)).clear();
+            }
+        } catch(ReflectiveOperationException failure) {
+            throw new AssertionError("CREATOR_HISTORY_EVICTION_FIXTURE",failure);
+        }
+    }
+
+    private static void committedFirstOpenSurvivesCreatorHistoryEviction(String id) {
+        Object track=new Object(),wrapper=new Object(),descriptor=new Object();
+        Object factory=new Object(),dataSource=new Object();
+        StageBAudioEvidence committed=fresh(id,track,wrapper,true,true);
+        committed.enterNativePlayerSourceSelection(wrapper);
+        committed.onNativeExoDescriptorBuiltForCurrentWrapper(descriptor);
+        committed.exitNativePlayerSourceSelection();
+        committed.onExoFactoryCreated(descriptor,factory);
+        committed.onExoSourceInstanceCreated(dataSource,factory);
+        Object[] creator=committed.exactFreshCreatorOrBetaAtFirstOpen(dataSource);
+        check(creator!=null && creator[0]==wrapper && creator[1]==track,
+            "NAV56_EXACT_CREATOR_ACCEPTED_BEFORE_FIRST_OPEN");
+        committed.onExoFirstOpenDeferredArmResult(true,dataSource);
+        committed.onExoSourceInstanceOpenAttempt(dataSource);
+        committed.onExoSourceInstanceOpen(dataSource);
+        committed.onExoSourceInstanceRead(dataSource,7);
+        clearCreatorProofHistory(committed);
+        check(committed.exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper)==null,
+            "NAV56_TRANSIENT_CREATOR_REGISTRIES_EVICTED");
+        check(committed.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "NAV56_COMMITTED_FIRST_OPEN_SURVIVES_CREATOR_HISTORY_EVICTION");
+
+        Object failedTrack=new Object(),failedWrapper=new Object();
+        Object failedDescriptor=new Object(),failedFactory=new Object();
+        Object failedSource=new Object();
+        StageBAudioEvidence failed=fresh(id,failedTrack,failedWrapper,true,true);
+        failed.enterNativePlayerSourceSelection(failedWrapper);
+        failed.onNativeExoDescriptorBuiltForCurrentWrapper(failedDescriptor);
+        failed.exitNativePlayerSourceSelection();
+        failed.onExoFactoryCreated(failedDescriptor,failedFactory);
+        failed.onExoSourceInstanceCreated(failedSource,failedFactory);
+        check(failed.exactFreshCreatorOrBetaAtFirstOpen(failedSource)!=null,
+            "NAV56_FAILED_FIXTURE_HAS_EXACT_FIRST_OPEN");
+        failed.onExoFirstOpenDeferredArmResult(false,failedSource);
+        clearCreatorProofHistory(failed);
+        check(failed.linkedSourceInstanceForCreatorOrBeta(failedWrapper)==null,
+            "NAV56_FAILED_ARM_CANNOT_USE_EVICTED_CREATOR_PROOF");
+    }
+
     private static void pause(long millis) {
         try {Thread.sleep(millis);}
         catch(InterruptedException interrupted) {
@@ -387,6 +438,7 @@ public final class NativeRamilTrackOnlyLineageTest {
             "LATE_CREATOR_FLOW_AFTER_PREPARE_CANNOT_UPGRADE");
         check(lateFlowDuringPrepareWait()==1,
             "PREPARE_GRACE_WAITS_FOR_LATE_EXACT_FLOW_ID");
+        committedFirstOpenSurvivesCreatorHistoryEviction(ramil);
         System.out.println("RAMIL_AU_ORIGINAL_TRACK_ONLY_BETA_LINEAGE_PASS");
     }
 }
