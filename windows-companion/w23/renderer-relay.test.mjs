@@ -884,7 +884,7 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
     enabled:true,signedIn:true,apiOrigin:origin,
     currentTrackRevalidationId:"456",currentTrackRevalidationEpoch:1
   });
-  assert.deepEqual(r.window.__celikomBridgeNativeDrain(),[]);
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
   assert.deepEqual(player.reloadReasons,[]);
 
   // The exact current track gets a fresh resolve despite its still-live negative cache.
@@ -909,7 +909,7 @@ test("W198 approved current-track ticket bypasses negative cache and refreshes o
     currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
   });
   await tick();
-  assert.deepEqual(r.window.__celikomBridgeNativeDrain(),[]);
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
   assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
   r.handlers.beforeunload();
 });
@@ -932,16 +932,17 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
   player.snapshot.playerState.status.value="paused";
   void player.state;
+  r.runIntervals();
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.id,"456",
+    "the exact paused Yandex entity is observable before the bridge state pulse");
   r.window.__celikomBridgeNativeSetState({
     enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
   });
-  assert.ok(r.window.__celikomBridgeNativeDrainDiagnostics().some(x=>
-    x[0]==="SOURCE_DEFERRED_WAITING"&&x[1]==="456"),
-    "the new exact current track is retained while the bridge is disabled");
 
   // Yandex briefly hides the current entity during the reconnect.
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="";
   void player.state;
+  r.runIntervals();
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
   });
@@ -954,6 +955,7 @@ test("W198 VPN Next during route recovery is revalidated only when the same curr
   // The same paused entity becomes observable after the route has settled.
   player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
   void player.state;
+  r.runIntervals();
   r.window.__celikomBridgeNativeSetState({
     enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
   });

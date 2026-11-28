@@ -482,7 +482,17 @@ async function relayState(view, token, now) {
     Number.isSafeInteger(state?.currentTrackRevalidationEpoch) &&
     state.currentTrackRevalidationEpoch > 0
       ? state.currentTrackRevalidationEpoch : 0;
-  const isSelectedPlaybackView = view === selectedPlaybackView;
+  let isSelectedPlaybackView = view === selectedPlaybackView;
+  if (!isSelectedPlaybackView && !selectedPlaybackView && currentTrackRevalidationId) {
+    const observed = await execute(view,
+      ";window.__celikomBridgeNativeCurrentTrack?.()||null");
+    const observedId = typeof observed?.id === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : "";
+    const canContinue = observed?.playbackState === "PLAYING" ||
+      observed?.playbackState === "PAUSED";
+    isSelectedPlaybackView = observedId === currentTrackRevalidationId &&
+      canContinue && nativeAudible(view);
+  }
   const safeState = {
     enabled: stateAvailable && state.enabled === true &&
       state.signedIn === true && !!apiOrigin,

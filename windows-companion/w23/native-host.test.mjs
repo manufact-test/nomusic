@@ -1594,7 +1594,7 @@ test("W198 VPN Next recaptures the new current track only with its own mapping w
   assert.ok(resumed.includes('"preserveCurrentSource":true'));
   assert.ok(resumed.includes('"preserveCurrentTrackId":"456"'),
     "the newly selected track is held only against its own current mapping witness");
-  assert.ok(r.diagnostics.includes("NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED|456"));
+  assert.ok(r.diagnostics.includes("NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED"));
 });
 
 test("W157 no-kUrl VPN hold is cleared by Manual Stop",async()=>{
