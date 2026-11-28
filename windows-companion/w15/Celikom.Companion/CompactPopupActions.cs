@@ -324,9 +324,23 @@ public sealed partial class MainWindow
     private async Task RefreshCompactPresenceAsync(string trackId, bool force = false)
     {
         var requestEpoch = _compactPresenceEpoch;
+        var previousStatus = _compactPresenceStatus;
         try
         {
-            await ReadCompactPresenceAsync(trackId, force);
+            var status = await ReadCompactPresenceAsync(trackId, force);
+            if (status == "pending")
+                _compactPresenceRevalidationRequestedTrack = "";
+            else if (previousStatus == "pending" && status == "approved" &&
+                     !string.Equals(_compactPresenceRevalidationRequestedTrack,
+                         trackId, StringComparison.Ordinal) &&
+                     CompactPlaybackPresentation.PresenceResponseMatchesCurrent(
+                         _compactPresenceTrack, _compactPresenceEpoch, trackId, requestEpoch) &&
+                     IsCompactCurrentTrack(trackId) && _api.IsLoggedIn && !_closing)
+            {
+                _compactPresenceRevalidationRequestedTrack = trackId;
+                if (_bridge.RequestCurrentTrackRevalidation(trackId) <= 0)
+                    _compactPresenceRevalidationRequestedTrack = "";
+            }
         }
         catch
         {

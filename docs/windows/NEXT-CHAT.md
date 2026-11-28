@@ -31,7 +31,7 @@
 
 The owner has supplied the current Windows corrections. W198 PR #80 implements the two new defects with focused regression tests:
 
-- Pending-to-approved status for the currently playing track refreshes every ~2 seconds while the CELIKOM window is visible. No fast polling in the tray, during route recovery, or during contribution mutations.
+- When the currently playing track moves from pending to approved, the visible Windows app refreshes status every ~2 seconds and requests one source-only revalidation for that exact Track ID. The renderer bypasses stale negative lookup cache, reloads only when a fresh grant exists, and preserves play/pause state. Fast polling is limited to a pending current track while visible; no tray, route recovery, or active contribution mutation.
 - A Next during VPN route recovery never inherits the previous track's hold. A new mapped current track may be held only with its own mapping witness; an unmapped current track is deferred and revalidated by the existing bounded recovery after the route settles. The existing source-only refresh preserves play/pause state.
 - «Предложить песню» and «Загрузить версию» are owner-confirmed working; do not change their contracts.
 

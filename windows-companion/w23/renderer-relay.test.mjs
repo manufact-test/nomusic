@@ -865,6 +865,55 @@ test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
   r.handlers.beforeunload();
 });
 
+test("W198 approved current-track ticket bypasses negative cache and refreshes only the exact song",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:38.2});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state; r.runIntervals();
+
+  const original=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const first=r.window.__celikomBridgeNativeDrain();
+  assert.equal(first.length,1);
+  r.window.__celikomBridgeNativeReceive(first[0].requestId,null);
+  await original;
+  assert.deepEqual(player.reloadReasons,[]);
+
+  // A stale ticket for another song is consumed but never reloads this player.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"456",currentTrackRevalidationEpoch:1
+  });
+  assert.deepEqual(r.window.__celikomBridgeNativeDrain(),[]);
+  assert.deepEqual(player.reloadReasons,[]);
+
+  // The exact current track gets a fresh resolve despite its still-live negative cache.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
+  });
+  await tick();
+  const fresh=r.window.__celikomBridgeNativeDrain();
+  assert.equal(fresh.length,1);
+  assert.equal(fresh[0].trackId,"123");
+  assert.equal(fresh[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(fresh[0].requestId,makeGrant("123"));
+  await new Promise(resolve=>setTimeout(resolve,240));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"123");
+  assert.equal(player.state.playerState.status.value,"playing");
+
+  // Repeated native state pulses with the same ticket cannot reload twice.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
+  });
+  await tick();
+  assert.deepEqual(r.window.__celikomBridgeNativeDrain(),[]);
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  r.handlers.beforeunload();
+});
+
 test("W198 VPN Next during route recovery is revalidated only when the same current track returns",async()=>{
   const r=createRenderer({withPlayer:true});
   const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});

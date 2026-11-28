@@ -131,6 +131,7 @@ public sealed partial class MainWindow
     private Task<string>? _compactPresencePending;
     private string _compactPresencePendingTrack = "";
     private int _compactPresencePendingEpoch;
+    private string _compactPresenceRevalidationRequestedTrack = "";
     private Guid _compactUploadRequestId = Guid.NewGuid();
     private int _compactPresenceEpoch;
     private int _compactOpenEpoch;
@@ -795,6 +796,7 @@ public sealed partial class MainWindow
             _compactPresenceTrack = valid ? id : "";
             _compactPresenceStatus = valid && _api.IsLoggedIn ? "checking" : "";
             _compactPresenceChecked = DateTimeOffset.MinValue;
+            _compactPresenceRevalidationRequestedTrack = "";
             ++_compactPresenceEpoch;
             if (_compactUploadCancellation is null)
             {

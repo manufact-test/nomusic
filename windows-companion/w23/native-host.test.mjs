@@ -1549,6 +1549,25 @@ test("W157 no-kUrl VPN hold rejects Next to a different current track",async()=>
   assert.ok(resumed.includes('"preserveCurrentTrackId":""'));
 });
 
+test("W198 native host forwards an approval revalidation ticket only to the selected playback view",async()=>{
+  const state={enabled:true,signedIn:true,apiOrigin:"https://api.celikom.example",
+    networkRecoveryPending:false,currentTrackRevalidationId:"123",
+    currentTrackRevalidationEpoch:7};
+  const currentTrack={id:"123",title:"Трек",artist:"Тест",durationMs:190000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    rendererStatus:"NATIVE_MAPPING_ACCEPTED",currentTrack,stateOverride:state,
+    primaryAudible:true
+  });
+  await new Promise(resolve=>setTimeout(resolve,40));
+  r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  r.pulse();await new Promise(resolve=>setTimeout(resolve,45));
+  const delivered=r.evaluated.filter(x=>x.includes("__celikomBridgeNativeSetState("));
+  assert.ok(delivered.some(x=>x.includes('"currentTrackRevalidationId":"123"') &&
+    x.includes('"currentTrackRevalidationEpoch":7')),
+    "the selected playback renderer receives the validated exact-track ticket");
+});
+
 test("W198 VPN Next recaptures the new current track only with its own mapping witness",async()=>{
   let clockNow=Date.now();
   class FakeDate extends Date {

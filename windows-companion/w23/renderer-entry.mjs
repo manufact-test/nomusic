@@ -22,6 +22,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   let apiOrigin = "", stopped = false, attached = false, stateSeen = false;
   let stateTransitionGeneration = 0;
   let networkRecoveryPending = false;
+  let lastCurrentTrackRevalidationEpoch = 0;
   let pendingCount = 0, sequence = 0, lastReported = "";
   const queued = [], pending = new Map();
   const MAX_QUEUE = 24;
@@ -340,10 +341,55 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       adapter.disable();
     }
     const nextActive = adapter.enabled;
+    const currentTrackRevalidationEpoch =
+      Number.isSafeInteger(next?.currentTrackRevalidationEpoch) &&
+      next.currentTrackRevalidationEpoch > 0
+        ? next.currentTrackRevalidationEpoch : 0;
+    const currentTrackRevalidationId =
+      typeof next?.currentTrackRevalidationId === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(next.currentTrackRevalidationId)
+        ? next.currentTrackRevalidationId : "";
+    let approvalRevalidationStarted = false;
+    // A ticket is consumed only when the bridge is active and the exact Yandex
+    // entity is observable. During VPN recovery it remains pending in state.
+    if (currentTrackRevalidationEpoch > 0 &&
+        currentTrackRevalidationEpoch !== lastCurrentTrackRevalidationEpoch &&
+        !networkRecoveryPending && nextActive && currentTrackId) {
+      lastCurrentTrackRevalidationEpoch = currentTrackRevalidationEpoch;
+      if (currentTrackRevalidationId === currentTrackId &&
+          (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED") &&
+          !adapter.hasMappedTrack(currentTrackId)) {
+        approvalRevalidationStarted = true;
+        report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE", currentTrackId);
+        void adapter.revalidate(currentTrackId).then(found => {
+          if (!found) {
+            report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS", currentTrackId);
+            if (adapter.classificationForTrack(currentTrackId) !== "ORIGINAL" &&
+                !stopped && adapter.enabled) {
+              deferredRecovery.record(currentTrackId);
+              if (!networkRecoveryPending) deferredRecovery.check();
+            }
+            return;
+          }
+          if (stopped || !adapter.enabled || networkRecoveryPending ||
+              playerSourceRefresh.currentTrackId() !== currentTrackId) {
+            report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_STALE", currentTrackId);
+            return;
+          }
+          report("NATIVE_CURRENT_TRACK_APPROVAL_RELOAD", currentTrackId);
+          void playerSourceRefresh.request(currentTrackId).then(ok => {
+            report(ok ? "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_OK" :
+              "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_DEFERRED", currentTrackId);
+          }, () => report("NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_DEFERRED", currentTrackId));
+        }, () => report("NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS", currentTrackId));
+      }
+    }
     // Run after adapter.enable(): a route-held candidate may have been recorded
     // while the entitlement bridge was temporarily disabled.
-    const deferredRecoveryScheduled = !networkRecoveryPending && nextActive
-      ? deferredRecovery.check() : false;
+    const deferredRecoveryScheduled = !approvalRevalidationStarted &&
+      !networkRecoveryPending && nextActive && currentTrackId &&
+      !adapter.hasMappedTrack(currentTrackId)
+        ? deferredRecovery.check() : false;
     const transitionChanged = previousActive !== nextActive || originChanged;
     const transitionGeneration = transitionChanged
       ? ++stateTransitionGeneration : stateTransitionGeneration;
@@ -379,7 +425,9 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
         const preservedTrack = next?.preserveCurrentSource === true &&
           next?.preserveCurrentTrackId === currentTrackId &&
           (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED");
-        if (deferredRecoveryScheduled && currentTrackId) {
+        if (approvalRevalidationStarted && currentTrackId) {
+          // The approval ticket owns the source-only refresh for this exact song.
+        } else if (deferredRecoveryScheduled && currentTrackId) {
           // The exact current track was queued during route recovery. Its
           // existing bounded retry owns revalidation; do not start a second prime.
           report("NATIVE_ROUTE_RECOVERY_TRACK_DEFERRED", currentTrackId);

@@ -1578,6 +1578,10 @@ try
           !CompactPlaybackPresentation.PendingPresenceRefreshDue("none",
               presenceNow.AddMinutes(-1), presenceNow),
           "W198 only a pending current-track status becomes due for the two-second visible-window refresh");
+     Test(BridgeServer.NextCurrentTrackRevalidationEpoch(0) == 1 &&
+          BridgeServer.NextCurrentTrackRevalidationEpoch(41) == 42 &&
+          BridgeServer.NextCurrentTrackRevalidationEpoch(int.MaxValue) == 1,
+          "W198 current-track approval refresh tickets advance safely");
      Test(CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 7, "123", 7) &&
           !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("456", 7, "123", 7) &&
           !CompactPlaybackPresentation.PresenceResponseMatchesCurrent("123", 8, "123", 7),

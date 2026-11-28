@@ -75,6 +75,8 @@ public sealed class BridgeServer : IAsyncDisposable
     // Generation-gated acknowledgement: stale heartbeats may not release a
     // same-track source hold before the renderer has seen the resumed state.
     private int _nativeNetworkRecoveryEpoch;
+    private string _nativeCurrentTrackRevalidationId = "";
+    private int _nativeCurrentTrackRevalidationEpoch;
     private bool _playerUnavailable;
     // High-frequency native state checks used to flood diagnostics every
     // ~370 ms, rotating out the exact failure the owner was trying to report.
@@ -187,7 +189,29 @@ public sealed class BridgeServer : IAsyncDisposable
                     ? 1 : _nativeNetworkRecoveryEpoch + 1;
             // A newer route signal invalidates any earlier re-enable handshake.
             _nativeNetworkRecoveryAwaitingHeartbeat = false;
+            if (!pending && !_enabled)
+                _nativeCurrentTrackRevalidationId = "";
         }
+    }
+
+    public static int NextCurrentTrackRevalidationEpoch(int current) =>
+        current >= int.MaxValue ? 1 : Math.Max(0, current) + 1;
+
+    public int RequestCurrentTrackRevalidation(string trackId)
+    {
+        if (!GrantValidator.IsTrackId(trackId)) return 0;
+        int epoch;
+        lock (_gate)
+        {
+            if (!_api.IsLoggedIn || (!_enabled && !_nativeNetworkRecoveryPending))
+                return 0;
+            _nativeCurrentTrackRevalidationId = trackId;
+            _nativeCurrentTrackRevalidationEpoch =
+                NextCurrentTrackRevalidationEpoch(_nativeCurrentTrackRevalidationEpoch);
+            epoch = _nativeCurrentTrackRevalidationEpoch;
+        }
+        DiagnosticLog.Record("CURRENT_TRACK_REVALIDATION_REQUESTED");
+        return epoch;
     }
 
     public void MarkPlayerUnavailable(bool retireNativeHostInstance = false)
@@ -223,7 +247,10 @@ public sealed class BridgeServer : IAsyncDisposable
             if (_enabled == enabled)
             {
                 if (!enabled && !_nativeNetworkRecoveryPending)
+                {
                     _playerUnavailable = false;
+                    _nativeCurrentTrackRevalidationId = "";
+                }
                 return;
             }
             var wasEnabled = _enabled;
@@ -234,7 +261,10 @@ public sealed class BridgeServer : IAsyncDisposable
             {
                 _nativeNetworkRecoveryAwaitingHeartbeat = false;
                 if (!_nativeNetworkRecoveryPending)
+                {
                     _playerUnavailable = false;
+                    _nativeCurrentTrackRevalidationId = "";
+                }
             }
             _lastStatus = enabled ? "UNAVAILABLE" : "OFF";
             _lastSource = "UNKNOWN";
@@ -354,10 +384,20 @@ public sealed class BridgeServer : IAsyncDisposable
         {
             if (!Authorized(ctx)) return Results.Unauthorized();
             if (IsNativeProtocolRequest(ctx)) RecordNativeStateSample();
+            string currentTrackRevalidationId;
+            int currentTrackRevalidationEpoch;
+            lock (_gate)
+            {
+                currentTrackRevalidationId = _api.IsLoggedIn
+                    ? _nativeCurrentTrackRevalidationId : "";
+                currentTrackRevalidationEpoch = _nativeCurrentTrackRevalidationEpoch;
+            }
             return Results.Json(new { enabled = CanResolve,
                 signedIn = _api.IsLoggedIn, apiOrigin = _api.IsLoggedIn ? _api.Origin : "",
                 networkRecoveryPending = NativeNetworkRecoveryPending,
-                recoveryEpoch = NativeNetworkRecoveryEpoch, transport = "paired" });
+                recoveryEpoch = NativeNetworkRecoveryEpoch,
+                currentTrackRevalidationId, currentTrackRevalidationEpoch,
+                transport = "paired" });
         });
 
         app.MapGet("/v1/resolve", async (HttpContext ctx) =>

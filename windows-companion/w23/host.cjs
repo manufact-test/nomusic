@@ -44,6 +44,8 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "NATIVE_ROUTE_HOLD_TRACK_CHANGED", "NATIVE_ROUTE_HOLD_NOT_PLAYING",
   "NATIVE_ROUTE_HOLD_EARLY_CLEAR", "NATIVE_ROUTE_HOLD_NO_PRIOR_MAP",
   "NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED", "NATIVE_ROUTE_RECOVERY_TRACK_DEFERRED",
+  "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE", "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS",
+  "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_STALE", "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_OK",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD", "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
@@ -472,6 +474,15 @@ async function relayState(view, token, now) {
     previousOrigin === apiOrigin &&
     typeof recoveryHold?.trackId === "string" &&
     !nativeRecoveryHoldBlocked.has(view);
+  const currentTrackRevalidationId =
+    typeof state?.currentTrackRevalidationId === "string" &&
+    /^[1-9][0-9]{0,23}$/.test(state.currentTrackRevalidationId)
+      ? state.currentTrackRevalidationId : "";
+  const currentTrackRevalidationEpoch =
+    Number.isSafeInteger(state?.currentTrackRevalidationEpoch) &&
+    state.currentTrackRevalidationEpoch > 0
+      ? state.currentTrackRevalidationEpoch : 0;
+  const isSelectedPlaybackView = view === selectedPlaybackView;
   const safeState = {
     enabled: stateAvailable && state.enabled === true &&
       state.signedIn === true && !!apiOrigin,
@@ -479,7 +490,9 @@ async function relayState(view, token, now) {
     apiOrigin,
     networkRecoveryPending,
     preserveCurrentSource,
-    preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : ""
+    preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : "",
+    currentTrackRevalidationId: isSelectedPlaybackView ? currentTrackRevalidationId : "",
+    currentTrackRevalidationEpoch: isSelectedPlaybackView ? currentTrackRevalidationEpoch : 0
   };
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
     safeState.signedIn && !!safeState.apiOrigin &&
