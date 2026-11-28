@@ -4,3 +4,4 @@
 2026-11-28 W193: retry read-only OTA route audit using hosted runner; no publication or server changes.
 W193 hosted audit isolated from stalled old concurrency group.
 W198: read-only audit after protected 0.24.64 approval and customer-stable record update; verify Floki root spool, stable pointer and public HTTPS route only; do not modify server.
+W198 follow-up: inspect separate customer-stable consumer timer, accepted.json HTTPS receipt, public customer latest and installer routes; read-only only.
