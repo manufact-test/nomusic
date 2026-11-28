@@ -1,5 +1,7 @@
 # W193 — signed Windows 0.24.63 ready; stable OTA cutover pending (2026-11-28)
 
+> **W194 update (2026-11-28):** This is now a historical pre-publication checkpoint. The owner approved the protected production gate; exact signed 0.24.63 / sequence 10 was published and its public HTTPS manifest, signature and installer hash were verified successfully. See `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md`. Only the owner's installed-device in-app auto-update test remains. Do not repeat the route cutover or rebuild the package.
+
 ## Owner-confirmed workflow — controlling instruction
 One Windows product. Test/private owner candidate -> owner tests and accepts -> promote accepted source to GitHub main -> prepare production publication -> owner confirms the protected GitHub approval -> installed CELIKOM discovers/downloads/verifies/installs the update. CI is automated validation, not an update channel. No new test feed, product line, installer detour or audio experiment is requested. The owner explicitly wants to test real in-app auto-update now, not download an EXE manually. The owner has NOT yet pressed the production approval button for 0.24.63. Do not silently publish or switch public routes before that approval.
 
