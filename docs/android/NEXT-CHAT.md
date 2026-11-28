@@ -12,7 +12,7 @@ Source commit used for BETA34 build: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 
 Работать только в указанной Android experiment-ветке. Не добавлять второй плеер. Не менять сервер, каталог, авторизацию, Windows, stable Android, OTA или `main` без отдельной доказанной необходимости и разрешения владельца.
 
-## Последняя проверка — BETA33: НЕ РАБОТАЕТ
+## Предыдущая проверка — BETA33: НЕ РАБОТАЕТ
 
 Владелец проверил BETA33 и сообщил: «Не работает».
 
@@ -34,7 +34,7 @@ Source commit used for BETA34 build: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 
 Счётчики диагностики агрегированы по процессу: не приписывать каждое событие конкретной песне без отдельной корреляции.
 
-**Вывод:** grant/resolve и решение `ALTERNATE` доходят до pre-prepare, но точный DataSource не проходит first-open admission. До `DATASOURCE_ARMED` выполнение не доходит. Это текущая точка работы. Аудиоподмена не подтверждена.
+**Вывод:** grant/resolve и решение `ALTERNATE` доходят до pre-prepare, но точный DataSource не проходит first-open admission. До `DATASOURCE_ARMED` выполнение не доходит. Это была точка отказа BETA33. Аудиоподмена не подтверждена.
 
 ## Что уже сделано в BETA33
 
@@ -76,12 +76,21 @@ Source commit used for BETA34 build: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 - Отдельный clone-alone ARM13, run `46138985739`: **PASS** по техническому gate. Его verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS` — это диагностический clone-alone прогон, не product acceptance; owner handset не затрагивался.
 - BETA34 APK exported as an unpublished owner-only draft release. APK size: `71,606,252` bytes. SHA-256: `516bbdb47dd7d5efdb010c0d57da2055f6f5e90972353aa62a77562b31b9e54a`. Release: https://github.com/manufact-test/nomusic/releases/tag/untagged-575ee4cab0a6f3ad6ff9. Direct APK: https://github.com/manufact-test/nomusic/releases/download/untagged-575ee4cab0a6f3ad6ff9/CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk. Draft only; do not publish. CI provenance explicitly says acoustic replacement is not proven.
 
+## Последняя проверка владельцем — BETA34: НЕ РАБОТАЕТ
+
+Диагностика: CELIKOM-A1-Diagnostics-1795866321890.txt. Маркер BETA34 NAV54 подтверждён.
+- FIRST_OPEN_CANDIDATE_ACCEPTED=ONE, FIRST_OPEN_SETTER_MATCH=ONE, FIRST_OPEN_DEFERRED_ARM_ACCEPTED=ONE.
+- DATASOURCE_ARMED=ONE, AUDIO_OPEN=ONE, AUDIO_READ=MANY; TRACK_SOURCE_OPEN_LINK=ONE, TRACK_SOURCE_READ_LINK=MANY, TRACK_SOURCE_CLOSE_LINK=ONE; EXO_IO_FAILURE=NONE.
+- FIRST_OPEN_BIRTH_NOT_FOUND=MANY и FIRST_OPEN_SOURCE_ALREADY_TOUCHED=MANY сохраняются в общей статистике. Не считать, что все источники связаны.
+- SIGNED_MPEG_READY=ONE, OWNER_RESOLVE_MPEG=ONE, CODEC_CONFIG_MPEG=NONE, CODEC_CONFIG_AAC=FEW, CODEC_AUDIO_START=FEW, PLATFORM_AUDIOTRACK_PLAY=FEW.
+- LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS=NONE, ENGINE_HOLDER_READ_RETURN_MINUS3=MANY, MINUS4/MINUS5=NONE, ENGINE_HOLDER_TYPE1_STATE2=NONE. CELIKOM_REPLACEMENT=NOT_CONNECTED.
+- Счётчики агрегированы по процессу, поэтому AAC нельзя доказательно приписать именно альтернативному источнику; причина отсутствия слышимого результата пока не установлена.
+
+NAV54 сохранять: впервые в этой проверке подтверждено чтение альтернативных байтов. Не считать его доказательством звучания.
+
 ## Следующее действие
 
-1. Владелец устанавливает BETA34 поверх BETA33 на Honor 50. Не удалять приложение и не очищать данные/кеш.
-2. В оригинальном Яндекс Музыке проверить «Ау» (Ramil / 10AGE, album 38902809, track 144530503, сегмент 00:43–00:54), затем вторую проблемную песню.
-3. Подтвердить именно слышимую альтернативную музыку внутри оригинального Яндекс Музыки; успешный запуск или native launch gate сами по себе не доказывают подмену.
-4. Сохранить обычную TXT-диагностику после обеих песен. Проверить `FIRST_OPEN_CANDIDATE_ACCEPTED`, `FIRST_OPEN_BIRTH_NOT_FOUND`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ` и renderer-period read. Не объявлять слышимую подмену без фактического прослушивания.
+Исследовать участок между подтверждённым чтением и выдачей аудиосэмплов: различить несовместимый формат/контейнер и чтение неактивного источника. Проверять на собственных тестовых аудиоданных с воспроизводимым тестом декодирования; не возвращать request-only MP3 override. Не выпускать BETA35 без установленной причины и проверенной функциональной правки. Технические проверки BETA34 уже завершены, повторно собирать её не требуется.
 
 ## Не повторять
 
@@ -91,4 +100,4 @@ Source commit used for BETA34 build: `a513e1045bc5fdd76beb06e697399c9b48c6e351`
 - Не считать `DATASOURCE_ARMED`, `AUDIO_READ` или CI SUCCESS доказательством слышимой подмены.
 - Не трогать второй плеер, сервер, каталог, Windows, stable Android, OTA и `main`.
 
-**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; clone-alone ARM13 technical gate PASS (not product pass); owner build/export ARM13 PASS; подписанный BETA34 APK доставлен в unpublished owner-only draft. Остаётся реальная проверка слышимой подмены на Honor 50.
+**Текущий статус:** BETA34 проверена владельцем: слышимой подмены нет. NAV54 обеспечила first-open admission и чтение альтернативных байтов хотя бы для одного DataSource. Причина отсутствия звука не установлена. BETA35 не создана.
