@@ -48,6 +48,16 @@ The already-approved public latest feed remained byte-identical at **0.24.63 / s
 - Final output: `W195_PUBLIC_02462_BOOTSTRAP_AND_ROLLBACK_HTTPS_VERIFIED_LATEST_02463_UNCHANGED`.
 - One-time maintenance request was cleared after success.
 
+## Owner retest — FAILED after server repair
+
+The owner relaunched 0.24.62 after the public route repair. Fresh W54 diagnostic generated at 2026-11-28 10:13:32 UTC still reports:
+- `AppVersion=0.24.62.0`
+- `STABLE_UPDATE_CHECK_FAILED` at 10:12:25.392Z
+- `STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE` at 10:12:35.643Z
+- no verified download/waiting-for-safe-point or installer-start event.
+
+The two new uploaded diagnostics are duplicate copies of the same snapshot; there is no distinct after-Stop snapshot. The route repair itself remains verified, but it was not sufficient to make this client update. The earlier conclusion that missing public 0.24.62 files were the sole cause was premature. See `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` for the source analysis and next engineering task.
+
 ## Remaining owner acceptance
 
 The currently open 0.24.62 app must perform a fresh startup check against the now-complete public chain:
