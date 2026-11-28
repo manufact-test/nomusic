@@ -115,8 +115,11 @@ exec_path=$(systemctl show celikom-mirror-sync.service -p ExecStart --value 2>/d
 if [[ -n "$exec_path" && -f "$exec_path" ]]; then
   exec_path=$(readlink -f "$exec_path" 2>/dev/null || printf '%s' "$exec_path")
   stat -c 'WIN_MIRROR_EXEC_FILE %n %U:%a %s' "$exec_path" || true
-  grep -nEi 'git|fetch|push|mirror|atomic|prune|remote|refspec|force|branch' "$exec_path" 2>/dev/null |
-    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|api[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' | head -n 100 || true
+  sha256sum "$exec_path" | sed 's#  .*#  [service-script]#' || true
+  echo WIN_MIRROR_EXEC_SCRIPT_BEGIN
+  sed -n '1,160p' "$exec_path" 2>/dev/null |
+    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(ssh://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|api[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
+  echo WIN_MIRROR_EXEC_SCRIPT_END
 else
   echo WIN_MIRROR_EXEC_FILE=not_resolved
 fi

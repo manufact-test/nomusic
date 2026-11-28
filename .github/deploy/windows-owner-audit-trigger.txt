@@ -7,3 +7,4 @@ W198: read-only audit after protected 0.24.64 approval and customer-stable recor
 W198 follow-up: inspect separate customer-stable consumer timer, accepted.json HTTPS receipt, public customer latest and installer routes; read-only only.
 W198 mirror follow-up: report mirror sync timer/service, mirror main commit and approved customer-stable record seen by Floki; read-only only.
 W199: read-only inspect mirror-sync unit ExecStart, sync script and GitHub/Forgejo ref parity; no server or repository writes.
+W200: read-only print redacted installed mirror sync script to design safe per-ref fast-forward repair; no writes.
