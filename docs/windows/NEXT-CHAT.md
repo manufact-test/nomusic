@@ -1,54 +1,41 @@
-# ACTIVE CELIKOM WINDOWS — W197: deliver the already-published 0.24.63 to installed 0.24.62 (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — W197: finish protected 0.24.64 publication and one-time bootstrap (28 November 2026)
 
 ## Read first
 
-1. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — controlling failure, exact diagnostic, source findings and explicit owner workflow.
-2. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored 0.24.62 immutable public bootstrap files; owner retest still failed.
-3. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — exact already-published signed 0.24.63 / sequence 10.
-4. `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md` — original build, route and release evidence.
-5. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — existing mainline implementation and protected release mechanism.
-6. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — original accepted Windows fixes and constraints.
+1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — confirmed root cause, merged fix, live tests and 0.24.64 candidate.
+2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — original failed owner retest and constraints.
+3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored immutable 0.24.62 public route.
+4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — already-published 0.24.63 / sequence 10.
+5. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — existing updater and protected release mechanism.
+6. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — accepted Windows fixes and UX requirements.
 
-## Actual state — do not restart completed work
+## Actual state
 
-- Repository: `manufact-test/nomusic`; working branch: `main`.
-- Owner's installed app: **0.24.62.0**, native module **0.24.31**.
-- Target already published publicly: **0.24.63.0**, signed version **0.24.63**, sequence **10**.
-- Exact signed build: [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539), source `9c6721fdb273fc0850213b79d339b0f47d3e83b0`, installer SHA256 `3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f`.
-- Protected publication was already approved and completed: [46084804919](https://github.com/manufact-test/nomusic/actions/runs/46084804919). Public latest/signature/versioned manifest/installer and full HTTPS installer hash were verified. **Do not ask the owner to press the same approval again.**
-- W195 restored the exact signed 0.24.62 manifest, signature and installer to the existing public immutable version route. Public latest remains 0.24.63 / sequence 10 unchanged.
-- The owner retested and still sees **0.24.62**. W54 diagnostic generated `2026-11-28T10:13:32.3268756Z` reports `STABLE_UPDATE_CHECK_FAILED` and `STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE`; no successful download or install event. The two latest diagnostic attachments were duplicates, not before/after-Stop snapshots.
-- W195 route repair was **not sufficient**. The precise failing client stage is still unknown. Do not claim the route was the sole root cause.
-- W196 maintenance-log inspection did not execute on Floki (`FLOKI_MAINTENANCE_NO_PENDING_OPERATION`); no server state changed. Do not bypass the existing maintenance gate.
+- Repository: `manufact-test/nomusic`; main merge commit: `3e5f8ae72d51123dec05e5c5e9196535c9b235c1`.
+- Owner-installed app: **0.24.62.0**.
+- Public stable: **0.24.63**, sequence **10**. Its package and manifest remain unchanged.
+- Root cause: Companion (144,412,407 bytes) and UpdateSupervisor (144,445,634 bytes) were rejected by a 125,000,000-byte default verifier/launch limit despite correct signed SHA-256. Native host and renderer passed.
+- PR [#75](https://github.com/manufact-test/nomusic/pull/75) is merged. Installed payload and verified executable defaults are now 250,000,000 bytes. Signed installer download ceiling remains 125,000,000 bytes.
+- Generic CI [46139959353](https://github.com/manufact-test/nomusic/actions/runs/46139959353), Windows integration CI [46139959369](https://github.com/manufact-test/nomusic/actions/runs/46139959369), and live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) all passed. Live matrix installed and checked both public 0.24.62 and 0.24.63 packages, all four payload hashes, default verifier/launch handle and fresh LKG bootstrap.
+- Main is prepared for **0.24.64.0 / stable sequence 11**. Owner candidate build [46140222345](https://github.com/manufact-test/nomusic/actions/runs/46140222345) succeeded; P-256 manifest and release verification passed. Candidate package SHA-256: `59f4ea6424041f7aaa6cd88d429a3060fa8340fdd7932ef84de186bdb26c56ef`.
+- Stable candidate artifact [15260863373](https://github.com/manufact-test/nomusic/actions/runs/46140222345) expires 2026-11-29 11:32 UTC. Manifest expires 2026-12-05 11:31 UTC.
+- Production publish jobs were **SKIPPED**. Public latest remains 0.24.63 / sequence 10. **0.24.64 is not yet published.**
 
-## What to do now
+## Next actions
 
-**Continue the OTA repair. Do not start a new feature project, create a new customer update channel, or substitute another manual/test EXE for the already-published 0.24.63.**
+1. Use [the existing signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml) with version `0.24.64`, sequence `11`, and `publish_to_production=true`; complete the existing protected `windows-stable-production` approval. Never bypass it.
+2. Verify public latest/signature/versioned manifest/installer and SHA-256 after publication.
+3. Because 0.24.62 and 0.24.63 contain the old 125 MB cap, they cannot receive the fix themselves. A one-time 0.24.64 bootstrap install is unavoidable. **Do not ask the owner to download/install an EXE until the owner explicitly consents.**
+4. After the one-time bootstrap, verify normal OTA acceptance: background download during Yandex playback, package persists after close, auto-install on next ordinary CELIKOM launch, no Stop and no playback interruption.
 
-1. Compare updater code in exact 0.24.62 source `0364309006bd3451778f01390398fe0f52e5a20c` with already-published 0.24.63 source `9c6721fdb273fc0850213b79d339b0f47d3e83b0`.
-2. Reproduce the current client's bootstrap and update validation using the actual Windows/.NET validation path and the now-restored public signed files. Find the exact failing stage/reason; do not infer it from generic event names.
-3. First try to recover delivery of the **existing immutable 0.24.63** without changing its package, sequence or public latest. Do not rebuild/re-sign 0.24.63.
-4. If a source fix is truly required: create a short-lived internal engineering branch from current `main`, add focused deterministic tests, then merge the validated change to `main` through the repository's normal PR/CI process. This branch is not a new customer channel. Do not claim that a future binary can update 0.24.62 until the old client's bootstrap limitation is resolved.
-5. If a new signed binary proves unavoidable, use a new monotonically higher version/sequence selected only after reading the authoritative release floor. Build from the validated `main` and use the existing protected GitHub approval mechanism. Never mutate the immutable 0.24.63 / sequence 10.
-6. Do not ask the owner to repeat Stop/relaunch or resend the same diagnostic. Do not manually install an EXE unless the automatic path is proven unrecoverable and the owner explicitly approves that fallback.
+## Required UX and boundaries
 
-## Required update UX
+- Preserve background download/verification, durable pending package and next-normal-launch installation.
+- Never interrupt Yandex or require Stop.
+- Do not touch Android, browser extension, Windows audio engine, customer audio data or create another update channel.
+- Do not repeat W196 diagnostics or ask for the same attachment.
+- Keep owner-facing updates short and factual.
 
-- Download and verify quietly in the background while CELIKOM is being used.
-- Never interrupt Yandex playback and never require the owner to press Stop.
-- Persist a successfully verified pending package across CELIKOM close/reboot.
-- Install automatically at the next ordinary CELIKOM launch after the owner has naturally closed CELIKOM and Yandex. Do not unexpectedly close an active session just because Yandex exits.
-- No manual download prompt or special owner procedure.
-
-## Boundaries and communication
-
-- Preserve the W174 audio baseline exactly; no player experiments.
-- Do not touch Android, browser extension, unrelated APIs/backend, or customer audio data.
-- Keep the existing single Windows product and existing protected publication mechanism. No new channel and no approval bypass.
-- No diagnostic-only loops. Make the code fix once the actual cause is known, test it, merge it, and deliver the next concrete result.
-- Report to the owner briefly in Russian: what changed, what passed, what remains. Do not send long progress reports or promise background work.
-
-**Handoff note:** W196 now contains the owner clarification and the exact execution contract. The previous continuation changed documentation only; no Windows updater runtime source has yet been modified. The next chat must continue engineering from this state, not repeat the prior explanations.
 
 ---
 ---
