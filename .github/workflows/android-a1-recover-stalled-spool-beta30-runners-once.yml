@@ -69,6 +69,3 @@ jobs:
           cancel_exact 46070217462 3 fca0dd41fad0fdf91a71f82e1d1751ab2f7e2f8c \
             .github/workflows/android-a1-owner-floki-spool.yml \
             stage-verified-signed-apk celikom-floki-ci02
-          cancel_exact 46128588358 1 c176d650cde0ec9d3ee9f6d79c0e96bb34297965 \
-            .github/workflows/android-a1-owner-floki-spool.yml \
-            stage-verified-signed-apk celikom-floki-ci01
