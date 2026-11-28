@@ -1,29 +1,4 @@
 #!/bin/bash
 set -Eeuo pipefail
-# Existing trusted consumer: exact owner package, full HTTPS hashes, own temp cleanup.
-python3 <<'PY'
-from pathlib import Path
-import subprocess,json,runpy,stat,hashlib
-a=json.loads("{\"version\":\"0.4.97\",\"source_commit\":\"c3057ec8cd6f39d56591fe05b5a8f1f3420a6f8b\",\"run_id\":\"46125600649\",\"attempt\":\"1\",\"name\":\"celikom-extension-0.4.97.zip\",\"size\":2507737,\"sha256\":\"79d2f37b73d38802a0fe38ea538185049628eb74968045b88d52e885ddadd429\"}")
-p=Path("/usr/local/lib/celikom-extension-release/consumer.py");s=p.lstat()
-assert stat.S_ISREG(s.st_mode) and s.st_uid==0 and not s.st_mode & 0o022
-trusted=runpy.run_path(str(p))
-backend=Path("/srv/celikom/app/staging-20261122/src/Application")
-for name,digest in {"Mp3Metadata.php":"599e16953d56778e0b64abfe276e7a0a3dec6d8842fc4008791c7e4c16789ce9","Mp3Normalizer.php":"bc1a23d808dfb7be5318e743149b5e3c96647e867cf5f80853b711a7a2185954"}.items():
- assert hashlib.sha256((backend/name).read_bytes()).hexdigest()==digest
-print("EXTENSION_097_LIVE_BACKEND_HASHES_VERIFIED")
-r=subprocess.run(["systemctl","start","celikom-mirror-sync.service"],capture_output=True,timeout=120)
-print("EXTENSION_097_MIRROR_SYNC_EXIT",r.returncode)
-assert trusted["trusted_approvals"]().get(a["version"])==a
-subprocess.run(["systemctl","start","celikom-extension-owner.service"],check=True,capture_output=True,timeout=180)
-state=json.loads(trusted["read_file"](Path("/srv/celikom-releases/private/extension/current-owner.json"),4096,0))
-expected={"version":a["version"],"sha256":a["sha256"],"size":a["size"],"filename":a["name"],"source_commit":a["source_commit"],"run_id":a["run_id"],"attempt":a["attempt"],"channel":"owner-only","https_verified":True}
-assert state==expected
-trusted["verify_https"](a)
-print("EXTENSION_097_OWNER_RECEIPT_VERIFIED",json.dumps(state,sort_keys=True))
-location=json.loads("{\"directory\":\"/home/runner/celikom-build-spool/.work-extension97-owner.1CL11SSS\",\"node\":\"/home/runner/_work/_tool/node/24.22.3/x64/bin/node\",\"source\":\"c3057ec8cd6f39d56591fe05b5a8f1f3420a6f8b\"}")
-assert location["directory"].startswith("/home/runner/celikom-build-spool/.work-extension97-owner.") and location["directory"].count("/")==4
-uid=str(Path("/srv/celikom/ci-runner/runner/celikom-build-spool").stat().st_uid);assert uid!="0"
-subprocess.run(["docker","exec","--user",uid,"celikom-floki-ci01","rm","-rf","--",location["directory"]],check=True,capture_output=True,timeout=30)
-print("EXTENSION_097_OWN_ISOLATED_BUILD_DIRECTORY_CLEANED")
-PY
+# Private 0.4.97 owner delivery and live metadata processing verified.
+printf '%s\n' 'FLOKI_MAINTENANCE_NO_PENDING_OPERATION'

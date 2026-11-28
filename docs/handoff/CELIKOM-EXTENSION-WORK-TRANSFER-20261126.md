@@ -1,6 +1,6 @@
 # CELIKOM Extension — handoff to ChatGPT Work / Chrome
 
-Latest continuation: **0.4.97 standard MP3 metadata processing**, 28 November 2026.
+Latest verified owner release: **0.4.97 standard MP3 metadata processing**, 28 November 2026.
 Read `CELIKOM-EXTENSION-097-STANDARD-METADATA-20261128.md` first for the current
 client/server normalization change and its verified delivery status. Historical
 candidate versions below must not override the newest verified owner receipt.
