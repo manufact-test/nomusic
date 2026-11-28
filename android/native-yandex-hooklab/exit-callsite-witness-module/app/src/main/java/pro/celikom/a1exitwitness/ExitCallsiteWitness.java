@@ -81,11 +81,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     // BETA25 added first-open rejection evidence; all gates remain fail-closed.
     // BETA31 preserves a committed alternate cursor across source supersession.
-    // BETA33 pins the exact first-open DataSource against later factory siblings.
+    // BETA34 binds an early nested-factory DataSource after the exact outer factory returns.
     // BETA32's request-only MP3 override is rolled back; publisher codec requests stay unchanged.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA33_NAV53_FIRST_OPEN_SOURCE_PIN_20261128";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3911,7 +3911,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
-                                        // BETA33: preserve the original publisher codec request.
+                                        // BETA34: preserve the original publisher codec request.
                                         // BETA32's request-only MP3 override did not produce an observed
                                         // MPEG decoder configuration in the fresh phone TXT, and the
                                         // owner reported Yandex refusing to play «Ау». The helper is
@@ -4670,16 +4670,35 @@ public final class ExitCallsiteWitness extends XposedModule {
                 factory.setAccessible(true);
                 hook(factory).setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                     .intercept(chain -> {
-                        Object result = chain.proceed(); // vendor factory once, unchanged
+                        StageBAudioEvidence.ExactNestedFactorySourceScope nestedScope=
+                            STAGE_B_AUDIO.beginExactNestedFactorySourceScope();
+                        Object result;
                         try {
-                            if (result != null) {
-                                STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result);
-                                // Signed DEX: c.for returns an outer wrapper.
-                                // The pinned $b.for hook below matches nested
-                                // Java identity instead of a guessed return type.
-                            }
+                            result=chain.proceed(); // vendor factory once, unchanged
+                        } catch(Throwable failure) {
+                            try {
+                                STAGE_B_AUDIO.finishExactNestedFactorySourceScope(
+                                    nestedScope,null,
+                                    NativeExoFactoryProductWitness
+                                        ::uniquelyReferencesNestedFactory);
+                            } catch(Throwable ignored) { }
+                            throw failure;
                         }
-                        catch (Throwable ignored) { }
+                        try {
+                            if(result!=null)
+                                STAGE_B_AUDIO.onExoFactoryCreated(
+                                    chain.getArg(1),result);
+                        } catch(Throwable ignored) { }
+                        try {
+                            int nestedBound=STAGE_B_AUDIO
+                                .finishExactNestedFactorySourceScope(
+                                    nestedScope,result,
+                                    NativeExoFactoryProductWitness
+                                        ::uniquelyReferencesNestedFactory);
+                            for(int i=0;i<nestedBound;i++)
+                                emit("AUDIO_EXO_FACTORY_NESTED_LINK",
+                                    "SOURCE_FACTORY","EXACT_BOUND");
+                        } catch(Throwable ignored) { }
                         return result;
                     });
                 exactExoFactoryWitnessReady = true;
@@ -4704,17 +4723,13 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result = chain.proceed(); // exact vendor factory once
                         try {
                             if (result != null) {
-                                STAGE_B_AUDIO.onExoSourceInstanceCreated(
-                                    result,chain.getThisObject());
-                                Object outer=STAGE_B_AUDIO.exactOuterFactoryForNested(
-                                    chain.getThisObject(),
-                                    NativeExoFactoryProductWitness
-                                        ::uniquelyReferencesNestedFactory);
-                                if(outer!=null) {
-                                    STAGE_B_AUDIO.onExoSourceInstanceCreated(result,outer);
-                                    emit("AUDIO_EXO_FACTORY_NESTED_LINK",
-                                         "SOURCE_FACTORY","EXACT_BOUND");
-                                }
+                                boolean bound=STAGE_B_AUDIO
+                                    .onExoNestedSourceInstanceCreated(
+                                        result,chain.getThisObject(),
+                                        NativeExoFactoryProductWitness
+                                            ::uniquelyReferencesNestedFactory);
+                                if(bound)emit("AUDIO_EXO_FACTORY_NESTED_LINK",
+                                    "SOURCE_FACTORY","EXACT_BOUND");
                                 // Never arm the first *constructed* DataSource:
                                 // it can be an unopened prefetch. Only the exact
                                 // first actual open, below, may consume the

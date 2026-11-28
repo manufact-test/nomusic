@@ -160,18 +160,44 @@ final class StageBAudioEvidence {
     private static final class ExactFactorySourceBirth {
         final WeakReference<Object> source;
         final WeakReference<Object> factory;
+        final WeakReference<Object> nestedFactory;
         final NativeTrackSourceLink link;
         boolean conflicted;
         ExactFactorySourceBirth(Object source,Object factory,
-                NativeTrackSourceLink link) {
+                NativeTrackSourceLink link,Object nestedFactory) {
             this.source=new WeakReference<>(source);
             this.factory=new WeakReference<>(factory);
+            this.nestedFactory=nestedFactory==null
+                ?null:new WeakReference<>(nestedFactory);
             this.link=link;
         }
     }
     private final ArrayList<ExactFactorySourceBirth> exactFactorySourceBirths=
         new ArrayList<>();
     private boolean exactFactoryBirthsSaturated;
+
+    private static final class PendingNestedFactorySourceBirth {
+        final WeakReference<Object> source;
+        final WeakReference<Object> nestedFactory;
+        PendingNestedFactorySourceBirth(Object source,Object nestedFactory) {
+            this.source=new WeakReference<>(source);
+            this.nestedFactory=new WeakReference<>(nestedFactory);
+        }
+    }
+    // A scope exists only while the exact signed outer c.for factory is
+    // executing. Its nested $b.for products are held briefly until c.for
+    // returns and onExoFactoryCreated() has installed the descriptor link.
+    static final class ExactNestedFactorySourceScope {
+        final ExactNestedFactorySourceScope previous;
+        final ArrayList<PendingNestedFactorySourceBirth> births=
+            new ArrayList<>();
+        boolean saturated;
+        ExactNestedFactorySourceScope(ExactNestedFactorySourceScope previous) {
+            this.previous=previous;
+        }
+    }
+    private final ThreadLocal<ExactNestedFactorySourceScope>
+        activeExactNestedFactorySourceScope=new ThreadLocal<>();
 
     // BETA25: finite first-open rejection evidence. These counters never
     // export object identities, IDs, URLs, source addresses or audio bytes.
@@ -2046,6 +2072,11 @@ final class StageBAudioEvidence {
     }
 
     synchronized void onExoSourceInstanceCreated(Object source,Object factoryObject) {
+        onExoSourceInstanceCreated(source,factoryObject,null);
+    }
+
+    synchronized void onExoSourceInstanceCreated(Object source,Object factoryObject,
+            Object nestedFactory) {
         onExoSourceInstanceCreated(source);
         NativeTrackSourceLink link=findByFactory(factoryObject);
         if (link!=null && source!=null) {
@@ -2055,8 +2086,12 @@ final class StageBAudioEvidence {
                 Object older=birth.source.get();
                 if(older==null)exactFactorySourceBirths.remove(i);
                 else if(older==source) {
+                    boolean sameNestedFactory=birth.nestedFactory==null
+                        ?nestedFactory==null
+                        :birth.nestedFactory.get()==nestedFactory;
                     if(existing!=null || birth.link!=link
-                            || birth.factory.get()!=factoryObject) {
+                            || birth.factory.get()!=factoryObject
+                            || !sameNestedFactory) {
                         birth.conflicted=true;
                         exactFactoryBirthsSaturated=true; // never guess
                     } else existing=birth;
@@ -2066,7 +2101,8 @@ final class StageBAudioEvidence {
                 if(exactFactorySourceBirths.size()>=64)
                     exactFactoryBirthsSaturated=true;
                 else exactFactorySourceBirths.add(
-                    new ExactFactorySourceBirth(source,factoryObject,link));
+                    new ExactFactorySourceBirth(source,factoryObject,link,
+                        nestedFactory));
             }
             // Keep recording exact factory births for every sibling, but do
             // not let a later product replace the source committed at first
@@ -2087,6 +2123,19 @@ final class StageBAudioEvidence {
                 mark(trackSourceAlbumLinks);
             mark(trackFactorySourceLinks);
         }
+    }
+
+    private boolean hasExactFactorySourceBirth(Object source,Object factoryObject,
+            Object nestedFactory) {
+        NativeTrackSourceLink link=findByFactory(factoryObject);
+        if(link==null)return false;
+        for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
+            if(birth.source.get()==source && birth.factory.get()==factoryObject
+                    && birth.nestedFactory!=null
+                    && birth.nestedFactory.get()==nestedFactory
+                    && birth.link==link && !birth.conflicted)return true;
+        }
+        return false;
     }
 
 
@@ -2117,6 +2166,114 @@ final class StageBAudioEvidence {
         return result;
     }
 
+    synchronized ExactNestedFactorySourceScope beginExactNestedFactorySourceScope() {
+        ExactNestedFactorySourceScope scope=new ExactNestedFactorySourceScope(
+            activeExactNestedFactorySourceScope.get());
+        activeExactNestedFactorySourceScope.set(scope);
+        return scope;
+    }
+
+    /**
+     * The pinned nested $b.for hook can run while the outer signed c.for
+     * method is still inside chain.proceed(). In that call order the exact
+     * descriptor -> outer-factory link does not exist yet. Keep only the
+     * exact source + nested-factory identities in that invocation's bounded
+     * scope; do not nominate or arm anything until the outer hook returns.
+     */
+    synchronized boolean onExoNestedSourceInstanceCreated(Object source,
+            Object nestedFactory,
+            java.util.function.BiPredicate<Object,Object> uniquePath) {
+        onExoSourceInstanceCreated(source);
+        if(source==null || nestedFactory==null || uniquePath==null)return false;
+        ExactNestedFactorySourceScope scope=
+            activeExactNestedFactorySourceScope.get();
+        if(scope!=null) {
+            for(int i=scope.births.size()-1;i>=0;i--) {
+                PendingNestedFactorySourceBirth prior=scope.births.get(i);
+                Object priorSource=prior.source.get();
+                if(priorSource==null) {
+                    scope.births.remove(i);
+                    continue;
+                }
+                if(priorSource==source) {
+                    if(prior.nestedFactory.get()!=nestedFactory) {
+                        scope.saturated=true;
+                        exactFactoryBirthsSaturated=true;
+                    }
+                    return false;
+                }
+            }
+            if(scope.births.size()>=64) {
+                scope.saturated=true;
+                exactFactoryBirthsSaturated=true;
+                return false;
+            }
+            scope.births.add(
+                new PendingNestedFactorySourceBirth(source,nestedFactory));
+            return false; // exact outer binding is deliberately deferred
+        }
+        Object outer=exactOuterFactoryForNested(nestedFactory,uniquePath);
+        if(outer==null || findByFactory(outer)==null)return false;
+        onExoSourceInstanceCreated(source,outer,nestedFactory);
+        return hasExactFactorySourceBirth(source,outer,nestedFactory);
+    }
+
+    /**
+     * Complete the same c.for invocation after its exact descriptor/factory
+     * link has been recorded. The nested factory must still be reachable by
+     * one unique bounded Java-identity path from this exact outer object.
+     * A later outer factory that shares the nested object invalidates the
+     * earlier nested birth instead of allowing ambiguous lineage selection.
+     */
+    synchronized int finishExactNestedFactorySourceScope(
+            ExactNestedFactorySourceScope scope,Object outerFactory,
+            java.util.function.BiPredicate<Object,Object> uniquePath) {
+        if(scope==null)return 0;
+        if(activeExactNestedFactorySourceScope.get()!=scope) {
+            exactFactoryBirthsSaturated=true;
+            activeExactNestedFactorySourceScope.remove();
+            return 0;
+        }
+        if(scope.previous==null)activeExactNestedFactorySourceScope.remove();
+        else activeExactNestedFactorySourceScope.set(scope.previous);
+        if(outerFactory==null || uniquePath==null
+                || findByFactory(outerFactory)==null)return 0;
+        if(scope.saturated) {
+            exactFactoryBirthsSaturated=true;
+            invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,uniquePath);
+            return 0;
+        }
+        int linked=0;
+        for(PendingNestedFactorySourceBirth pending:scope.births) {
+            Object source=pending.source.get();
+            Object nestedFactory=pending.nestedFactory.get();
+            if(source==null || nestedFactory==null)continue;
+            if(exactOuterFactoryForNested(nestedFactory,uniquePath)!=outerFactory)
+                continue;
+            onExoSourceInstanceCreated(source,outerFactory,nestedFactory);
+            if(hasExactFactorySourceBirth(source,outerFactory,nestedFactory))linked++;
+        }
+        invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,uniquePath);
+        return linked;
+    }
+
+    private void invalidateNestedFactoryBirthsSharedWithOuter(Object outerFactory,
+            java.util.function.BiPredicate<Object,Object> uniquePath) {
+        for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
+            if(birth.nestedFactory==null)continue;
+            Object nestedFactory=birth.nestedFactory.get();
+            Object priorOuter=birth.factory.get();
+            if(nestedFactory==null || priorOuter==null) {
+                birth.conflicted=true;
+                continue;
+            }
+            if(priorOuter==outerFactory)continue;
+            boolean shared;
+            try {shared=uniquePath.test(outerFactory,nestedFactory);}
+            catch(Throwable ignored) {shared=true;}
+            if(shared)birth.conflicted=true;
+        }
+    }
 
     /**
      * Called BEFORE the first actual native Exo open(), not at factory

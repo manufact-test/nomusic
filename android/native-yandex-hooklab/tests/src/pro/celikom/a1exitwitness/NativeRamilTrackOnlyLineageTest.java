@@ -11,6 +11,13 @@ public final class NativeRamilTrackOnlyLineageTest {
     private static final class TestPeriod { Object source; }
     private static final class TestWrapper { TestPeriod period; }
     private static final class TestHolder { Object nested; }
+    private static final class NestedSourceFactoryFixture { }
+    private static final class OuterSourceFactoryFixture {
+        final NestedSourceFactoryFixture nested;
+        OuterSourceFactoryFixture(NestedSourceFactoryFixture nested) {
+            this.nested=nested;
+        }
+    }
 
     private static void check(boolean ok,String message) {
         if(!ok)throw new AssertionError(message);
@@ -268,6 +275,40 @@ public final class NativeRamilTrackOnlyLineageTest {
             "NAV53_LATER_SIBLING_CANNOT_REPLACE_OR_REARM_COMMITTED_SOURCE");
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "NAV53_REJECTED_SIBLING_DOES_NOT_REBIND_LIVE_SOURCE");
+
+        Object delayedTrack=new Object(),delayedWrapper=new Object();
+        StageBAudioEvidence delayedBirth=fresh(ramil,delayedTrack,
+            delayedWrapper,true,true);
+        Object delayedDescriptor=new Object(),delayedSource=new Object();
+        delayedBirth.enterNativePlayerSourceSelection(delayedWrapper);
+        delayedBirth.onNativeExoDescriptorBuiltForCurrentWrapper(delayedDescriptor);
+        delayedBirth.exitNativePlayerSourceSelection();
+        NestedSourceFactoryFixture nestedFactory=new NestedSourceFactoryFixture();
+        OuterSourceFactoryFixture outerFactory=
+            new OuterSourceFactoryFixture(nestedFactory);
+        StageBAudioEvidence.ExactNestedFactorySourceScope nestedScope=
+            delayedBirth.beginExactNestedFactorySourceScope();
+        check(!delayedBirth.onExoNestedSourceInstanceCreated(delayedSource,
+                nestedFactory,
+                NativeExoFactoryProductWitness::uniquelyReferencesNestedFactory),
+            "NAV54_NESTED_SOURCE_CAPTURED_BEFORE_OUTER_LINK");
+        check(delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource)==null,
+            "NAV54_UNBOUND_NESTED_SOURCE_NOT_ADMITTED");
+        delayedBirth.onExoFactoryCreated(delayedDescriptor,outerFactory);
+        check(delayedBirth.finishExactNestedFactorySourceScope(nestedScope,
+                outerFactory,
+                NativeExoFactoryProductWitness::uniquelyReferencesNestedFactory)==1,
+            "NAV54_OUTER_FACTORY_BACKFILLS_EARLY_NESTED_SOURCE");
+        Object[] delayedCreator=
+            delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource);
+        check(delayedCreator!=null && delayedCreator[0]==delayedWrapper
+                && delayedCreator[1]==delayedTrack
+                && delayedCreator[2]==delayedWrapper,
+            "NAV54_FIRST_OPEN_ACCEPTS_EXACT_BACKFILLED_BIRTH");
+        delayedBirth.onExoSourceInstanceOpenAttempt(delayedSource);
+        check(delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource)==null,
+            "NAV54_FIRST_ORIGINAL_OPEN_STILL_MAKES_SOURCE_INELIGIBLE");
+
         clearWeakFactoryWitnesses(stage,wrapper);
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "LIVE_RENDERER_SOURCE_IDENTITY_SURVIVES_WEAK_DESCRIPTOR_FACTORY_LOSS");
