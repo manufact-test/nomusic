@@ -239,6 +239,9 @@ public final class NativeRamilTrackOnlyLineageTest {
         Object[] link=stage.exactFreshCreatorOrBetaForDataSource(dataSource);
         check(link!=null && link[0]==wrapper && link[1]==track
             && link[2]==wrapper,"EXACT_EXO_FACTORY_SOURCE_WITHOUT_ALBUM");
+        Object[] firstOpen=stage.exactFreshCreatorOrBetaAtFirstOpen(dataSource);
+        check(firstOpen!=null && firstOpen[0]==wrapper && firstOpen[1]==track
+            && firstOpen[2]==wrapper,"NAV53_EXACT_FIRST_OPEN_COMMITS_SOURCE");
         Object[] publisher=renderer.exactSetterForFreshSourceCreator(
             link[0],link[1],link[2]);
         check(publisher!=null && ((Long)publisher[0])==1
