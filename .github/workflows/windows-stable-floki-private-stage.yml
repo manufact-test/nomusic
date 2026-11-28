@@ -14,7 +14,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: celikom-windows-stable-floki-promotion-${{ inputs.version || '0.24.62' }}
+  group: celikom-windows-stable-floki-promotion-${{ inputs.version || '0.24.64' }}
   cancel-in-progress: false
 jobs:
   stage:
@@ -30,8 +30,8 @@ jobs:
       contents: write
     timeout-minutes: 18
     env:
-      RELEASE_VERSION: ${{ inputs.version || '0.24.62' }}
-      RELEASE_SEQUENCE: ${{ inputs.sequence || '9' }}
+      RELEASE_VERSION: ${{ inputs.version || '0.24.64' }}
+      RELEASE_SEQUENCE: ${{ inputs.sequence || '11' }}
       RELEASE_COMMIT: ${{ inputs.source_commit || '28587670e9efda35c73eb3a49d9702d2d72b3b8c' }}
     steps:
       - uses: actions/checkout@v4
