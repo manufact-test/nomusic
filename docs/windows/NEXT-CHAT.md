@@ -27,13 +27,6 @@
 - W174 audio files remain the accepted baseline; W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
 - Resolve diagnostics are privacy-safe. Never log tokens, signed audio URLs, credentials, grant contents or response bodies.
 
-## Owner corrections received (W198 — 28 November 2026)
-
-- The owner confirms «Предложить песню» and «Загрузить версию» work. Preserve both API/UI flows.
-- When admin moderation changes the currently playing song from pending to approved, the visible Windows app must refresh that exact track's status within about two seconds. Fast polling is limited to a pending current track while the window is visible; do not poll in the tray, during VPN recovery, or during an active contribution mutation.
-- If Next is pressed during VPN route recovery, never carry the previous track's hold onto the new ID. Keep a source only with a mapping witness for that exact current track; otherwise defer that exact current track and use bounded recovery after the route settles. Preserve the user's play/pause state; do not synthesize Play/Pause or change the queue.
-- W54 owner diagnostics show `NATIVE_ROUTE_HOLD_TRACK_CHANGED`, `NATIVE_STATE_CURRENT_SOURCE_UNKNOWN`, and the renderer being disabled during the route transition. This is the reproduction evidence; do not restart broad diagnostics.
-
 ## Current owner task
 
 The owner will send the remaining Windows corrections and observed problems in this chat. First map each report against the existing fixes above and the W189 acceptance list. Separate:

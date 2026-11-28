@@ -211,7 +211,8 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
   };
   deferredRecovery = createDeferredTrackRecovery({
     currentTrackId: () => playerSourceRefresh.currentTrackId(),
-    active: () => !stopped && attached && playerSourceRefresh.attached,
+    active: () => !stopped && attached && playerSourceRefresh.attached &&
+      (adapter.enabled || networkRecoveryPending),
     canSchedule: () => !networkRecoveryPending && adapter.enabled,
     schedule: id => sourceRecovery.schedule(id),
     onEvent: (code, id) => {
@@ -307,8 +308,7 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
          (wasNetworkRecoveryPending && next?.enabled === true)) &&
         currentTrackId &&
         (currentPlaybackState === "PLAYING" || currentPlaybackState === "PAUSED") &&
-        !currentWasMapped &&
-        adapter.classificationForTrack(currentTrackId) !== "ORIGINAL") {
+        !currentWasMapped) {
       deferredRecovery.record(currentTrackId);
     }
     if (recoveryStateChanged) {
