@@ -83,9 +83,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     // BETA31 preserves a committed alternate cursor across source supersession.
     // BETA34 binds an early nested-factory DataSource after the exact outer factory returns.
     // BETA32's request-only MP3 override is rolled back; publisher codec requests stay unchanged.
+    // BETA36 NAV56 preserves the successfully committed exact first-open source
+    // after transient creator/Flow history is evicted; no audio route is relaxed.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA36_NAV56_COMMITTED_SOURCE_LINK_20261128";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
