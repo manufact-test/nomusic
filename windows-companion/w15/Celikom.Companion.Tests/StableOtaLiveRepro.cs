@@ -62,23 +62,7 @@ internal static class StableOtaLiveRepro
                 LogPayloadHash("0.24.62", "native-host", nativeHost, current.NativeHostSha256) &
                 LogPayloadHash("0.24.62", "renderer", renderer, current.RendererSha256) &
                 LogPayloadHash("0.24.62", "supervisor", supervisor, current.SupervisorSha256);
-
-            InstallPackageToIsolatedDirectory(latestPackage.Path, installedRoot, scratchRoot);
-            var latestApp = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
-            var latestNativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
-            var latestRenderer = Path.Combine(installedRoot, "integration", "renderer.js");
-            var latestSupervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
-            var latestPayloadsMatch =
-                LogPayloadHash("0.24.63", "application", latestApp, latest.ApplicationSha256) &
-                LogPayloadHash("0.24.63", "native-host", latestNativeHost, latest.NativeHostSha256) &
-                LogPayloadHash("0.24.63", "renderer", latestRenderer, latest.RendererSha256) &
-                LogPayloadHash("0.24.63", "supervisor", latestSupervisor, latest.SupervisorSha256);
-
-            test(currentPayloadsMatch,
-                "W196 installed 0.24.62 package payloads match its signed manifest");
-            test(latestPayloadsMatch,
-                "W196 installed 0.24.63 package payloads match its signed manifest");
-            Console.WriteLine("W196_DOTNET_PACKAGE_PAYLOAD_HASH_COMPARISON_COMPLETE");
+            Console.WriteLine("W196_DOTNET_02462_PAYLOAD_HASHES_RECORDED");
 
             var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
             var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
@@ -138,6 +122,23 @@ internal static class StableOtaLiveRepro
                   staleCached.Release.Sequence != current.Sequence),
                 "W196 current bootstrap rejects a completed stale LKG instead of safely reconciling it");
             Console.WriteLine("W196_SYNTHETIC_STALE_LKG_BLOCK_REPRODUCED");
+
+            InstallPackageToIsolatedDirectory(latestPackage.Path, installedRoot, scratchRoot);
+            var latestApp = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
+            var latestNativeHost = Path.Combine(installedRoot, "integration", "host.cjs");
+            var latestRenderer = Path.Combine(installedRoot, "integration", "renderer.js");
+            var latestSupervisor = Path.Combine(installedRoot, "CELIKOM.UpdateSupervisor.exe");
+            var latestPayloadsMatch =
+                LogPayloadHash("0.24.63", "application", latestApp, latest.ApplicationSha256) &
+                LogPayloadHash("0.24.63", "native-host", latestNativeHost, latest.NativeHostSha256) &
+                LogPayloadHash("0.24.63", "renderer", latestRenderer, latest.RendererSha256) &
+                LogPayloadHash("0.24.63", "supervisor", latestSupervisor, latest.SupervisorSha256);
+
+            test(currentPayloadsMatch,
+                "W196 installed 0.24.62 package payloads match its signed manifest");
+            test(latestPayloadsMatch,
+                "W196 installed 0.24.63 package payloads match its signed manifest");
+            Console.WriteLine("W196_DOTNET_PACKAGE_PAYLOAD_HASH_COMPARISON_COMPLETE");
         }
         finally
         {
