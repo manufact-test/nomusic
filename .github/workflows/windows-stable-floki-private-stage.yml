@@ -27,6 +27,7 @@ jobs:
     # This token is exposed only to the exact-asset GET downloader below; no
     # release mutation, signing secret, SSH credential or production publish.
     permissions:
+      actions: read
       contents: write
     timeout-minutes: 18
     env:
@@ -64,3 +65,104 @@ jobs:
           python3 .github/scripts/floki-windows-signed-spool.py --bundle "$bundle" \
             --version "$RELEASE_VERSION" --sequence "$RELEASE_SEQUENCE"
           echo CELIKOM_WINDOWS_APPROVED_SIGNED_DATA_STAGED_FOR_ROOT_STABLE_PROMOTION
+
+      - name: Record owner-approved version for the existing public customer stable feed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/approvals" |
+            jq -e 'any(.[]; .state=="approved" and any(.environments[]?; .name=="windows-stable-production"))' >/dev/null
+
+          bundle="$RUNNER_TEMP/celikom-windows-private-stage/CELIKOM-Windows-P256-transfer.zip"
+          tmp=$(mktemp -d)
+          trap 'rm -rf -- "$tmp"' EXIT
+
+          python3 - "$bundle" "$tmp" "$RELEASE_VERSION" "$RELEASE_SEQUENCE" <<'PY'
+          import hashlib,json,sys,zipfile
+          from pathlib import Path
+          bundle,tmp,version,sequence=sys.argv[1:]
+          sequence=int(sequence)
+          names={"latest.json","latest.json.sig","manifest-public-key.der",
+                 f"{version}/manifest.json",f"{version}/manifest.json.sig",
+                 f"{version}/CELIKOM-Windows-{version}.exe"}
+          with zipfile.ZipFile(bundle) as z:
+              assert set(z.namelist())==names, "CUSTOMER_STABLE_TRANSFER_CONTENTS_INVALID"
+              latest=z.read("latest.json")
+              signature=z.read("latest.json.sig")
+              key=z.read("manifest-public-key.der")
+              assert z.read(f"{version}/manifest.json")==latest
+              assert z.read(f"{version}/manifest.json.sig")==signature
+              data=json.loads(latest)
+              assert data["version"]==version and data["sequence"]==sequence
+              assert hashlib.sha256(key).hexdigest()=="46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95"
+              info=z.getinfo(f"{version}/CELIKOM-Windows-{version}.exe")
+              assert info.file_size==data["packageSize"]
+              h=hashlib.sha256()
+              with z.open(info) as source:
+                  for chunk in iter(lambda:source.read(1024*1024),b""):
+                      h.update(chunk)
+              assert h.hexdigest()==data["sha256"], "CUSTOMER_STABLE_PACKAGE_HASH_INVALID"
+          p=Path(tmp)
+          (p/"latest.json").write_bytes(latest)
+          (p/"latest.json.sig").write_bytes(signature)
+          (p/"manifest-public-key.der").write_bytes(key)
+          print("CUSTOMER_STABLE_SIGNED_TRANSFER_IDENTITY_OK",version,sequence,data["sha256"])
+          PY
+
+          export CELIKOM_STABLE_ORIGIN=https://celikom.com
+          export CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64="$(base64 -w0 "$tmp/manifest-public-key.der")"
+          node --input-type=module - "$tmp/latest.json" "$tmp/latest.json.sig" <<'NODE'
+          import {readFile} from 'node:fs/promises';
+          import {verifyExistingStableLatest} from './.github/scripts/windows-stable-existing-latest.mjs';
+          const [manifestPath,signaturePath]=process.argv.slice(2);
+          const manifest=await readFile(manifestPath);
+          const signature=await readFile(signaturePath);
+          const identity=verifyExistingStableLatest(manifest,signature,{
+            origin:process.env.CELIKOM_STABLE_ORIGIN,
+            pinnedPublicKeyDerBase64:process.env.CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64
+          });
+          const data=JSON.parse(manifest.toString('utf8'));
+          if(data.version!==process.env.RELEASE_VERSION ||
+             data.sequence!==Number(process.env.RELEASE_SEQUENCE))
+            throw new Error('CUSTOMER_STABLE_SIGNED_IDENTITY_MISMATCH');
+          console.log('CUSTOMER_STABLE_P256_SIGNATURE_VERIFIED',data.version,identity.sequence);
+          NODE
+
+          p=.github/release/windows-customer-stable.json
+          gh api "repos/$GITHUB_REPOSITORY/contents/$p?ref=main" > "$tmp/current"
+          jq -r '.content' "$tmp/current" | base64 -d > "$tmp/current.json"
+          python3 - "$tmp/current.json" "$tmp/new.json" "$tmp/latest.json" "$RELEASE_VERSION" "$RELEASE_SEQUENCE" <<'PY'
+          import json,re,sys
+          old_path,new_path,manifest_path,version,sequence=sys.argv[1:]
+          sequence=int(sequence)
+          manifest=json.load(open(manifest_path))
+          candidate={"version":version,"sequence":sequence,
+                     "sha256":manifest["sha256"],"owner_accepted":True}
+          current=json.load(open(old_path))
+          assert current=={"schema":1,"channel":"customer-stable","approved":current.get("approved")}
+          old=current["approved"]
+          def version_tuple(value):
+              assert isinstance(value,str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,3})\.(?:0|[1-9][0-9]{0,4})",value)
+              return tuple(map(int,value.split(".")))
+          if old is not None and old!=candidate:
+              assert old.get("owner_accepted") is True
+              assert sequence>old["sequence"] and version_tuple(version)>version_tuple(old["version"]), "CUSTOMER_STABLE_DOWNGRADE_REFUSED"
+          with open(new_path,"w") as out:
+              json.dump({"schema":1,"channel":"customer-stable","approved":candidate},out,indent=2)
+              out.write("\n")
+          PY
+
+          if ! cmp -s "$tmp/current.json" "$tmp/new.json"; then
+            sha=$(jq -er '.sha' "$tmp/current")
+            encoded=$(base64 -w0 "$tmp/new.json")
+            gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/$p" \
+              -f message="Windows: owner-approved stable $RELEASE_VERSION (Actions $GITHUB_RUN_ID)" \
+              -f branch=main -f sha="$sha" -f content="$encoded" --silent
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/contents/$p?ref=main" > "$tmp/final"
+          jq -r '.content' "$tmp/final" | base64 -d > "$tmp/final.json"
+          cmp "$tmp/new.json" "$tmp/final.json"
+          echo "CELIKOM_WINDOWS_CUSTOMER_STABLE_APPROVAL_RECORDED $RELEASE_VERSION $RELEASE_SEQUENCE" >> "$GITHUB_STEP_SUMMARY"
+
