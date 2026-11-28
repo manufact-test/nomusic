@@ -1844,22 +1844,38 @@ final class StageBAudioEvidence {
      */
     synchronized Object linkedSourceInstanceForCreatorOrBeta(Object wrapper) {
         mark(liveLinkedSourceLookups);
-        Object[] creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
-        if(creator==null || creator.length!=2
-                || creator[0]==null || creator[1]==null) {
-            mark(liveLinkedSourceCreatorMissing);
-            return null;
-        }
-        mark(liveLinkedSourceCreatorMatched);
         NativeTrackSourceLink link=findByWrapper(wrapper);
         if(link==null) {
             mark(liveLinkedSourceWrapperLinkMissing);
             return null;
         }
         if(link.wrapper==null || link.wrapper.get()!=wrapper
-                || link.track==null || link.track.get()!=creator[0]) {
+                || link.track==null || link.track.get()==null) {
             mark(liveLinkedSourceLinkMismatch);
             return null;
+        }
+        // NAV56: a successful first-open arm already validated the exact
+        // creator Track/Album-or-BETA token, player setter, descriptor,
+        // factory and this DataSource identity. Keep that admission proof on
+        // this exact wrapper/source link. Do not re-run the bounded creator,
+        // TrackAlbum or Flow registries on every renderer read: they can be
+        // evicted after admission even while this committed source is alive.
+        boolean committed=link.firstOpenSourceCommitted;
+        Object[] creator=null;
+        if(committed) {
+            mark(liveLinkedSourceCreatorMatched);
+        } else {
+            creator=exactCreatorTrackAlbumOrBetaBeforeSourceSet(wrapper);
+            if(creator==null || creator.length!=2
+                    || creator[0]==null || creator[1]==null) {
+                mark(liveLinkedSourceCreatorMissing);
+                return null;
+            }
+            if(link.track.get()!=creator[0]) {
+                mark(liveLinkedSourceLinkMismatch);
+                return null;
+            }
+            mark(liveLinkedSourceCreatorMatched);
         }
         // Do not require the vendor descriptor/factory weak references to stay
         // alive after OPEN. Their exact identity chain was already verified
@@ -1881,15 +1897,18 @@ final class StageBAudioEvidence {
             mark(liveLinkedSourceReverseLinkMismatch);
             return null;
         }
-        if(creator[1]==wrapper) {
+        // Before commit, retain the original strict creator recheck. After
+        // commit, firstOpenSourceCommitted is the durable result of that same
+        // check and is scoped to this exact DataSource on this exact link.
+        if(!committed && creator[1]==wrapper) {
             Object[] beta=exactBetaCreatorWithoutAlbum(wrapper);
             if(beta==null || beta.length!=2
                     || beta[0]!=creator[0] || beta[1]!=wrapper) {
                 mark(liveLinkedSourceBetaRecheckFailed);
                 return null;
             }
-        } else if(link.albumInstance==null
-                || link.albumInstance.get()!=creator[1]) {
+        } else if(!committed && (link.albumInstance==null
+                || link.albumInstance.get()!=creator[1])) {
             mark(liveLinkedSourceAlbumMismatch);
             return null;
         }
