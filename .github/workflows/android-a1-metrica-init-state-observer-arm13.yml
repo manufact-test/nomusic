@@ -32,6 +32,7 @@ on:
       - 'android/native-yandex-hooklab/ci/a1_private_player_period_current_target.py'
       - 'android/native-yandex-hooklab/ci/a1_private_active_period_source_target.py'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java'
+      - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java'
       - 'android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeIssuerCodecPreferenceTest.java'
       - 'android/native-yandex-hooklab/ci/a1_private_exo_factory_shape.py'
       - 'android/native-yandex-hooklab/ci/a1_private_current_mediaitem_source_target.py'
