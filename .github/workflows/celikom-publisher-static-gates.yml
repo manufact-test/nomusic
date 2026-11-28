@@ -11,6 +11,9 @@ on:
       - '.github/scripts/floki-windows-customer-stable-consumer.py'
       - '.github/scripts/floki-windows-customer-stable-install.sh'
       - '.github/scripts/tests/floki-windows-customer-stable-consumer.test.py'
+      - '.github/scripts/tests/windows-stable-customer-promotion.test.py'
+      - '.github/workflows/windows-stable-signed-release.yml'
+      - '.github/workflows/windows-stable-floki-private-stage.yml'
       - '.github/scripts/tests/floki-windows-owner-verified-receipt.test.py'
       - '.github/release/windows-customer-stable.json'
       - '.github/scripts/floki-android-stable-root-consumer.py'
@@ -62,6 +65,7 @@ jobs:
           python3 -m py_compile .github/scripts/floki-windows-customer-stable-consumer.py
           bash -n .github/scripts/floki-windows-customer-stable-install.sh
           python3 .github/scripts/tests/floki-windows-customer-stable-consumer.test.py
+          python3 .github/scripts/tests/windows-stable-customer-promotion.test.py
           ! grep -q CONSUMER_BLOB_PIN .github/scripts/floki-windows-customer-stable-install.sh
           echo WINDOWS_PRIVATE_PUBLISHER_STATIC_GATES_OK
       - name: Verify independently signed legacy Android owner promoter
