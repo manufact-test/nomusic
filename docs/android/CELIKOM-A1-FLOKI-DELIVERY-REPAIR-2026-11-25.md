@@ -2,15 +2,15 @@
 
 **BETA32 owner delivery is complete and independently verified. Audible replacement is still pending phone acceptance.**
 
-- Android source/export run \`46127527304\`, attempt 1 — SUCCESS; source commit \`8289597ab83a5ea93cc93ee5ab33b634f2d683e9\`.
-- Unpublished owner draft release ID \`461427239\`.
-- APK \`CELIKOM-A1-RAMIL-AU-BETA32-HONOR50-20261128.apk\`, 71,606,252 bytes.
-- SHA-256 \`8b09bcf74b526263aa1a36de356b9207a806f822cad2338c818ef9a5697518ad\`.
-- Trusted delivery run \`46128754869\`, attempt 1, job \`140929898949\` on \`celikom-floki-ci02\` — SUCCESS.
-- Exact source run, provenance, package and original install certificate were verified. Root receipt \`a1-46127527304-1.json\` recorded \`https_verified=true\`; the unpublished draft was patched and read back with exactly one matching owner capability URL.
+- Android source/export run `46127527304`, attempt 1 — SUCCESS; source commit `8289597ab83a5ea93cc93ee5ab33b634f2d683e9`.
+- Unpublished owner draft release ID `461427239`.
+- APK `CELIKOM-A1-RAMIL-AU-BETA32-HONOR50-20261128.apk`, 71,606,252 bytes.
+- SHA-256 `8b09bcf74b526263aa1a36de356b9207a806f822cad2338c818ef9a5697518ad`.
+- Trusted delivery run `46128754869`, attempt 1, job `140929898949` on `celikom-floki-ci02` — SUCCESS.
+- Exact source run, provenance, package and original install certificate were verified. Root receipt `a1-46127527304-1.json` recorded `https_verified=true`; the unpublished draft was patched and read back with exactly one matching owner capability URL.
 - CI01's initial BETA32 delivery job was accepted without starting steps. The exact no-step recovery workflow issued cancel/force-cancel requests. Retry on CI02 completed; no runner restart or security relaxation was required.
 - The owner capability URL was delivered privately. Never copy the URL/token into Git, docs, logs, Actions summaries or public messages.
-- The Android native launch/stability verdict is \`METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO\`. It is not audio proof. The owner must install BETA32 over BETA31, listen to the target and second problematic track, and provide the fresh BETA32 TXT.
+- The Android native launch/stability verdict is `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. It is not audio proof. The owner must install BETA32 over BETA31, listen to the target and second problematic track, and provide the fresh BETA32 TXT.
 
 ---
 
