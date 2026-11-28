@@ -1,39 +1,37 @@
-# ACTIVE CELIKOM WINDOWS — verify approved 0.24.64 customer OTA publication (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — one-time owner bootstrap to verified 0.24.64 (28 November 2026)
 
 ## Read first
 
-1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact root cause, merged code fixes, 0.24.64 signed package, protected approval and recovery status.
+1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact verifier root cause, merged fixes, signed release, public verification and remaining owner bootstrap.
 2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — original failed owner retest and constraints.
-3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored immutable 0.24.62 public route.
-4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — previous successful 0.24.63 / sequence 10 publication.
-5. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — protected release and Floki route design.
-6. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — accepted Windows fixes and UX requirements.
+3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — immutable bootstrap route repair.
+4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — previous stable publication.
 
 ## Actual state
 
 - Repository: `manufact-test/nomusic`; working branch: `main`.
-- Installed app: **0.24.62.0**.
-- Previous public stable: **0.24.63 / sequence 10**.
-- Root cause fix PR [#75](https://github.com/manufact-test/nomusic/pull/75) merged: installed Companion and UpdateSupervisor verification ceiling raised from 125 MB to 250 MB; signed installer download cap remains 125 MB. Live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) passed for both public 0.24.62 and 0.24.63.
-- PR [#76](https://github.com/manufact-test/nomusic/pull/76) merged as `c1f59b7fd5789e0a828f5a48ce0b118a2bb6ceba`: explicit Floki route, protected customer approval record and public HTTPS verifier.
-- 0.24.64 run [46143048815](https://github.com/manufact-test/nomusic/actions/runs/46143048815) built and signed **0.24.64 / sequence 11**. Package SHA-256: `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`; EXE size 85,160,055 bytes; signed transfer ZIP size 85,162,732 bytes.
-- GitHub confirms the owner approved `windows-stable-production`. Floki private spool stage succeeded.
-- The release job then failed because a redundant `gh api` command was unavailable on the runner. Public promotion and the original workflow's `verify_customer_stable` job were skipped.
-- PR [#77](https://github.com/manufact-test/nomusic/pull/77) merged as `1950228c8db05a7375820b69902417b8d01d9fd4`: removed the unavailable CLI call and retained the authenticated Python GitHub API approval check. Generic CI [46146131136](https://github.com/manufact-test/nomusic/actions/runs/46146131136) and Windows integration CI [46146131169](https://github.com/manufact-test/nomusic/actions/runs/46146131169) — SUCCESS.
-- No rebuild/re-sign. After rechecking the protected approval and successful signed/staged artifact, the existing `.github/release/windows-customer-stable.json` record was advanced to **0.24.64 / sequence 11**, SHA above, `owner_accepted=true`, in commit `bcc4aade47174a0445e41775bf62397718c426d9`.
-- **Public HTTPS publication is not yet independently verified.** Existing Floki customer consumer timer runs every 120 seconds. It must verify the signed immutable package, publish the public latest pair/version files/stable installer, verify public HTTPS bytes and full installer SHA-256, then write `accepted.json` with `https_verified=true`.
+- Owner-installed app: **0.24.62.0**.
+- Public stable: **0.24.64 / sequence 11** — successfully published and verified.
+- Root cause fix PR [#75](https://github.com/manufact-test/nomusic/pull/75) raised installed-payload verification defaults from 125 MB to 250 MB; signed installer download cap remains 125 MB. Live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) passed for public 0.24.62 and 0.24.63.
+- Protected signed release run [46143048815](https://github.com/manufact-test/nomusic/actions/runs/46143048815) built/signed 0.24.64 and the owner approved `windows-stable-production`. Floki spool staging succeeded.
+- PR [#77](https://github.com/manufact-test/nomusic/pull/77) fixed the redundant `gh` CLI precheck; generic CI [46146131136](https://github.com/manufact-test/nomusic/actions/runs/46146131136) and Windows integration [46146131169](https://github.com/manufact-test/nomusic/actions/runs/46146131169) passed.
+- Existing `.github/release/windows-customer-stable.json` approval record is **0.24.64 / sequence 11**, SHA-256 `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`, `owner_accepted=true`.
+- Read-only Floki audit [46147714670](https://github.com/manufact-test/nomusic/actions/runs/46147714670) — SUCCESS. Root stable pointer is `versions/0.24.64`; owner receipt has `https_verified=True`.
+- Customer consumer `accepted.json` reports **0.24.64 / sequence 11**, exact SHA, `https_verified=true`. Its log confirms full public HTTPS SHA-256 verification. Public latest reports 0.24.64 / sequence 11; versioned manifest, versioned EXE and stable customer EXE all return HTTP 200. Public EXE Content-Length is 85,160,055 bytes. **Public OTA publication is complete.**
+- PR [#78](https://github.com/manufact-test/nomusic/pull/78) and PR [#79](https://github.com/manufact-test/nomusic/pull/79) merged; both add read-only audit visibility only.
+- Residual maintenance issue: `celikom-mirror-sync.service` failed an atomic push because some mirror branch tips are stale. Its mirror main commit `0719ed01bc8abd2daa81cacdb299ab38c649cabe` already contained the 0.24.64 approval record, so this release completed. Fix mirror sync before the next release; do not alter the current public feed.
 
 ## Next actions
 
-1. Continue from the existing approved and staged 0.24.64 artifact. **Do not rebuild or re-sign it.**
-2. Verify Floki root spool/customer consumers processed the main approval record: `celikom-windows-customer-stable.timer/service`, `accepted.json` exact version/sequence/SHA and `https_verified=true`, public latest pair, immutable manifest/signature and full installer SHA-256. If not accepted, diagnose only Floki mirror sync/root spool consumer/customer consumer.
-3. Do not claim 0.24.64 is public until exact public HTTPS verification passes.
-4. Only after publication is verified, request the owner's explicit consent for the unavoidable one-time 0.24.64 bootstrap install. Do not send an EXE or ask the owner to install without consent.
-5. After consent and bootstrap, verify normal OTA: background download while Yandex plays, verified package persists after close, automatic installation at the next ordinary CELIKOM launch, and no Stop or playback interruption.
+1. The installed 0.24.62 binary contains the old 125 MB verifier and cannot safely self-update to the fix. A **one-time 0.24.64 bootstrap install is unavoidable**.
+2. Do not send the installer URL or ask the owner to download/run it until the owner explicitly consents.
+3. After consent, provide the verified public stable installer `https://celikom.com/downloads/windows/CELIKOM-Windows-stable.exe`. Do not modify the package or re-sign it.
+4. After the owner installs it, verify app and Update Supervisor report **0.24.64.0**, account/session is retained, and normal startup works.
+5. Then test subsequent OTA behavior: background download while Yandex plays, package persists after close, installation at the next ordinary CELIKOM launch, no Stop and no playback interruption.
+6. Before the next release, repair the Floki mirror sync service's stale-branch atomic push failure and verify main mirror parity.
 
 ## Required UX and boundaries
 
-- Preserve background download/verification, durable pending package and next-normal-launch installation.
 - Never interrupt Yandex or require Stop.
 - Do not touch Android, browser extension, Windows audio engine, customer audio data or create another update channel.
 - Do not repeat W196 diagnostics or ask for the same attachment.
