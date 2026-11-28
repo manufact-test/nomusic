@@ -1,7 +1,7 @@
 import pathlib
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
+ROOT = pathlib.Path(__file__).resolve().parents[3]
 RELEASE = (ROOT / ".github/workflows/windows-stable-signed-release.yml").read_text()
 FLOKI = (ROOT / ".github/workflows/windows-stable-floki-private-stage.yml").read_text()
 
