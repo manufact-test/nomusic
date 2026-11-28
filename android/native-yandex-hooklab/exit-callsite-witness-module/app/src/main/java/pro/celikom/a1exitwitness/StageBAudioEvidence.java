@@ -2146,8 +2146,9 @@ final class StageBAudioEvidence {
      * Do not pass an unbound DataSource to the playback admission gate.
      */
     synchronized Object exactOuterFactoryForNested(Object nestedFactory,
-            java.util.function.BiPredicate<Object,Object> uniquePath) {
-        if(nestedFactory==null || uniquePath==null)return null;
+            java.util.function.BiPredicate<Object,Object> uniquePath,
+            java.util.function.BiPredicate<Object,Object> anyPath) {
+        if(nestedFactory==null || uniquePath==null || anyPath==null)return null;
         Object result=null;
         for(NativeTrackSourceLink link:nativeTrackSourceLinks) {
             if(link.track==null || link.track.get()==null ||
@@ -2156,10 +2157,13 @@ final class StageBAudioEvidence {
                     link.factoryResult==null)continue;
             Object outer=link.factoryResult.get();
             if(outer==null)continue;
-            boolean found;
-            try {found=uniquePath.test(outer,nestedFactory);}
-            catch(Throwable ignored) {return null;}
-            if(!found)continue;
+            boolean referenced,unique;
+            try {
+                referenced=anyPath.test(outer,nestedFactory);
+                if(!referenced)continue;
+                unique=uniquePath.test(outer,nestedFactory);
+            } catch(Throwable ignored) {return null;}
+            if(!unique)return null; // a possibly related but ambiguous outer blocks admission
             if(result!=null)return null;
             result=outer;
         }
@@ -2182,9 +2186,11 @@ final class StageBAudioEvidence {
      */
     synchronized boolean onExoNestedSourceInstanceCreated(Object source,
             Object nestedFactory,
-            java.util.function.BiPredicate<Object,Object> uniquePath) {
+            java.util.function.BiPredicate<Object,Object> uniquePath,
+            java.util.function.BiPredicate<Object,Object> anyPath) {
         onExoSourceInstanceCreated(source);
-        if(source==null || nestedFactory==null || uniquePath==null)return false;
+        if(source==null || nestedFactory==null || uniquePath==null
+                || anyPath==null)return false;
         ExactNestedFactorySourceScope scope=
             activeExactNestedFactorySourceScope.get();
         if(scope!=null) {
@@ -2212,7 +2218,7 @@ final class StageBAudioEvidence {
                 new PendingNestedFactorySourceBirth(source,nestedFactory));
             return false; // exact outer binding is deliberately deferred
         }
-        Object outer=exactOuterFactoryForNested(nestedFactory,uniquePath);
+        Object outer=exactOuterFactoryForNested(nestedFactory,uniquePath,anyPath);
         if(outer==null || findByFactory(outer)==null)return false;
         onExoSourceInstanceCreated(source,outer,nestedFactory);
         return hasExactFactorySourceBirth(source,outer,nestedFactory);
@@ -2227,7 +2233,8 @@ final class StageBAudioEvidence {
      */
     synchronized int finishExactNestedFactorySourceScope(
             ExactNestedFactorySourceScope scope,Object outerFactory,
-            java.util.function.BiPredicate<Object,Object> uniquePath) {
+            java.util.function.BiPredicate<Object,Object> uniquePath,
+            java.util.function.BiPredicate<Object,Object> anyPath) {
         if(scope==null)return 0;
         if(activeExactNestedFactorySourceScope.get()!=scope) {
             exactFactoryBirthsSaturated=true;
@@ -2237,10 +2244,10 @@ final class StageBAudioEvidence {
         if(scope.previous==null)activeExactNestedFactorySourceScope.remove();
         else activeExactNestedFactorySourceScope.set(scope.previous);
         if(outerFactory==null || uniquePath==null
-                || findByFactory(outerFactory)==null)return 0;
+                || anyPath==null || findByFactory(outerFactory)==null)return 0;
         if(scope.saturated) {
             exactFactoryBirthsSaturated=true;
-            invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,uniquePath);
+            invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,anyPath);
             return 0;
         }
         int linked=0;
@@ -2248,17 +2255,17 @@ final class StageBAudioEvidence {
             Object source=pending.source.get();
             Object nestedFactory=pending.nestedFactory.get();
             if(source==null || nestedFactory==null)continue;
-            if(exactOuterFactoryForNested(nestedFactory,uniquePath)!=outerFactory)
+            if(exactOuterFactoryForNested(nestedFactory,uniquePath,anyPath)!=outerFactory)
                 continue;
             onExoSourceInstanceCreated(source,outerFactory,nestedFactory);
             if(hasExactFactorySourceBirth(source,outerFactory,nestedFactory))linked++;
         }
-        invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,uniquePath);
+        invalidateNestedFactoryBirthsSharedWithOuter(outerFactory,anyPath);
         return linked;
     }
 
     private void invalidateNestedFactoryBirthsSharedWithOuter(Object outerFactory,
-            java.util.function.BiPredicate<Object,Object> uniquePath) {
+            java.util.function.BiPredicate<Object,Object> anyPath) {
         for(ExactFactorySourceBirth birth:exactFactorySourceBirths) {
             if(birth.nestedFactory==null)continue;
             Object nestedFactory=birth.nestedFactory.get();
@@ -2269,7 +2276,7 @@ final class StageBAudioEvidence {
             }
             if(priorOuter==outerFactory)continue;
             boolean shared;
-            try {shared=uniquePath.test(outerFactory,nestedFactory);}
+            try {shared=anyPath.test(outerFactory,nestedFactory);}
             catch(Throwable ignored) {shared=true;}
             if(shared)birth.conflicted=true;
         }

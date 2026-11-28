@@ -4680,7 +4680,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 STAGE_B_AUDIO.finishExactNestedFactorySourceScope(
                                     nestedScope,null,
                                     NativeExoFactoryProductWitness
-                                        ::uniquelyReferencesNestedFactory);
+                                        ::uniquelyReferencesNestedFactory,
+                                        NativeExoFactoryProductWitness
+                                            ::referencesNestedFactory);
                             } catch(Throwable ignored) { }
                             throw failure;
                         }
@@ -4694,7 +4696,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                 .finishExactNestedFactorySourceScope(
                                     nestedScope,result,
                                     NativeExoFactoryProductWitness
-                                        ::uniquelyReferencesNestedFactory);
+                                        ::uniquelyReferencesNestedFactory,
+                                        NativeExoFactoryProductWitness
+                                            ::referencesNestedFactory);
                             for(int i=0;i<nestedBound;i++)
                                 emit("AUDIO_EXO_FACTORY_NESTED_LINK",
                                     "SOURCE_FACTORY","EXACT_BOUND");
@@ -4727,7 +4731,9 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     .onExoNestedSourceInstanceCreated(
                                         result,chain.getThisObject(),
                                         NativeExoFactoryProductWitness
-                                            ::uniquelyReferencesNestedFactory);
+                                            ::uniquelyReferencesNestedFactory,
+                                        NativeExoFactoryProductWitness
+                                            ::referencesNestedFactory);
                                 if(bound)emit("AUDIO_EXO_FACTORY_NESTED_LINK",
                                     "SOURCE_FACTORY","EXACT_BOUND");
                                 // Never arm the first *constructed* DataSource:

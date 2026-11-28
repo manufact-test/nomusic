@@ -93,26 +93,36 @@ final class NativeExoFactoryProductWitness {
 
     /**
      * A signed original c.for result is an obfuscated wrapper, not a direct
-     * DataSource factory. Require one Java identity reference path (<=2 fields)
-     * to the exact original $b.for receiver. Never call vendor methods.
+     * DataSource factory. Inspect only bounded Java fields; never call vendor
+     * methods. "References" deliberately includes ambiguous paths so a
+     * second outer factory cannot be ignored when enforcing unique ownership.
      */
+    static boolean referencesNestedFactory(Object outer,Object nested) {
+        int matches=nestedFactoryReferenceCount(outer,nested);
+        return matches!=0; // unknown reflection shape is fail-closed as "may reference"
+    }
+
     static boolean uniquelyReferencesNestedFactory(Object outer,Object nested) {
-        if(outer==null || nested==null || outer==nested)return false;
+        return nestedFactoryReferenceCount(outer,nested)==1;
+    }
+
+    private static int nestedFactoryReferenceCount(Object outer,Object nested) {
+        if(outer==null || nested==null || outer==nested)return 0;
         ClassLoader loader=nested.getClass().getClassLoader();
-        if(loader==null || outer.getClass().getClassLoader()!=loader)return false;
+        if(loader==null || outer.getClass().getClassLoader()!=loader)return 0;
         ArrayList<Object> first=new ArrayList<>();
-        if(!collectReferences(outer,loader,first))return false;
+        if(!collectReferences(outer,loader,first))return -1;
         int matches=0;
         for(Object child:first) {
             if(child==nested)matches++;
             if(child==null || child==outer || child==nested
                     || child.getClass().getClassLoader()!=loader)continue;
             ArrayList<Object> second=new ArrayList<>();
-            if(!collectReferences(child,loader,second))return false;
+            if(!collectReferences(child,loader,second))return -1;
             for(Object grandchild:second)if(grandchild==nested)matches++;
-            if(matches>1)return false;
+            if(matches>1)return matches;
         }
-        return matches==1;
+        return matches;
     }
 
     private static boolean collectReferences(Object obj,ClassLoader loader,

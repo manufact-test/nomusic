@@ -293,14 +293,14 @@ public final class NativeRamilTrackOnlyLineageTest {
             delayedBirth.beginExactNestedFactorySourceScope();
         check(!delayedBirth.onExoNestedSourceInstanceCreated(delayedSource,
                 nestedFactory,
-                exactNestedPath),
+                exactNestedPath,exactNestedPath),
             "NAV54_NESTED_SOURCE_CAPTURED_BEFORE_OUTER_LINK");
         check(delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource)==null,
             "NAV54_UNBOUND_NESTED_SOURCE_NOT_ADMITTED");
         delayedBirth.onExoFactoryCreated(delayedDescriptor,outerFactory);
         check(delayedBirth.finishExactNestedFactorySourceScope(nestedScope,
                 outerFactory,
-                exactNestedPath)==1,
+                exactNestedPath,exactNestedPath)==1,
             "NAV54_OUTER_FACTORY_BACKFILLS_EARLY_NESTED_SOURCE");
         Object[] delayedCreator=
             delayedBirth.exactFreshCreatorOrBetaAtFirstOpen(delayedSource);

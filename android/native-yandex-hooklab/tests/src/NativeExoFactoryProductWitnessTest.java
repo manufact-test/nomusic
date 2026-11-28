@@ -127,6 +127,13 @@ public final class NativeExoFactoryProductWitnessTest {
             new NestedOuter(other),target),"different original instance");
         check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
             new DuplicateOuter(target),target),"ambiguous field paths");
+        check(NativeExoFactoryProductWitness.referencesNestedFactory(
+            new DuplicateOuter(target),target),
+            "ambiguous paths still count as possible outer ownership");
+        check(NativeExoFactoryProductWitness.referencesNestedFactory(
+            new NestedOuter(target),target),"nested reference exists");
+        check(!NativeExoFactoryProductWitness.referencesNestedFactory(
+            new NestedOuter(other),target),"different original instance is not referenced");
         check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
             new TooDeepOuter(target),target),"unverified depth rejected");
         check(!NativeExoFactoryProductWitness.uniquelyReferencesNestedFactory(
