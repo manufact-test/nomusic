@@ -1,0 +1,78 @@
+name: CELIKOM A1 exact Exo DataSource Loadable owner (read-only)
+on:
+  push:
+    branches:
+      - experiment/android-a1-metrica-init-state-observer-arm13-20261112
+    paths:
+      - '.github/workflows/android-a1-exact-datasource-loadable-owner.yml'
+      - 'android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py'
+      - 'android/native-yandex-hooklab/ci/test_a1_exact_datasource_loadable_owner.py'
+      - 'android/native-yandex-hooklab/ci/lft2_class_inspection.py'
+      - 'android/native-yandex-hooklab/ci/uptodown_2025_gpr_ephemeral_verify.py'
+      - 'android/native-yandex-hooklab/audit_native_selected_item_handoff.py'
+      - 'android/native-yandex-hooklab/audit_native_register_bridge.py'
+      - 'tools/android-native-gate1/inspect_android_host.py'
+      - 'tools/android-native-gate1/trace_native_callers.py'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  exact-datasource-loadable-owner:
+    if: github.repository == 'manufact-test/nomusic'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact package/signature inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo timeout 120 apt-get update -qq
+          sudo timeout 120 env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq aapt apksigner
+      - name: Run bounded owner-analysis regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m py_compile \
+            android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
+            android/native-yandex-hooklab/ci/lft2_class_inspection.py
+          PYTHONPATH=android/native-yandex-hooklab/ci:android/native-yandex-hooklab \
+            python3 -B -m unittest discover \
+              -s android/native-yandex-hooklab/ci \
+              -p 'test_a1_exact_datasource_loadable_owner.py' -v
+      - name: Download and verify the exact private publisher-signed 2025 XAPK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.id == 442137464 and .draft == true and .tag_name == "a1-yandex-2025-gpr-private-test") | .id' \
+            | grep -qx 442137464
+          mkdir -p -m 700 "$RUNNER_TEMP/celikom-exact-loadable-owner"
+          gh release download a1-yandex-2025-gpr-private-test \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern yandex-music-2025-10-4-120-1gpr.xapk \
+            --dir "$RUNNER_TEMP/celikom-exact-loadable-owner" --clobber >/dev/null
+          f="$RUNNER_TEMP/celikom-exact-loadable-owner/yandex-music-2025-10-4-120-1gpr.xapk"
+          test "$(stat -c '%s' "$f")" = 45961661
+          test "$(sha256sum "$f" | cut -d' ' -f1)" = 8e43be8900d28ee92c8e315ed07069568858bfd4a593757fba9d276bd0c54053
+          echo A1_EXACT_PUBLISHER_XAPK_PIN_VERIFIED
+      - name: Trace the exact DataSource.open caller and Exo Loadable to MediaPeriod ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B android/native-yandex-hooklab/ci/a1_exact_datasource_loadable_owner.py \
+            --xapk "$RUNNER_TEMP/celikom-exact-loadable-owner/yandex-music-2025-10-4-120-1gpr.xapk"
+      - name: Remove private original input
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf -- "$RUNNER_TEMP/celikom-exact-loadable-owner"
+          echo '{"original_binary_modified":false,"original_binary_exported":false,"user_login_or_media_accessed":false,"audio_exported":false}'
