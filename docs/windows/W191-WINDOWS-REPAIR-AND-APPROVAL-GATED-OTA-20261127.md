@@ -1,6 +1,6 @@
 # W191 — Windows repairs merged to main, protected stable promotion and Floki route audit
 
-> **W193 UPDATE (2026-11-28):** This is historical implementation evidence. The controlling current state is `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md`: 0.24.63 sequence 10 is already built and verified; public stable is stale despite local Floki 0.24.62. Production approval, route cutover and installed-device OTA are pending. Do not repeat W189 release preparation.
+ > **W197 UPDATE (2026-11-28):** This is historical implementation evidence. Signed 0.24.63 / sequence 10 is already published and public HTTPS verification passed (W194). The owner-installed 0.24.62 client still fails to discover/install it even after W195 restored its immutable bootstrap files. The controlling failure and next task are in `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` and `docs/windows/NEXT-CHAT.md`. Do not repeat W189 release preparation, route cutover, or publication.
 
 Date: 28 November 2026
 
