@@ -94,7 +94,7 @@ internal static class StableOtaLiveRepro
                 emptyJournalRoot, selectedRelease, selectedPackage.Path, PublicKeySha256,
                 selectedRelease.Version, app, nativeHost, renderer, supervisor,
                 DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
+                (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
             var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
                 emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
             test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
@@ -123,7 +123,7 @@ internal static class StableOtaLiveRepro
                     staleRoot, staleRelease, currentPackage.Path, PublicKeySha256,
                     staleVersion, app, nativeHost, renderer, supervisor,
                     DateTimeOffset.UtcNow, static (_, _) => { },
-                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
+                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
                 var staleCached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
                     staleRoot, PublicKeySha256, static (_, _) => { });
                 test(staleCached.Release.Version == staleVersion &&
@@ -137,7 +137,7 @@ internal static class StableOtaLiveRepro
                         staleRoot, current, currentPackage.Path, PublicKeySha256,
                         installedVersion, app, nativeHost, renderer, supervisor,
                         DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                        (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
+                        (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
                 }
                 catch (IOException e) when (
                     e.Message == "STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED")
