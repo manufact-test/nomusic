@@ -4692,8 +4692,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                                     chain.getArg(1),result);
                         } catch(Throwable ignored) { }
                         try {
-                            int nestedBound=STAGE_B_AUDIO
-                                .finishExactNestedFactorySourceScope(
+                            int nestedBound=STAGE_B_AUDIO.finishExactNestedFactorySourceScope(
                                     nestedScope,result,
                                     NativeExoFactoryProductWitness
                                         ::uniquelyReferencesNestedFactory,
@@ -4727,8 +4726,7 @@ public final class ExitCallsiteWitness extends XposedModule {
                         Object result = chain.proceed(); // exact vendor factory once
                         try {
                             if (result != null) {
-                                boolean bound=STAGE_B_AUDIO
-                                    .onExoNestedSourceInstanceCreated(
+                                boolean bound=STAGE_B_AUDIO.onExoNestedSourceInstanceCreated(
                                         result,chain.getThisObject(),
                                         NativeExoFactoryProductWitness
                                             ::uniquelyReferencesNestedFactory,
