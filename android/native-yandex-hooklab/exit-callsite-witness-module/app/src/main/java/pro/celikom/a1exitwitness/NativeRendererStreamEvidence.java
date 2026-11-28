@@ -1040,6 +1040,10 @@ final class NativeRendererStreamEvidence {
     private int liveQueueSlotHook,queueSlotAttachSame,queueSlotAttachOther;
     private int queueSlotAttachUnavailable,queueSlotReadSame,queueSlotReadOther;
     private int queueSlotReadUnavailable,queueSlotReadMinus4;
+    // NAV57: enabled/pre-start renderer reads still carry the selected live period.
+    // These bins never imply STATE_STARTED or audible output.
+    private int queueSlotReadNotStartedSame,queueSlotReadNotStartedOther;
+    private int queueSlotReadNotStartedUnavailable;
     private final ArrayList<Link> engineHolderLinks = new ArrayList<>();
     private final ArrayList<ComparatorLink> comparatorLinks = new ArrayList<>();
     private final ArrayList<Link> links = new ArrayList<>();
@@ -2133,6 +2137,46 @@ final class NativeRendererStreamEvidence {
         if(!poisoned)rendererComparatorUnavailable=inc(rendererComparatorUnavailable);
     }
 
+    // NAV57: selected MediaPeriod/source lineage is useful during ENABLED
+    // buffering too. This is strictly structural: state2-only renderer/audio
+    // counters remain in onRendererTypeStateRead below and are never promoted.
+    private void observePrestartedCurrentPeriodSource(Object renderer,Object stream,
+            Object matchedHolder,int originalResult,Boolean endOfStream) {
+        for(LiveQueueLink live:liveQueueLinks) {
+            if(live.renderer.get()!=renderer || live.stream.get()!=stream
+                    || live.holder.get()!=matchedHolder)continue;
+            int fresh=liveQueueSlotMatches(live.engine.get(),live.holder.get());
+            if(fresh==1) {
+                queueSlotReadNotStartedSame=inc(queueSlotReadNotStartedSame);
+                int beforeUidInts=periodUnknownEosUidInts;
+                int beforeSameRef=periodUnknownEosSame;
+                int beforeCurrentSameRef=currentPeriodSameReferenceAtRead;
+                int beforeCurrentUidInts=currentPeriodUidAndIntsAtRead;
+                boolean eligibleRendererRead=
+                    originalResult==-4 && !Boolean.TRUE.equals(endOfStream);
+                if(eligibleRendererRead)
+                    observeCurrentPlaybackPeriodAtRead(
+                        live.engine.get(),live.holder.get(),endOfStream==null);
+                boolean currentPeriodMatched=
+                    currentPeriodSameReferenceAtRead>beforeCurrentSameRef
+                    || currentPeriodUidAndIntsAtRead>beforeCurrentUidInts
+                    || periodUnknownEosUidInts>beforeUidInts
+                    || periodUnknownEosSame>beforeSameRef;
+                // Read-only source identity/alternate-byte correlation. Even
+                // a positive result is NOT proof that the renderer has started
+                // or that the alternate bytes reached audible PCM.
+                observeActivePeriodSource(live.engine.get(),live.holder.get(),
+                    eligibleRendererRead,currentPeriodMatched,endOfStream);
+            } else if(fresh<0) {
+                queueSlotReadNotStartedOther=inc(queueSlotReadNotStartedOther);
+            } else {
+                queueSlotReadNotStartedUnavailable=
+                    inc(queueSlotReadNotStartedUnavailable);
+            }
+            break;
+        }
+    }
+
     synchronized void onRendererTypeStateRead(Object renderer,Object stream,
             int trackType,int state,int originalResult,Boolean endOfStream) {
         if(poisoned || typeStateAccessHook<=0 || renderer==null || stream==null)return;
@@ -2173,6 +2217,12 @@ final class NativeRendererStreamEvidence {
             observeRendererStreamAdapter(matchedHolder,stream);
         if(state!=2) {
             engineType1StateOther=inc(engineType1StateOther);
+            // NAV57: Exo may read/buffer the selected period while ENABLED,
+            // before the renderer reaches STARTED. Resolve the exact live
+            // SLOT_B period/source here too, but do not promote any STATE2,
+            // decoder or audible-output evidence.
+            observePrestartedCurrentPeriodSource(
+                renderer,stream,matchedHolder,originalResult,endOfStream);
             return;
         }
         engineType1State2=inc(engineType1State2);
@@ -2399,6 +2449,9 @@ final class NativeRendererStreamEvidence {
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_OTHER",queueSlotReadOther),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_UNAVAILABLE",queueSlotReadUnavailable),
             line("LIVE_QUEUE_SLOT_B_TYPE1_STATE2_READ_MINUS4",queueSlotReadMinus4),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_MATCH",queueSlotReadNotStartedSame),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_OTHER",queueSlotReadNotStartedOther),
+            line("LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_UNAVAILABLE",queueSlotReadNotStartedUnavailable),
             line("PLAYER_PERIOD_AT_READ_SAME_REFERENCE",currentPeriodSameReferenceAtRead),
             line("PLAYER_PERIOD_AT_READ_UID_AND_INDEX_MATCH",currentPeriodUidAndIntsAtRead),
             line("PLAYER_PERIOD_AT_READ_UID_ONLY",currentPeriodUidOnlyAtRead),
