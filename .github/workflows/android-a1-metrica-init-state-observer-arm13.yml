@@ -79,7 +79,7 @@ jobs:
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_owner_phone_diagnostic_artifact.py -v
       - name: Verify exact descriptor lifetime and Stage B fail-closed regression
         run: python3 -B -m unittest discover -s android/native-yandex-hooklab/ci -p test_a1_stage_b_audio_evidence.py -v
-      - name: Verify NAV54 nested-factory birth ordering and NAV53 first-open pin remain fail-closed
+      - name: Verify NAV55 wrapped wh6 identity bridge, NAV54 nested-factory birth ordering and NAV53 first-open pin remain fail-closed
         shell: bash
         run: |
           set -euo pipefail
@@ -99,9 +99,11 @@ jobs:
             android/native-yandex-hooklab/exit-callsite-witness-module/app/src/main/java/pro/celikom/a1exitwitness/NativeIssuerCodecPreference.java \
             android/native-yandex-hooklab/tests/src/retrofit2/http/Query.java \
             android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRamilTrackOnlyLineageTest.java \
-            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeExoAlternateByteRouteTest.java \
+            android/native-yandex-hooklab/tests/src/pro/celikom/a1exitwitness/NativeRendererStreamEvidenceTest.java
           java -cp "$d" pro.celikom.a1exitwitness.NativeRamilTrackOnlyLineageTest
           java -cp "$d" pro.celikom.a1exitwitness.NativeExoAlternateByteRouteTest
+          java -cp "$d" pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest
       - name: Verify BETA34 original codec passthrough
         shell: bash
         run: |
