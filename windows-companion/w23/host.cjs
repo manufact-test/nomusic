@@ -177,6 +177,9 @@ const heartbeatInstanceId = "w23-" + Date.now().toString(36) + "-" +
   Math.random().toString(36).slice(2, 10);
 let heartbeatSequence = 0;
 const HEARTBEAT_INTERVAL_MS = 4000;
+// Current-song metadata is local UI state, not the heartbeat cadence. Sample it
+// quickly while keeping unchanged server heartbeats at the existing 4-second rate.
+const PLAYBACK_STATE_SAMPLE_INTERVAL_MS = 500;
 function activity(view) {
   let state = viewActivity.get(view);
   if (!state) {
@@ -624,7 +627,8 @@ async function tick(view) {
     if (Array.isArray(queue)) {
       await Promise.all(queue.slice(0, 6).map(item => relayGrant(view, token, item)));
     }
-    if (bridgeJustEnabled || now - (lastStatus.get(view)?.at || 0) > 2200) {
+    if (bridgeJustEnabled ||
+        now - (lastStatus.get(view)?.at || 0) > PLAYBACK_STATE_SAMPLE_INTERVAL_MS) {
       // A failed *prefetched* file-info may be played long afterwards.
       // Check the observed current Yandex queue entity before assuming the
       // old source is still good. Recovery may reload that entity only.

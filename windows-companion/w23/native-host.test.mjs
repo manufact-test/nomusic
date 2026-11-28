@@ -173,6 +173,32 @@ test("W120 keeps the established 300ms native relay cadence pending objective pr
   const r=await runHost("musicapplication://desktop/");
   assert.equal(r.timerIntervalMs,300);
 });
+test("W198 owner-facing current-track metadata is sampled within 501ms without faster heartbeat posts",async()=>{
+  let fakeNow=Date.now();
+  class ControlledDate extends Date { static now(){return fakeNow;} }
+  const currentTrack={id:"123",title:"Old song",artist:"Artist",durationMs:140000,
+    playbackState:"PLAYING"};
+  const r=await runHost("musicapplication://desktop/",{
+    clock:ControlledDate,currentTrack,primaryAudible:true
+  });
+  const heartbeatTracks=()=>r.network.filter(x=>x.path==="/v1/heartbeat")
+    .map(x=>JSON.parse(x.body).trackId);
+  assert.ok(heartbeatTracks().includes("123"),"the initial current song is published");
+  currentTrack.id="456";
+  currentTrack.title="New song";
+  fakeNow+=499;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  assert.ok(!heartbeatTracks().includes("456"),
+    "a new snapshot is not sampled before the 500ms UI cadence");
+  fakeNow+=2;
+  r.pulse();
+  await new Promise(resolve=>setTimeout(resolve,45));
+  assert.ok(heartbeatTracks().includes("456"),
+    "the new song reaches the owner-facing heartbeat after the bounded 500ms sample");
+  assert.ok(heartbeatTracks().length<=2,
+    "faster local sampling does not create extra unchanged server heartbeat posts");
+});
 test("W120 unchanged state is not resent into the Yandex renderer",async()=>{
   let fakeNow=Date.now();
   class ControlledDate extends Date { static now(){return fakeNow;} }
