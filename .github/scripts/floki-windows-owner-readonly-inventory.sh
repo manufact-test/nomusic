@@ -104,11 +104,11 @@ for unit in celikom-mirror-sync.timer celikom-mirror-sync.service; do
 done
 echo WIN_MIRROR_SYNC_UNIT_DETAILS_BEGIN
 systemctl show celikom-mirror-sync.service -p FragmentPath -p DropInPaths -p ExecStart -p User -p Group -p WorkingDirectory --no-pager 2>/dev/null |
-  sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
+  sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|api[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
 unit_file=$(systemctl show celikom-mirror-sync.service -p FragmentPath --value 2>/dev/null || true)
 if [[ -n "$unit_file" && -f "$unit_file" ]]; then
   grep -nE '^[[:space:]]*(User|Group|WorkingDirectory|ExecStart|ExecStartPre|ExecStartPost|EnvironmentFile)=' "$unit_file" |
-    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
+    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|api[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' || true
 fi
 exec_path=$(systemctl show celikom-mirror-sync.service -p ExecStart --value 2>/dev/null |
   sed -n 's/.*path=\([^ ;]*\).*/\1/p' | head -n 1)
@@ -116,7 +116,7 @@ if [[ -n "$exec_path" && -f "$exec_path" ]]; then
   exec_path=$(readlink -f "$exec_path" 2>/dev/null || printf '%s' "$exec_path")
   stat -c 'WIN_MIRROR_EXEC_FILE %n %U:%a %s' "$exec_path" || true
   grep -nEi 'git|fetch|push|mirror|atomic|prune|remote|refspec|force|branch' "$exec_path" 2>/dev/null |
-    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' | head -n 100 || true
+    sed -E 's#(https?://)[^/@ ]+@#\1[redacted]@#g; s#(token|password|secret|private[_-]?key|api[_-]?key|authorization|extraheader|credential|bearer|passphrase)([[:space:]]*[:=][[:space:]]*).*$#\1\2[redacted]#Ig' | head -n 100 || true
 else
   echo WIN_MIRROR_EXEC_FILE=not_resolved
 fi
@@ -132,8 +132,8 @@ if [[ -d "$MIRROR" && ! -L "$MIRROR" ]]; then
   while IFS= read -r remote; do
     fetch_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url "$remote" 2>/dev/null || true)
     push_url=$(runuser -u celikom-mirror -- git --git-dir="$MIRROR" remote get-url --push "$remote" 2>/dev/null || true)
-    safe_fetch=$(printf '%s' "$fetch_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#')
-    safe_push=$(printf '%s' "$push_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#')
+    safe_fetch=$(printf '%s' "$fetch_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#; s#([?&](token|key|password|secret)=)[^& ]+#\1[redacted]#Ig')
+    safe_push=$(printf '%s' "$push_url" | sed -E 's#(https?://)[^/@]+@#\1[redacted]@#g; s#(ssh://)[^/@]+@#\1[redacted]@#g; s#^[^/@]+@#[redacted]@#; s#([?&](token|key|password|secret)=)[^& ]+#\1[redacted]#Ig')
     echo "WIN_MIRROR_REMOTE name=$remote fetch=$safe_fetch push=$safe_push"
     if [[ "$fetch_url" == *github.com/manufact-test/nomusic.git* ]]; then SOURCE_REMOTE="$remote"; fi
     if [[ "$push_url" == *127.0.0.1:celadmin/nomusic.git* ||
