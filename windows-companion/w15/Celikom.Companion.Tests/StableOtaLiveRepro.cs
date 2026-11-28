@@ -51,7 +51,7 @@ internal static class StableOtaLiveRepro
 
             var extractionRoot = Path.Combine(scratchRoot, "w196-02462-installer-extract");
             Directory.CreateDirectory(extractionRoot);
-            ExtractWithSevenZip(currentPackage.Path, extractionRoot);
+            ExtractWithInnoUnp(currentPackage.Path, extractionRoot);
 
             var app = FindSingle(extractionRoot, "CELIKOM.Companion.exe");
             var nativeHost = FindSingle(extractionRoot, "host.cjs");
@@ -136,11 +136,11 @@ internal static class StableOtaLiveRepro
         }
     }
 
-    private static void ExtractWithSevenZip(string installerPath, string destination)
+    private static void ExtractWithInnoUnp(string installerPath, string destination)
     {
-        var sevenZip = Environment.GetEnvironmentVariable("CELIKOM_7ZIP_PATH");
+        var sevenZip = Environment.GetEnvironmentVariable("CELIKOM_INNOUNP_PATH");
         if (string.IsNullOrWhiteSpace(sevenZip))
-            sevenZip = "7z.exe";
+            sevenZip = "innounp.exe";
 
         using var process = Process.Start(new ProcessStartInfo
         {
@@ -149,18 +149,16 @@ internal static class StableOtaLiveRepro
             CreateNoWindow = true,
             ArgumentList =
             {
-                "x",
-                "-y",
-                "-bd",
-                "-o" + destination,
+                "-x",
+                "-d" + destination,
                 installerPath
             }
         });
         if (process is null)
-            throw new IOException("W196_INNO_EXTRACT_PROCESS_START_FAILED");
+            throw new IOException("W196_INNOUNP_PROCESS_START_FAILED");
         process.WaitForExit();
         if (process.ExitCode != 0)
-            throw new IOException("W196_INNO_EXTRACT_FAILED");
+            throw new IOException("W196_INNOUNP_EXTRACT_FAILED");
     }
 
     private static string FindSingle(string root, string fileName)
