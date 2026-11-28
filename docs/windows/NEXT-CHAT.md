@@ -1,41 +1,77 @@
-# ACTIVE CELIKOM WINDOWS — one-time owner bootstrap to verified 0.24.64 (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — collect owner fixes and prepare the first in-app OTA test (28 November 2026)
 
 ## Read first
 
-1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact verifier root cause, merged fixes, signed release, public verification and remaining owner bootstrap.
-2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — original failed owner retest and constraints.
-3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — immutable bootstrap route repair.
-4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — previous stable publication.
+1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact OTA verifier fix, public 0.24.64 publication, completed one-time bootstrap and next OTA requirements.
+2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — why 0.24.62 failed before download; historical evidence only. Do not repeat its diagnostics or Stop tests.
+3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored immutable 0.24.62 bootstrap route; repair alone did not fix the client.
+4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — 0.24.63 publication history.
+5. `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md` — W192 Stop-cancellation and renderer-unavailable UI guard, plus release history.
+6. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — Windows repairs merged to main and release safeguards.
+7. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — original UI defects and owner acceptance checklist.
 
 ## Actual state
 
 - Repository: `manufact-test/nomusic`; working branch: `main`.
-- Owner-installed app: **0.24.62.0**.
-- Public stable: **0.24.64 / sequence 11** — successfully published and verified.
-- Root cause fix PR [#75](https://github.com/manufact-test/nomusic/pull/75) raised installed-payload verification defaults from 125 MB to 250 MB; signed installer download cap remains 125 MB. Live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) passed for public 0.24.62 and 0.24.63.
-- Protected signed release run [46143048815](https://github.com/manufact-test/nomusic/actions/runs/46143048815) built/signed 0.24.64 and the owner approved `windows-stable-production`. Floki spool staging succeeded.
-- PR [#77](https://github.com/manufact-test/nomusic/pull/77) fixed the redundant `gh` CLI precheck; generic CI [46146131136](https://github.com/manufact-test/nomusic/actions/runs/46146131136) and Windows integration [46146131169](https://github.com/manufact-test/nomusic/actions/runs/46146131169) passed.
-- Existing `.github/release/windows-customer-stable.json` approval record is **0.24.64 / sequence 11**, SHA-256 `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`, `owner_accepted=true`.
-- Read-only Floki audit [46147714670](https://github.com/manufact-test/nomusic/actions/runs/46147714670) — SUCCESS. Root stable pointer is `versions/0.24.64`; owner receipt has `https_verified=True`.
-- Customer consumer `accepted.json` reports **0.24.64 / sequence 11**, exact SHA, `https_verified=true`. Its log confirms full public HTTPS SHA-256 verification. Public latest reports 0.24.64 / sequence 11; versioned manifest, versioned EXE and stable customer EXE all return HTTP 200. Public EXE Content-Length is 85,160,055 bytes. **Public OTA publication is complete.**
-- PR [#78](https://github.com/manufact-test/nomusic/pull/78) and PR [#79](https://github.com/manufact-test/nomusic/pull/79) merged; both add read-only audit visibility only.
-- Residual maintenance issue: `celikom-mirror-sync.service` failed an atomic push because some mirror branch tips are stale. Its mirror main commit `0719ed01bc8abd2daa81cacdb299ab38c649cabe` already contained the 0.24.64 approval record, so this release completed. Fix mirror sync before the next release; do not alter the current public feed.
+- Owner reports that **0.24.64** appeared, installed successfully after the explicitly approved one-time manual bootstrap, and the app seems to work.
+- This bootstrap is **not** a successful in-app OTA test. The next accepted release must be discovered/downloaded/installed by the already-installed 0.24.64 app.
+- Public stable: **0.24.64 / sequence 11**, published and verified. Package SHA-256: `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`; public EXE size 85,160,055 bytes.
+- PR #75 raised installed-payload verification limits from 125 MB to 250 MB; signed installer download ceiling remains 125 MB. This fixes the 0.24.62/0.24.63 rejection of the ~144 MB Companion and UpdateSupervisor.
+- Protected publication, Floki staging, customer `accepted.json`, public latest/manifest/installer and full HTTPS SHA verification for 0.24.64 are recorded in W197.
+- **Before the next release:** `celikom-mirror-sync.service` failed an atomic push due stale mirror branch tips. The mirror main already had the 0.24.64 approval record, so the current feed is valid. Repair and verify mirror parity narrowly; do not alter the current public 0.24.64 feed.
 
-## Next actions
+## Existing Windows fixes — do not redo without a reproduced regression
 
-1. The installed 0.24.62 binary contains the old 125 MB verifier and cannot safely self-update to the fix. A **one-time 0.24.64 bootstrap install is unavoidable**.
-2. Do not send the installer URL or ask the owner to download/run it until the owner explicitly consents.
-3. After consent, provide the verified public stable installer `https://celikom.com/downloads/windows/CELIKOM-Windows-stable.exe`. Do not modify the package or re-sign it.
-4. After the owner installs it, verify app and Update Supervisor report **0.24.64.0**, account/session is retained, and normal startup works.
-5. Then test subsequent OTA behavior: background download while Yandex plays, package persists after close, installation at the next ordinary CELIKOM launch, no Stop and no playback interruption.
-6. Before the next release, repair the Floki mirror sync service's stale-branch atomic push failure and verify main mirror parity.
+- W169: guarded Electron main-process async native relay and passive CDP callbacks; exceptions fail closed and are diagnosed.
+- W175/W178: bounded current-source revalidation on initial attach and after Next/Previous selects a new current track; only a confirmed grant may use the existing source-only QUALITY_CHANGE path.
+- W77 deferred-prefetch recovery and Stop cancellation remain.
+- W192 / PR #74: Stop cancels delayed grants; a short fresh renderer-unavailable transition must not falsely show Yandex as disconnected.
+- UI state: shared bounded current-track metadata lease; 15-second presence cache/shared in-flight request; successful proposal/upload immediately updates pending state and invalidates older GETs; stale-track async responses are discarded.
+- Admin upload and `«Предложить песню»` API contracts are preserved.
+- W174 audio files remain the accepted baseline; W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
+- Resolve diagnostics are privacy-safe. Never log tokens, signed audio URLs, credentials, grant contents or response bodies.
 
-## Required UX and boundaries
+## Current owner task
 
-- Never interrupt Yandex or require Stop.
-- Do not touch Android, browser extension, Windows audio engine, customer audio data or create another update channel.
-- Do not repeat W196 diagnostics or ask for the same attachment.
-- Keep owner-facing updates short and factual.
+The owner will send the remaining Windows corrections and observed problems in this chat. First map each report against the existing fixes above and the W189 acceptance list. Separate:
+- already fixed and working;
+- a genuine regression in 0.24.64;
+- an issue never completed;
+- a new request.
+
+Do not ask the owner to repeat W196 diagnostics, Stop tests, route checks or already completed publication steps. Do not start a diagnostics-only loop. Work on the actual reported defects.
+
+## Required engineering flow
+
+1. Fetch the latest `main` and inspect the exact current source before editing. The repository contains concurrent Android work; preserve it.
+2. Create a short-lived Windows-only branch from current `main`. Reproduce each real issue with deterministic regression tests; preserve the working admin upload/proposal flows and accepted W174/W188 audio baseline.
+3. Run relevant Node, W15/W20/W21/W24, Windows build/installer/updater and exact Yandex 5.129 compatibility checks. Fix real failures; do not repeat green checks without a source change.
+4. Review the PR diff for Windows-only scope and merge validated changes through the normal GitHub PR process. Do not reset or force-push `main`.
+5. Repair the Floki mirror sync failure before the next release and verify main mirror parity. Keep the existing public 0.24.64 feed untouched.
+6. Read the live signed stable version/sequence floor. Do not rebuild/re-sign 0.24.64. Select only the next allowed monotonically increasing app/Supervisor version and sequence after the changes are accepted.
+7. Use the existing signed release workflow and protected `windows-stable-production` approval. Confirm whether stable publication reaches all customers; do not silently make an unapproved global rollout. Never bypass branch protection, signature verification or approval.
+8. Verify public latest, detached signature, immutable manifest and full installer SHA-256 over HTTPS before asking the owner to test.
+
+## First real in-app OTA acceptance
+
+From the already installed 0.24.64:
+
+- New release is discovered without manual action.
+- Package downloads and verifies quietly in the background while Yandex continues playing.
+- A verified pending package survives CELIKOM close and Windows reboot.
+- Installation happens automatically at the next ordinary eligible CELIKOM launch after the owner has naturally finished and closed the active session.
+- No Stop button, forced CELIKOM/Yandex close, playback interruption or manual EXE download.
+- After restart, app and Update Supervisor show the new version; account/session, DPAPI state and Yandex profile remain intact.
+- Record discovery, download, verification, persistence, install handoff and post-restart version separately. Do not call OTA successful if only some stages passed.
+
+## Hard boundaries
+
+- No Android A1 or browser-extension runtime changes.
+- No unrelated server/admin backend or upload-contract changes.
+- No W182/W183/W185 speculative player hooks.
+- Preserve W174 audio files and W188 Yandex 5.129 provider bridge unless a reproduced Windows defect specifically requires a narrowly tested change.
+- Never interrupt Yandex or require Stop for OTA.
+- Keep owner-facing updates short, factual and action-oriented.
 
 
 ---
