@@ -74,11 +74,11 @@ HEAD ветки до этого обновления документации: `
 - Отдельный `exact native renderer observer JVM regressions`, run `46138985796`: **PASS**.
 - Owner build/export ARM13, run `46138985741`: **IN_PROGRESS** на момент обновления.
 - Отдельный clone-alone ARM13, run `46138985739`: **PASS** по техническому gate. Его verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS` — это диагностический clone-alone прогон, не product acceptance; owner handset не затрагивался.
-- BETA34 APK ещё не доставлен. Не считать сборку готовой, пока оба ARM13 job не завершились успешно.
+- BETA34 APK ещё не доставлен. Clone-alone ARM13 уже прошёл; осталось дождаться owner build/export ARM13 job.
 
 ## Следующее действие
 
-1. Дождаться owner build/export и отдельного clone-alone ARM13. При ошибке исправлять конкретную причину, не возвращаться к NAV51/NAV52/NAV53 и не начинать диагностику заново.
+1. Дождаться owner build/export ARM13 в run `46138985741`. При ошибке исправлять конкретную причину, не возвращаться к NAV51/NAV52/NAV53 и не начинать диагностику заново.
 2. После успешных проверок получить один подписанный owner APK `CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk`.
 3. Владелец устанавливает BETA34 поверх BETA33 без очистки данных. Проверяет «Ау» и вторую проблемную песню в оригинальном Яндекс Музыке.
 4. По новой диагностике проверить `FIRST_OPEN_CANDIDATE_ACCEPTED`, `FIRST_OPEN_BIRTH_NOT_FOUND`, `FIRST_OPEN_SOURCE_ALREADY_TOUCHED`, `DATASOURCE_ARMED`, `AUDIO_OPEN`, `AUDIO_READ` и renderer-period read. Не объявлять слышимую подмену без фактического прослушивания.
