@@ -15,8 +15,11 @@
 - Добавлены JVM positive/negative tests для wrapped `wh6`.
 - CI: clone-only differential `46146347294` PASS, но не product/acoustic pass. Publisher-first ARM13 `46146347357` PASS: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` — музыка не запускалась, renderer counters не получены.
 - Observer JVM `46147441043` PASS: wrapped-wh6 positive/negative identity tests passed.
-- Предыдущий ARM13 run подтвердил `PERSISTENT_OWNER_SIGNER` и `UPDATE_EXISTING`; fresh install не требуется.
-- Первый BETA35 export run `46147938426` остановился на упаковке из-за оставшегося пути BETA34. Исправлено в `517905c`; корректный run `46148935304` выполняется. APK ещё не выдана.
+- Корректный BETA35 run `46148935304` PASS; создан private draft `celikom-a1-owner-46148935304-1`.
+- APK `CELIKOM-A1-RAMIL-AU-BETA35-HONOR50-20261128.apk`: 71,606,252 bytes; SHA256 `31699752a6234d01a6db53aaf1cc1e5a624756ebbbb2f7da78dc20185af067c2`.
+- Persistent signer verified; `UPDATE_EXISTING`; `owner_phone_touched=false`.
+- ARM13 verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`: audio was not played, so runtime MediaPeriod/DataSource/renderer proof is still absent.
+- First export run `46147938426` failed only on stale BETA34 package filename; corrected in `517905c`.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -37,7 +40,7 @@ JVM-проверка патча `80f42ed` пройдена. Для runtime proof
 - `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь с DataSource альтернативных байтов и renderer stream.
 - Renderer → decoder пока не доказано. После подтверждения предыдущих связей искать только этот последний переход.
 
-BETA35 NAV55 — целевая owner-test сборка с исправленной связью `up1 → wh6 → select/attach → DataSource/renderer`, а не сборка ради новых счётчиков. Дождаться `46148935304` и проверить draft asset. На телефоне устанавливать как UPDATE_EXISTING, не удалять существующий clone и не трогать оригинальный Яндекс. Затем один реальный трек и diagnostics. Это ещё не доказательство слышимой подмены; Renderer → decoder остаётся открытым. NAV54 audio route не менять.
+BETA35 NAV55: установить как update поверх существующего clone, не удалять его и не трогать оригинальный Яндекс. Запустить один реальный трек и прислать diagnostics. Проверить `HOLDER_OTHER_WH6_AT_READ`, `HOLDER_OTHER_LO96_AT_READ`, same select/attach и `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH`. Это подтвердит или опровергнет связь active period → DataSource → renderer. Renderer → decoder остаётся открытым. NAV54 audio route не менять; MP3/AAC не возвращать.
 
 ## Не трогать
 
