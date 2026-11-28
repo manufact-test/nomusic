@@ -11,6 +11,9 @@
 - **BETA34 NAV54 — работает до чтения альтернативных байтов:** `FIRST_OPEN_CANDIDATE_ACCEPTED=ONE`, `DATASOURCE_ARMED=ONE`, `AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`. NAV54 сохраняем.
 - **BETA34 на Honor 50 — слышимой подмены НЕТ.** `CELIKOM_REPLACEMENT=NOT_CONNECTED`; чтение альтернативного источника в текущем renderer period не подтверждено; `ENGINE_HOLDER_READ_RETURN_MINUS3=MANY`, `ENGINE_HOLDER_TYPE1_STATE2=NONE`.
 - Счётчики собраны по процессу. Не приписывать AAC/MPEG или отдельные чтения конкретной песне без связи по объектам.
+- **Патч observer `80f42ed`**: при renderer read из `up1` извлекается внутренний `wh6`; его identity сверяется с объектами select и attach. Альтернативный DataSource read и renderer stream теперь атрибутируются только при совпадении обеих ссылок. Аудиомеханизм NAV54 не менялся.
+- Добавлены JVM positive/negative tests для wrapped `wh6`.
+- CI: clone-only differential `46146347294` PASS, но это не product/acoustic pass. Publisher-first ARM13 `46146347357` и observer JVM `46146347367` ещё выполняются.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -25,9 +28,13 @@ Read-only анализ подписанного Yandex 2025, CI run `46144076359
 
 ## Следующий шаг
 
-Определить точный класс объекта `wh6`, который BETA34 видела при выборе/подключении holder (`HOLDER_OTHER_WH6_SELECT_ENTER/EXIT/ATTACH=FEW`), и связать его с тем же DataSource, который читает альтернативные байты. При чтении renderer этот объект не подтверждён (`HOLDER_OTHER_WH6_AT_READ=NONE`).
+Проверить результаты CI после observer-патча `80f42ed`:
+- `HOLDER_OTHER_WH6_AT_READ` и `HOLDER_OTHER_LO96_AT_READ` должны учитывать внутренний объект `wh6` из `up1`.
+- `HOLDER_OTHER_SELECT_SAME_AT_READ` и `HOLDER_OTHER_ATTACH_SAME_AT_READ` подтверждают, что это тот же объект, который выбрали и подключили.
+- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь этого period с тем же DataSource и renderer stream.
+- Renderer → decoder пока не доказано. После подтверждения этой связки искать только этот последний переход.
 
-Это единственная текущая задача. Не возвращаться к MP3/AAC, не повторять NAV51–NAV54 и не собирать новую APK ради счётчиков. Сначала доказать связь активного period → DataSource → renderer/decoder, затем делать функциональную правку.
+Не возвращаться к MP3/AAC, не повторять NAV51–NAV54 и не экспортировать APK ради счётчиков. Аудиомеханизм NAV54 не менять.
 
 ## Не трогать
 
