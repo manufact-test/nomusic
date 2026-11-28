@@ -15,7 +15,8 @@
 - **NAV56 / BETA36 code change:** live lookup теперь сохраняет exact creator/source proof через firstOpenSourceCommitted после успешного first-open arm. После commit он не переопрашивает ограниченные wrapperBirths/BETA/Flow registries; до commit строгая creator-проверка остаётся. Audio route/admission/codec не менялись.
 - Добавлен JVM regression fixture: committed DataSource должен разрешаться после очистки creator history; rejected first-open не получает этот обход.
 - BETA35 build `517905c`, CI `46148935304` PASS; owner draft `celikom-a1-owner-46148935304-1`. JVM `46147441043` PASS. ARM13 только запуск, NOT_AUDIO.
-- **BETA36 NAV56 CI:** run `46153378323` PASS, JVM + publisher-first ARM13 PASS; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`. `stage_a=NO_GO`; это не акустическая проверка. Владелец/его телефон CI не затрагивал. Export-enabled run `46154387456` выполняется; owner draft APK ещё не готов.
+- **BETA36 NAV56 CI:** validation run `46153378323` PASS; export-enabled run `46154387456` PASS. JVM + publisher-first ARM13 PASS; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO` — это не акустическая проверка. `owner_phone_touched=false`; signer verified, `UPDATE_EXISTING` matches installed owner cert.
+- Owner-only draft: `https://github.com/manufact-test/nomusic/releases/tag/untagged-51969331ea5269f59bc6`. APK `CELIKOM-A1-RAMIL-AU-BETA36-HONOR50-20261128.apk`, 71,606,252 bytes, SHA-256 `e632bbb881d5eb63dc774f4bd8de379ab4ad93d7603751d22009f32d55294ba0`. Source commit `07ee94b19199173b962517427815c0dbcd7e9e89`. Acoustic replacement remains unproven.
 
 ## Что выяснили по оригинальному Яндексу
 
