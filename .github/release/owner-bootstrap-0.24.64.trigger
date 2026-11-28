@@ -1,0 +1,1 @@
+2026-11-28: build signed Windows 0.24.64, sequence 11, from main (W196 installed-payload size fix). Owner candidate artifact only. Do not publish production stable until explicit protected approval.
