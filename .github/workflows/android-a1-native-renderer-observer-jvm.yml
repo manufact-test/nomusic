@@ -30,7 +30,8 @@ permissions:
   contents: read
 jobs:
   nav17-owned-observer-no-vendor-code:
-    runs-on: celikom-ci-smoke-only
+    # Source/JVM-only gate: no private APK, vendor binary, secrets or device access.
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
