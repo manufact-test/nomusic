@@ -1,115 +1,76 @@
 # CELIKOM Android A1 — единственный актуальный handoff
 
 Дата состояния: 2026-11-28  
-Репозиторий: manufact-test/nomusic  
-Рабочая ветка: experiment/android-a1-metrica-init-state-observer-arm13-20261112  
-Последний source commit приложения: 6972ee7fbee06be8eec90be51f886deb48ef265b
-
-## Как читать документацию
-
-**Для продолжения работы достаточно прочитать только этот файл.**
-
-Не открывать подряд BETA26–BETA33, старые NEXT-CHAT и историю Floki. Эти документы сохранены как архивные технические записи. Открывать конкретный старый файл только если текущая проблема прямо требует его деталей. Документ FLOKI-DELIVERY-REPAIR нужен только при новой проблеме доставки.
-
-Этот handoff — единая точка актуального состояния. При следующем изменении проекта обновлять сначала его, а не создавать ещё один обязательный список чтения.
+Репозиторий: `manufact-test/nomusic`  
+Рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
+Последний функциональный source commit: `6972ee7fbee06be8eec90be51f886deb48ef265b`  
+HEAD ветки до этого обновления документации: `4cce953ea88d003e754e38b981555236dda16f1e`
 
 ## Цель и границы
 
-Главная цель — добиться реального воспроизведения альтернативного аудио внутри **оригинального приложения Яндекс Музыки**.
+Добиться слышимой подмены аудио внутри **оригинального приложения Яндекс Музыки**. CI, запуск приложения, получение подписанных байтов и диагностические счётчики не являются доказательством успеха.
 
-Критерий успеха — владелец слышит подменённую музыку. CI, запуск приложения, получение подписанных байтов, AUDIO_READ и диагностические счётчики сами по себе успехом не являются.
+Работать только в указанной Android experiment-ветке. Не добавлять второй плеер. Не менять сервер, каталог, авторизацию, Windows, stable Android, OTA или `main` без отдельной доказанной необходимости и разрешения владельца.
 
-Не добавлять второй плеер. Не менять сервер, каталог, авторизацию, подписанные разрешения, Windows, stable Android или OTA без отдельной доказанной необходимости. Android source changes остаются в указанной experiment-ветке. В main ничего не переносить без успешного телефонного теста и отдельного разрешения владельца.
+## Последняя проверка — BETA33: НЕ РАБОТАЕТ
 
-## Фактическое состояние на 2026-11-28
+Владелец проверил BETA33 и сообщил: «Не работает».
 
-### Последний телефонный результат — BETA32
+Свежая диагностика: `CELIKOM-A1-Diagnostics-1795862373809.txt`  
+Маркер сборки в диагностике: `A1_TRACKID_BETA33_NAV53_FIRST_OPEN_SOURCE_PIN_20261128`.
 
-Владелец установил BETA32. При выборе Ramil / 10AGE — «Ау» Яндекс показывал «Невозможно воспроизвести трек» и переключался на следующий. Подмена не слышна.
+Что подтверждено диагностикой:
+- `OWNER_ENABLED=ONE`, целевой track allowlisted — `ONE`.
+- `SIGNED_MPEG_READY=ONE`, `OWNER_RESOLVE_APPROVED=ONE`, `GRANT_ADMITTED=ONE`.
+- `EXACT_PREPARE=ONE`, `DECISION_ALTERNATE=ONE`.
+- MP3 override отключён: `ISSUER_CODEC_MP3_REQUESTED=NONE`.
+- `AUDIO_STAGE_B_STATUS=NOT_CONNECTED`.
+- `DATASOURCE_ARMED=NONE`, `AUDIO_OPEN=NONE`, `AUDIO_READ=NONE`.
+- `FIRST_OPEN_HOOK_ENTERED=MANY`, `FIRST_OPEN_CANDIDATE_REJECTED=MANY`.
+- Причины отказа: `FIRST_OPEN_SOURCE_ALREADY_TOUCHED=MANY`, `FIRST_OPEN_BIRTH_NOT_FOUND=FEW`.
+- `FIRST_OPEN_CANDIDATE_ACCEPTED=NONE`, `FIRST_OPEN_SETTER_MATCH=NONE`.
+- `TRACK_SOURCE_OPEN_LINK=NONE`, `TRACK_SOURCE_READ_LINK=NONE`.
+- Чтение альтернативного источника в текущем renderer period не подтверждено; `LIVE_RENDERER_ALT_SOURCE_DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW`.
 
-Диагностика: CELIKOM-A1-Diagnostics-1795857597038.txt.
+Счётчики диагностики агрегированы по процессу: не приписывать каждое событие конкретной песне без отдельной корреляции.
 
-Ключевые факты:
-- ISSUER_CODEC_MP3_REQUESTED = FEW.
-- CODEC_CONFIG_MPEG = NONE; CODEC_CONFIG_AAC = FEW.
-- DATASOURCE_ARMED / AUDIO_OPEN / AUDIO_READ положительные.
-- LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS = NONE.
-- LIVE_RENDERER_ALT_SOURCE_NO_ROUTE_CURRENT_PERIOD = MANY.
-- LIVE_RENDERER_ALT_SOURCE_DATASOURCE_UNRESOLVED_CURRENT_PERIOD = MANY.
+**Вывод:** grant/resolve и решение `ALTERNATE` доходят до pre-prepare, но точный DataSource не проходит first-open admission. До `DATASOURCE_ARMED` выполнение не доходит. Это текущая точка работы. Аудиоподмена не подтверждена.
 
-Счётчики агрегированы по процессу и не доказывают, что события относятся именно к «Ау». Прямое сообщение владельца подтверждает ошибку воспроизведения. Положительные чтения DataSource не доказывают, что эти байты дошли до активного renderer или стали слышимым звуком.
+## Что уже сделано в BETA33
 
-### BETA33 — исходный код, APK и доставка уже готовы
+- Откатили request-only MP3 override: оригинальные codec-запросы Яндекса не меняются.
+- Добавили NAV53 first-open pin: pending/committed привязка удерживает точный DataSource и не позволяет позднему sibling/prefetch объекту заменить уже выбранный источник.
+- Source commit: `6972ee7fbee06be8eec90be51f886deb48ef265b`.
+- Owner build/export, JVM и clone-alone ARM13 на run `46132374238`, `46132374233`, `46132374224` прошли. Это не доказывает работу на телефоне.
+- BETA33 уже собрана, подписана, доставлена и проверена владельцем. Не пересобирать и не доставлять её повторно.
 
-BETA33 содержит две существенные вещи:
+## Точный участок следующей работы
 
-1. **Откат MP3-переопределения.** Оригинальные codec-запросы Яндекса снова проходят без изменений. Не повторять принудительную замену codecs на mp3.
-2. **NAV53 first-open DataSource pin.** Точный DataSource, прошедший исходную проверку первого open, удерживается как pending на время deferred arm и становится committed только после успешного arm именно этого объекта. Более поздние sibling/prefetch DataSource от той же Factory не могут затереть его привязку или сбросить open/read state. Новый descriptor lineage сбрасывает pin.
+В текущем коде:
 
-Исходный код:
-- Source commit: 6972ee7fbee06be8eec90be51f886deb48ef265b.
-- Предыдущий commit с самой правкой NAV53: e2823bacaa96440674c6063883854d8600f5b540.
+- `ExitCallsiteWitness.java`, около строк 4771–4800: open-hook вызывает `exactFreshCreatorOrBetaAtFirstOpen(source)`, затем `onExoSourceInstanceOpenAttempt(source)`.
+- `StageBAudioEvidence.java`, `exactFreshCreatorOrBetaAtFirstOpen()`: кандидат отклоняется, если `wasSourceTouched(source)` или не найден точный `ExactFactorySourceBirth`.
+- `onExoSourceInstanceCreated(source, factory)` записывает exact birth только при найденной связи с нужным factory.
+- `markSourceTouched()` навсегда помечает этот Java-объект как уже использованный для fresh-candidate admission после open/read/close.
 
-Первоначальные workflow на e282 завершились ошибкой NAV53_FIRST_OPEN_SOURCE_PIN_SURVIVES_LATER_FACTORY_PRODUCT:
-- owner/export run 46131587104 — failure;
-- JVM run 46131587051 — failure.
+Диагностика показывает много `SOURCE_ALREADY_TOUCHED` и несколько `BIRTH_NOT_FOUND`, но пока не доказывает, почему именно объект уже touched к моменту admission.
 
-После этого commit 6972ee7 нормализовал whitespace-sensitive проверку исходника в test_a1_stage_b_audio_evidence.py. Повторные workflow прошли:
-- owner build/export 46132374238 — SUCCESS;
-- JVM 46132374233 — SUCCESS;
-- clone-alone ARM13 46132374224 — SUCCESS.
-
-Важно: production-код между e282 и 6972ee7 не менялся. Первоначальный сбой Java NAV53 regression не получил отдельного объяснения; повторная проверка прошла. Не выдавать это за доказательство работы на телефоне.
-
-Подписанный APK:
-- CELIKOM-A1-RAMIL-AU-BETA33-HONOR50-20261128.apk
-- Размер: 71 602 156 bytes.
-- SHA-256: 41e0abea857cd6159edf20e38b25e9e594621fdda86da68bc0471aadc839fd61
-- Persistent owner signer SHA-256: 048d76e1c4447fa4f3ac976c45d5a0f8427c087fa665c4fca88ce5caa068f9bf
-
-Android 13 native verdict: METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO. В отчёте указано audio_or_account_tested=false, stage_a=NO_GO, stage_b_current_player_album_edition_attested=false, acoustic_replacement_proven=false.
-
-**Доставка BETA33 через Floki/root завершена:**
-- Floki run 46133753704, run 41 — SUCCESS.
-- Маркер A1_ROOT_RECEIPT_AND_OWNER_DRAFT_LINK_VERIFIED получен.
-- Независимый root receipt подтвердил https_verified=true.
-- Приватный owner draft release ID: 461461193.
-- Фактическая capability-ссылка записана в unpublished draft и намеренно отсутствует в Git, документации и логах.
-
-Это подтверждает готовность APK и прохождение защищённой доставки, но не подтверждает, что ссылка уже была отправлена и получена владельцем. Если у владельца ссылки ещё нет, использовать существующий draft и передать фактическую ссылку приватно. Не пересобирать BETA33 и не запускать Floki повторно без причины.
-
-**BETA33 ещё не проверена владельцем на телефоне. Аудиоподмена не подтверждена.**
-
-## Краткая техническая история — что уже делали
-
-| Версия | Изменение и фактический результат |
-|---|---|
-| BETA25 | Принудительный request-only MP3 при ещё не вооружённом DataSource. Подмена не работала; MP3-эксперимент откатили. |
-| BETA26 | Вернули исходное согласование кодеков. «Ау» снова запускалась, но подмены не было. Найдена потеря weak descriptor до первого source OPEN. |
-| BETA27 | Добавили точное временное удержание descriptor до первого касания источника. Подмены не появилось; обнаружилась проблема owner-session auto-start. |
-| BETA28 | Добавили явное восстановление owner-session и отдельные статусы ошибок. Повторную авторизацию и grant-расследование не начинать без новых доказательств. |
-| BETA29 / NAV50 | Добавили read-only сопоставление DataSource с текущим renderer period. Положительное чтение альтернативного источника ещё не доказывало, что это источник текущего трека. |
-| BETA30 / NAV51 | Добавили durable factory-to-source identity witness, чтобы связь не зависела от жизни weak Descriptor/Factory. |
-| BETA31 / NAV52 | Исправили lifetime committed cursor при supersede: старый открытый cursor может завершить чтение, новый выбор получает отдельный cursor. |
-| BETA32 | Повторно включили request-only MP3 для тестовых track ID. Яндекс не показал MPEG decoder config, а «Ау» перестала запускаться. Эксперимент откатан в BETA33. |
-| BETA33 / NAV53 | Закрепили точный first-open DataSource от перезаписи sibling/prefetch объектами; вернули исходные codec-запросы. CI и доставка прошли, телефонный результат ожидается. |
-
-## Что запрещено повторять без новых доказательств
-
-- Не включать снова request-only MP3 override. BETA25 и BETA32 уже показали, что изменение одного запроса не гарантирует выбор MPEG decoder; BETA32 привела к ошибке запуска «Ау».
-- Не начинать заново авторизацию, owner-session, resolve, signed grant или загрузку аудио. Эти участки уже проходили отдельные исправления и в поздних диагностиках давали положительные результаты.
-- Не повторять NAV51/NAV52/NAV53 вслепую. Эти исправления уже находятся в BETA33; проверять их по свежему телефонному результату.
-- Не создавать диагностическую APK только ради новых счётчиков. Сначала использовать уже имеющуюся диагностику и определить первый доказанный разрыв.
-- Не считать DATASOURCE_ARMED / AUDIO_OPEN / AUDIO_READ или CI SUCCESS доказательством звука. Даже same-current-period read подтверждает только достижение активного Exo source path, но не слышимый output.
+**Рабочая гипотеза, не установленная причина:** первый original open может происходить раньше, чем точная factory/source birth привязка становится доступна. Тогда первый вызов отклоняется как `BIRTH_NOT_FOUND`, помечает объект touched, а следующий вызов уже отклоняется как `SOURCE_ALREADY_TOUCHED`. Также проверить вариант повторного использования ранее открытого DataSource. Не объявлять гипотезу фактом — сначала проследить порядок вызовов.
 
 ## Следующее действие
 
-1. Если BETA33 ссылка ещё не получена владельцем — передать существующую ссылку из приватного draft. Не собирать APK заново.
-2. Установить BETA33 поверх BETA32 на существующий Honor 50. Не удалять CELIKOM и не очищать данные/кеш.
-3. Убедиться, что CELIKOM показывает ВКЛ.
-4. В оригинальном Яндекс Музыке проверить Ramil / 10AGE — «Ау», album 38902809, track 144530503, участок 00:43–00:54. Сначала зафиксировать, запускается ли оригинальный трек без ошибки.
-5. Проверить вторую песню, у которой раньше были пропуски в начале.
-6. Коротким нажатием CELIKOM экспортировать свежий BETA33 TXT.
-7. Отдельно сообщить, слышна ли именно альтернативная музыка внутри оригинального Яндекс Музыки.
+1. Продолжить с этого состояния, не начинать расследование заново и не просить владельца повторно присылать уже разобранную BETA33 диагностику.
+2. Проследить точный порядок для одного source object: создание DataSource → регистрация exact factory birth → первый `open()` → `markSourceTouched()` → последующие open. Проверить, кто и когда вызывает ранний touch либо почему birth отсутствует.
+3. Сверить путь с `NativeRamilTrackOnlyLineageTest` и добавить один focused regression, воспроизводящий фактический порядок из телефона.
+4. Исправлять точку привязки/порядок до первого I/O. **Не ослаблять** проверку touched, exact factory/descriptor/creator/track identity; не разрешать подмену после начала original I/O и не смешивать original и alternate bytes.
+5. После функциональной правки выполнить нужный JVM regression, owner build/export и clone-alone ARM13. Только после прохождения проверок собирать одну следующую тестовую версию.
 
-После получения результата — найти первый конкретный разрыв, внести минимальную функциональную правку, выполнить только необходимые регрессионные проверки, собрать и доставить следующую версию. Не уходить в теории и telemetry-only работу.
+## Не повторять
+
+- Не включать request-only MP3 override: BETA25/BETA32 уже проверяли этот путь; BETA32 ломала запуск «Ау». В BETA33 override отключён.
+- Не начинать заново owner-session, авторизацию, resolve, signed grant или загрузку аудио: в свежей диагностике эти этапы проходят.
+- Не повторять NAV51/NAV52/NAV53 вслепую и не делать APK только ради новых счётчиков.
+- Не считать `DATASOURCE_ARMED`, `AUDIO_READ` или CI SUCCESS доказательством слышимой подмены.
+- Не трогать второй плеер, сервер, каталог, Windows, stable Android, OTA и `main`.
+
+**Текущий статус:** BETA33 не работает; функциональный код после неё не менялся; BETA34 не создана. Следующая задача — найти и исправить причину отказа точного DataSource на first-open admission.
