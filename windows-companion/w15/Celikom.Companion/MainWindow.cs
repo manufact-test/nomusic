@@ -257,6 +257,7 @@ public sealed partial class MainWindow : Form
         };
         _playbackUiPulse.Tick += (_, _) =>
         {
+            RefreshPendingCompactPresence();
             var fresh = _bridge.HasFreshHeartbeat;
             if (fresh != _lastPlaybackUiHeartbeatFresh)
                 RefreshPlaybackUi();

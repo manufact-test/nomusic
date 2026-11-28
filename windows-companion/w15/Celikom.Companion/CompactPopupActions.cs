@@ -321,12 +321,26 @@ public sealed partial class MainWindow
         }
     }
 
-    private async Task RefreshCompactPresenceAsync(string trackId)
+    private async Task RefreshCompactPresenceAsync(string trackId, bool force = false)
     {
         var requestEpoch = _compactPresenceEpoch;
+        var previousStatus = _compactPresenceStatus;
         try
         {
-            await ReadCompactPresenceAsync(trackId, force: false);
+            var status = await ReadCompactPresenceAsync(trackId, force);
+            if (status == "pending")
+                _compactPresenceRevalidationRequestedTrack = "";
+            else if (previousStatus == "pending" && status == "approved" &&
+                     !string.Equals(_compactPresenceRevalidationRequestedTrack,
+                         trackId, StringComparison.Ordinal) &&
+                     CompactPlaybackPresentation.PresenceResponseMatchesCurrent(
+                         _compactPresenceTrack, _compactPresenceEpoch, trackId, requestEpoch) &&
+                     IsCompactCurrentTrack(trackId) && _api.IsLoggedIn && !_closing)
+            {
+                _compactPresenceRevalidationRequestedTrack = trackId;
+                if (_bridge.RequestCurrentTrackRevalidation(trackId) <= 0)
+                    _compactPresenceRevalidationRequestedTrack = "";
+            }
         }
         catch
         {
@@ -340,6 +354,35 @@ public sealed partial class MainWindow
                 LayoutCompact();
             }
         }
+    }
+
+    // W198: keep the current song's pending moderation status live without
+    // polling in the tray, during VPN recovery, or while a contribution mutates it.
+    private void RefreshPendingCompactPresence()
+    {
+        if (_closing || !_compactReady || !Visible ||
+            WindowState == FormWindowState.Minimized || !_api.IsLoggedIn ||
+            _compactPresenceStatus != "pending" || _compactContributionBusy ||
+            _compactUploadCancellation is not null || _compactHoldingTrackTransition)
+            return;
+
+        var playback = _bridge.GetPlaybackSnapshot();
+        if (!playback.Enabled || !playback.HeartbeatFresh || playback.PlayerUnavailable ||
+            playback.NativeNetworkRecoveryPending || _resumeAfterNetworkFailure ||
+            playback.PlaybackState is not ("PLAYING" or "PAUSED"))
+            return;
+
+        var trackId = playback.TrackId;
+        if (!GrantValidator.IsTrackId(trackId) ||
+            !string.Equals(trackId, _compactPresenceTrack, StringComparison.Ordinal) ||
+            !CompactPlaybackPresentation.PendingPresenceRefreshDue(
+                _compactPresenceStatus, _compactPresenceChecked, DateTimeOffset.UtcNow) ||
+            (_compactPresencePending is { IsCompleted: false } &&
+             string.Equals(_compactPresencePendingTrack, trackId, StringComparison.Ordinal) &&
+             _compactPresencePendingEpoch == _compactPresenceEpoch))
+            return;
+
+        _ = RefreshCompactPresenceAsync(trackId, force: true);
     }
 
     private async Task OpenCompactContributionAsync(bool upload)

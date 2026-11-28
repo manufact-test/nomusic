@@ -865,6 +865,127 @@ test("W157 no-kUrl VPN hold cannot carry the previous ID across Next",async()=>{
   r.handlers.beforeunload();
 });
 
+test("W198 approved current-track ticket bypasses negative cache and refreshes only the exact song",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:38.2});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state; r.runIntervals();
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.id,"123");
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.playbackState,"PLAYING");
+
+  const original=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const first=r.window.__celikomBridgeNativeDrain();
+  assert.equal(first.length,1);
+  r.window.__celikomBridgeNativeReceive(first[0].requestId,null);
+  await original;
+  assert.deepEqual(player.reloadReasons,[]);
+  assert.equal(r.window.__celikomBridgeNativeStatus(),"NATIVE_CONNECTED");
+  r.window.__celikomBridgeNativeDrainDiagnostics();
+
+  // A stale ticket for another song is consumed but never reloads this player.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"456",currentTrackRevalidationEpoch:1
+  });
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
+  assert.deepEqual(player.reloadReasons,[]);
+  r.window.__celikomBridgeNativeDrainDiagnostics();
+
+  // The exact current track gets a fresh resolve despite its still-live negative cache.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
+  });
+  await tick(); await tick();
+  const approvalEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
+  const fresh=r.window.__celikomBridgeNativeDrain();
+  assert.equal(fresh.length,1,JSON.stringify(approvalEvents));
+  assert.equal(fresh[0].trackId,"123");
+  assert.equal(fresh[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(fresh[0].requestId,makeGrant("123"));
+  await new Promise(resolve=>setTimeout(resolve,240));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"123");
+  assert.equal(player.state.playerState.status.value,"playing");
+
+  // Repeated native state pulses with the same ticket cannot reload twice.
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,
+    currentTrackRevalidationId:"123",currentTrackRevalidationEpoch:2
+  });
+  await tick();
+  assert.equal(r.window.__celikomBridgeNativeDrain().length,0);
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  r.handlers.beforeunload();
+});
+
+test("W198 VPN Next during route recovery is revalidated only when the same current track returns",async()=>{
+  const r=createRenderer({withPlayer:true});
+  const player=new r.NativeYandexPlayer({trackId:"123",position:63.5});
+  r.window.__celikomBridgeNativeSetState({enabled:true,signedIn:true,apiOrigin:origin});
+  void player.state; r.runIntervals();
+  const first=new r.Resource().getFileInfo({trackId:"123"});
+  await tick();
+  const initial=r.window.__celikomBridgeNativeDrain();
+  assert.equal(initial.length,1);
+  r.window.__celikomBridgeNativeReceive(initial[0].requestId,makeGrant("123"));
+  await first;
+
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  player.snapshot.playerState.status.value="paused";
+  void player.state; r.runIntervals();
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.id,"456",
+    "the exact paused Yandex entity is observable before the bridge state pulse");
+  assert.equal(r.window.__celikomBridgeNativeCurrentTrack()?.playbackState,"PAUSED");
+  assert.equal(r.window.__celikomBridgeNativeMappedCurrentTrackId(),"");
+  r.window.__celikomBridgeNativeSetState({
+    enabled:false,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  const candidateEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
+  assert.ok(candidateEvents.some(x=>x[0]==="SOURCE_DEFERRED_WAITING"&&x[1]==="456"),
+    JSON.stringify(candidateEvents));
+
+  // Yandex briefly hides the current entity during the reconnect.
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="";
+  void player.state; r.runIntervals();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:true
+  });
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  assert.deepEqual(player.reloadReasons,[],
+    "no source reload is allowed while the current Yandex entity is unavailable");
+
+  // The same paused entity becomes observable after the route has settled.
+  player.snapshot.queueState.currentEntity.value.entity.data.meta.id="456";
+  void player.state;
+  r.runIntervals();
+  r.window.__celikomBridgeNativeSetState({
+    enabled:true,signedIn:true,apiOrigin:origin,networkRecoveryPending:false
+  });
+  await new Promise(resolve=>setTimeout(resolve,1100));
+  const recoveryEvents=r.window.__celikomBridgeNativeDrainDiagnostics();
+  const recovery=r.window.__celikomBridgeNativeDrain();
+  assert.equal(recovery.length,1,JSON.stringify(recoveryEvents));
+  assert.equal(recovery[0].trackId,"456");
+  assert.equal(recovery[0].recovery,true);
+  r.window.__celikomBridgeNativeReceive(recovery[0].requestId,makeGrant("456"));
+  await new Promise(resolve=>setTimeout(resolve,240));
+  assert.deepEqual(player.reloadReasons,["QUALITY_CHANGE"]);
+  assert.equal(player.state.playerState.status.value,"paused",
+    "the existing Yandex source refresh preserves the user's paused state");
+  assert.equal(player.state.queueState.currentEntity.value.entity.data.meta.id,"456");
+  const events=[...candidateEvents,...recoveryEvents,...r.window.__celikomBridgeNativeDrainDiagnostics()];
+  assert.ok(events.some(x=>x[0]==="SOURCE_DEFERRED_PROMOTED"&&x[1]==="456"));
+  assert.ok(events.some(x=>x[0]==="SOURCE_RECOVERY_RELOAD_OK"&&x[1]==="456"));
+  r.handlers.beforeunload();
+});
+
 test("W157 no-kUrl VPN hold fails closed after Manual Stop or unavailable player state",async()=>{
   for(const status of ["stopped","invalid"]){
     const r=createRenderer({withPlayer:true});

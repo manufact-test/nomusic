@@ -8,7 +8,7 @@
 
 ## Actual state
 
-- Repository: `manufact-test/nomusic`; working branch: `main`.
+- Repository: `manufact-test/nomusic`; base branch: `main`; Windows owner-fix PR: #80 (`fix/windows-vpn-track-race-presence-refresh-20261128`).
 - Owner reports that **0.24.64** appeared, installed successfully after the explicitly approved one-time manual bootstrap, and the app seems to work.
 - This bootstrap is **not** a successful in-app OTA test. The next accepted release must be discovered/downloaded/installed by the already-installed 0.24.64 app.
 - Public stable: **0.24.64 / sequence 11**, published and verified. Package SHA-256: `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`; public EXE size 85,160,055 bytes.
@@ -24,18 +24,19 @@
 - W192 / PR #74: Stop cancels delayed grants; a short fresh renderer-unavailable transition must not falsely show Yandex as disconnected.
 - UI state: shared bounded current-track metadata lease; 15-second presence cache/shared in-flight request; successful proposal/upload immediately updates pending state and invalidates older GETs; stale-track async responses are discarded.
 - Admin upload and `«Предложить песню»` API contracts are preserved.
-- W174 audio files remain the accepted baseline; W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
+- W174 audio baseline remains accepted. W198 PR #80 changes the active `renderer-entry-w188.mjs` bundle entry (exact-current VPN recovery and approval-triggered source refresh), `native-resource-adapter.mjs` (force revalidation of a stale negative lookup for the exact approved current track), `host.cjs` (owner-facing current-track snapshot every 500 ms instead of ~2.2 s; existing 300 ms relay and 4 s unchanged-heartbeat cadence remain, so unchanged state creates no extra server posts), and `build.mjs` (guard that the active W188 bundle contains the W198 paths). `renderer-entry.mjs` is not the build entry and remains unchanged. `current-source-refresh.mjs` remains unchanged; its existing source-only reload preserves play/pause. W188 provider bridge targets Yandex Music `5.129.0.r22295238`. Do not transplant W182/W183/W185 speculative Sonata/player hooks.
 - Resolve diagnostics are privacy-safe. Never log tokens, signed audio URLs, credentials, grant contents or response bodies.
 
 ## Current owner task
 
-The owner will send the remaining Windows corrections and observed problems in this chat. First map each report against the existing fixes above and the W189 acceptance list. Separate:
-- already fixed and working;
-- a genuine regression in 0.24.64;
-- an issue never completed;
-- a new request.
+The owner has supplied the current Windows corrections. W198 PR #80 implements three focused fixes with regression tests:
 
-Do not ask the owner to repeat W196 diagnostics, Stop tests, route checks or already completed publication steps. Do not start a diagnostics-only loop. Work on the actual reported defects.
+- UI latency: the host samples the exact current Yandex track and metadata every 500 ms instead of up to ~2.2 seconds. The existing 300 ms relay and 4-second unchanged-heartbeat cadence remain; unchanged state creates no extra server heartbeat posts. This targets the reported delayed track/status/button rendering. The owner must still confirm the blank/transient UI states after the in-app OTA; do not claim those owner-visible symptoms fully resolved before that check.
+- When the currently playing track moves from pending to approved, the visible Windows app refreshes status every ~2 seconds and requests one source-only revalidation for that exact Track ID. The renderer bypasses stale negative lookup cache, reloads only when a fresh grant exists, and preserves play/pause state. Fast polling is limited to a pending current track while visible; no tray, route recovery, or active contribution mutation.
+- A Next during VPN route recovery never inherits the previous track's hold. A new mapped current track may be held only with its own mapping witness; an unmapped current track is deferred and revalidated by the existing bounded recovery after the route settles. The existing source-only refresh preserves play/pause state.
+- «Предложить песню» and «Загрузить версию» are owner-confirmed working; do not change their contracts.
+
+Use PR #80's CI as the validation record. Merge only after the Windows regression suite and build pass. Then repair the Floki mirror sync failure and continue the existing W197 protected stable-release flow. Keep public 0.24.64 untouched; the next owner test must be the first in-app OTA from the already installed 0.24.64, not another manual installer. Do not publish without the protected approval and confirmed rollout scope.
 
 ## Required engineering flow
 

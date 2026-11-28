@@ -231,6 +231,21 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     const grant = await lookup(id, rev, true);
     return !!(grant && enabled && !disposed && rev === revision);
   }
+  async function revalidate(rawTrackId) {
+    const id = validId(rawTrackId);
+    if (!id || !enabled || disposed || mappedTracks.has(id)) return false;
+    const cached = fromCache(id);
+    if (cached) return true;
+    const stale = pending.get(id);
+    if (stale) {
+      stale.abort.abort();
+      if (pending.get(id) === stale) pending.delete(id);
+    }
+    cache.delete(id);
+    const rev = revision;
+    const grant = await lookup(id, rev, true);
+    return !!(grant && enabled && !disposed && rev === revision);
+  }
   function isLive(id, rev) {
     return enabled && !disposed && revision === rev && current === id;
   }
@@ -387,7 +402,7 @@ export function createNativeResourceAdapter({ resolve, allowedOrigin, now = Date
     }
     prototype = null;
   }
-  const adapter = Object.freeze({ attach, prime, enable, disable, original,
+  const adapter = Object.freeze({ attach, prime, revalidate, enable, disable, original,
     trackChanged, hasMappedTrack, forgetMappedTrack, classificationForTrack, dispose,
     get status() { return status; },
     get enabled() { return enabled && !disposed; }

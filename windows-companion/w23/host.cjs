@@ -43,6 +43,10 @@ const noisy = new Set(["TRACK_CHANGED", "RESOLVE_REQUEST", "GRANT_FOUND", "GRANT
   "NATIVE_ROUTE_HOLD_NO_WITNESS", "NATIVE_ROUTE_HOLD_NOT_MAPPED",
   "NATIVE_ROUTE_HOLD_TRACK_CHANGED", "NATIVE_ROUTE_HOLD_NOT_PLAYING",
   "NATIVE_ROUTE_HOLD_EARLY_CLEAR", "NATIVE_ROUTE_HOLD_NO_PRIOR_MAP",
+  "NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED", "NATIVE_ROUTE_RECOVERY_TRACK_DEFERRED",
+  "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE", "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_MISS",
+  "NATIVE_CURRENT_TRACK_APPROVAL_REVALIDATE_STALE", "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD",
+  "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_OK", "NATIVE_CURRENT_TRACK_APPROVAL_RELOAD_DEFERRED",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD", "NATIVE_REPLACEMENT_SOURCE_RELOAD_OK",
   "NATIVE_REPLACEMENT_SOURCE_RELOAD_DEFERRED",
   "NATIVE_TOGGLE_PLAYER_OBSERVER_READY", "NATIVE_TOGGLE_RELOAD_DEFERRED",
@@ -173,6 +177,9 @@ const heartbeatInstanceId = "w23-" + Date.now().toString(36) + "-" +
   Math.random().toString(36).slice(2, 10);
 let heartbeatSequence = 0;
 const HEARTBEAT_INTERVAL_MS = 4000;
+// Current-song metadata is local UI state, not the heartbeat cadence. Sample it
+// quickly while keeping unchanged server heartbeats at the existing 4-second rate.
+const PLAYBACK_STATE_SAMPLE_INTERVAL_MS = 500;
 function activity(view) {
   let state = viewActivity.get(view);
   if (!state) {
@@ -408,17 +415,33 @@ async function relayState(view, token, now) {
     nativeRecoveryHoldBlocked.add(view);
   } else if (recoveryHold && justEnabled) {
     // Validate the actual Yandex player again immediately before allowing the
-    // renderer to keep the old mapping. Next/Stop/player loss all fail closed.
+    // renderer to keep a mapped source. If Next happened during the handoff,
+    // recapture only when the NEW exact current entity has its own mapping witness.
+    const heldTrackId = recoveryHold.trackId;
     const observed = await execute(view,
       ";window.__celikomBridgeNativeCurrentTrack?.()||null");
     const observedId = typeof observed?.id === "string" &&
       /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : null;
     const canContinue = observed?.playbackState === "PLAYING" ||
       observed?.playbackState === "PAUSED";
-    if (observedId !== recoveryHold.trackId || !canContinue) {
-      nativeRecoveryHolds.delete(view);
-      recoveryHold = null;
-      nativeRecoveryHoldBlocked.add(view);
+    if (observedId !== heldTrackId || !canContinue) {
+      const mappedId = observedId && canContinue
+        ? await execute(view, ";window.__celikomBridgeNativeMappedCurrentTrackId?.()||''")
+        : "";
+      if (observedId && observedId !== heldTrackId && canContinue &&
+          mappedId === observedId) {
+        recoveryHold = {trackId:observedId, firstSeenAt:now, capturedAt:now};
+        nativeRecoveryHolds.set(view, recoveryHold);
+        nativeRecoveryHoldBlocked.delete(view);
+        note("NATIVE_ROUTE_HOLD_TRACK_CHANGED_RECAPTURED", observedId);
+      } else {
+        nativeRecoveryHolds.delete(view);
+        recoveryHold = null;
+        nativeRecoveryHoldBlocked.add(view);
+        note(observedId !== heldTrackId ? "NATIVE_ROUTE_HOLD_TRACK_CHANGED" :
+          !canContinue ? "NATIVE_ROUTE_HOLD_NOT_PLAYING" :
+            "NATIVE_ROUTE_HOLD_NO_WITNESS", observedId || heldTrackId);
+      }
     }
   } else if (!recoveryHold && !nativeRecoveryHoldBlocked.has(view) &&
       previous && typeof previous.trackId === "string") {
@@ -434,11 +457,12 @@ async function relayState(view, token, now) {
       previous.value === "NATIVE_SOURCE_VERIFIED";
     const canContinue = observed?.playbackState === "PLAYING" ||
       observed?.playbackState === "PAUSED";
-    if (observedId === previous.trackId && canContinue &&
-        (previouslyMapped || mappedId === observedId)) {
+    const samePreviouslyMappedTrack = observedId === previous.trackId && previouslyMapped;
+    const currentTrackHasOwnMapping = !!observedId && mappedId === observedId;
+    if (canContinue && (samePreviouslyMappedTrack || currentTrackHasOwnMapping)) {
       recoveryHold = {
         trackId: observedId,
-        firstSeenAt: previous.firstSeenAt || now,
+        firstSeenAt: observedId === previous.trackId ? previous.firstSeenAt || now : now,
         capturedAt: now
       };
       nativeRecoveryHolds.set(view, recoveryHold);
@@ -454,6 +478,25 @@ async function relayState(view, token, now) {
     previousOrigin === apiOrigin &&
     typeof recoveryHold?.trackId === "string" &&
     !nativeRecoveryHoldBlocked.has(view);
+  const currentTrackRevalidationId =
+    typeof state?.currentTrackRevalidationId === "string" &&
+    /^[1-9][0-9]{0,23}$/.test(state.currentTrackRevalidationId)
+      ? state.currentTrackRevalidationId : "";
+  const currentTrackRevalidationEpoch =
+    Number.isSafeInteger(state?.currentTrackRevalidationEpoch) &&
+    state.currentTrackRevalidationEpoch > 0
+      ? state.currentTrackRevalidationEpoch : 0;
+  let isSelectedPlaybackView = view === selectedPlaybackView;
+  if (!isSelectedPlaybackView && !selectedPlaybackView && currentTrackRevalidationId) {
+    const observed = await execute(view,
+      ";window.__celikomBridgeNativeCurrentTrack?.()||null");
+    const observedId = typeof observed?.id === "string" &&
+      /^[1-9][0-9]{0,23}$/.test(observed.id) ? observed.id : "";
+    const canContinue = observed?.playbackState === "PLAYING" ||
+      observed?.playbackState === "PAUSED";
+    isSelectedPlaybackView = observedId === currentTrackRevalidationId &&
+      canContinue && nativeAudible(view);
+  }
   const safeState = {
     enabled: stateAvailable && state.enabled === true &&
       state.signedIn === true && !!apiOrigin,
@@ -461,7 +504,9 @@ async function relayState(view, token, now) {
     apiOrigin,
     networkRecoveryPending,
     preserveCurrentSource,
-    preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : ""
+    preserveCurrentTrackId: preserveCurrentSource ? recoveryHold.trackId : "",
+    currentTrackRevalidationId: isSelectedPlaybackView ? currentTrackRevalidationId : "",
+    currentTrackRevalidationEpoch: isSelectedPlaybackView ? currentTrackRevalidationEpoch : 0
   };
   const preserveDecoderWitness = safeState.networkRecoveryPending &&
     safeState.signedIn && !!safeState.apiOrigin &&
@@ -582,7 +627,8 @@ async function tick(view) {
     if (Array.isArray(queue)) {
       await Promise.all(queue.slice(0, 6).map(item => relayGrant(view, token, item)));
     }
-    if (bridgeJustEnabled || now - (lastStatus.get(view)?.at || 0) > 2200) {
+    if (bridgeJustEnabled ||
+        now - (lastStatus.get(view)?.at || 0) > PLAYBACK_STATE_SAMPLE_INTERVAL_MS) {
       // A failed *prefetched* file-info may be played long afterwards.
       // Check the observed current Yandex queue entity before assuming the
       // old source is still good. Recovery may reload that entity only.

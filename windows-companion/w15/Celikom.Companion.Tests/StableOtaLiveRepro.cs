@@ -21,20 +21,29 @@ internal static class StableOtaLiveRepro
                 PublicKeySha256, StringComparison.Ordinal),
             "W196 live test uses the already pinned production P-256 public key");
 
+        var installVersion = Environment.GetEnvironmentVariable("CELIKOM_LIVE_INSTALL_VERSION");
+        if (string.IsNullOrWhiteSpace(installVersion))
+            installVersion = "0.24.62";
+        var (installedVersion, installedSequence) = installVersion switch
+        {
+            "0.24.62" => (new Version(0, 24, 62, 0), 9),
+            "0.24.63" => (new Version(0, 24, 63, 0), 10),
+            _ => throw new InvalidDataException("W196_LIVE_INSTALL_VERSION_INVALID")
+        };
+
         var origin = new Uri(OfficialOrigin, UriKind.Absolute);
-        var installedVersion = new Version(0, 24, 62, 0);
         var current = await StableUpdateManifestFetcher.FetchSignedVersionAsync(
             origin, key, installedVersion);
-        test(current.Version == installedVersion && current.Sequence == 9,
-            "W196 .NET client authenticates immutable installed 0.24.62 / sequence 9");
+        test(current.Version == installedVersion && current.Sequence == installedSequence,
+            $"W196 .NET client authenticates immutable installed {installedVersion} / sequence {installedSequence}");
         Console.WriteLine($"W196_DOTNET_CURRENT_MANIFEST_OK version={current.Version} sequence={current.Sequence}");
 
         var latest = await StableUpdateManifestFetcher.FetchSignedIfNewerAsync(
             origin, key, installedVersion, current.Sequence);
         test(latest is not null &&
-             latest.Version == new Version(0, 24, 63, 0) &&
-             latest.Sequence == 10,
-            "W196 .NET client authenticates public latest 0.24.63 / sequence 10");
+             latest.Version > current.Version &&
+             latest.Sequence > current.Sequence,
+            $"W196 .NET client authenticates newer public latest {latest?.Version} / sequence {latest?.Sequence}");
         if (latest is null)
             throw new InvalidDataException("W196_LIVE_LATEST_NOT_NEWER");
         Console.WriteLine($"W196_DOTNET_LATEST_MANIFEST_OK version={latest.Version} sequence={latest.Sequence}");
@@ -49,18 +58,8 @@ internal static class StableOtaLiveRepro
                 "W196 .NET package stager downloads both exact signed installers");
             Console.WriteLine("W196_DOTNET_CURRENT_AND_LATEST_INSTALLERS_SHA256_AND_PE_OK");
 
-            var installVersion = Environment.GetEnvironmentVariable("CELIKOM_LIVE_INSTALL_VERSION");
-            if (string.IsNullOrWhiteSpace(installVersion))
-                installVersion = "0.24.62";
-            var selectedRelease = installVersion switch
-            {
-                "0.24.62" => current,
-                "0.24.63" => latest,
-                _ => throw new InvalidDataException("W196_LIVE_INSTALL_VERSION_INVALID")
-            };
-            var selectedPackage = installVersion == "0.24.62"
-                ? currentPackage
-                : latestPackage;
+            var selectedRelease = current;
+            var selectedPackage = currentPackage;
             if (selectedPackage is null)
                 throw new InvalidDataException("W196_LIVE_SELECTED_PACKAGE_MISSING");
 
