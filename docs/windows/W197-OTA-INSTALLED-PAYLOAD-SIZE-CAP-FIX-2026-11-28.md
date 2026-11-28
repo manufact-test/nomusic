@@ -72,6 +72,22 @@ Current public approval record remains **0.24.63 / sequence 10**. The previous o
 - The existing Floki customer consumer timer runs every 120 seconds. It reads the main mirror approval, verifies the signed immutable package, publishes the public latest pair/version files/stable installer, verifies exact HTTPS bytes and full installer SHA-256, then writes `accepted.json`. Public consumer completion still needs independent confirmation; the original release workflow's post-promotion verifier was skipped due to the missing CLI command.
 - No new channel, rebuild, Android, extension, Windows audio engine, or customer audio data changes.
 
+## 0.24.64 public customer OTA — verified (28 November 2026)
+
+- Read-only Floki audit [46147714670](https://github.com/manufact-test/nomusic/actions/runs/46147714670) — SUCCESS.
+- Local signed stable pointer: `versions/0.24.64`; manifest **0.24.64 / sequence 11**, SHA-256 `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`, EXE size **85,160,055 bytes**. Owner receipt `owner-verified.json` reports `https_verified=True`.
+- Customer consumer timer/service is active. Its `accepted.json` now records **0.24.64 / sequence 11**, same SHA and `https_verified=true`.
+- Customer consumer log confirms `CELIKOM_CUSTOMER_WINDOWS_HTTPS_200_FULL_SHA256 0.24.64` with the exact package SHA and `CELIKOM_CUSTOMER_WINDOWS_SIGNED_RELEASE_APPROVED 0.24.64 11`.
+- Public `latest.json` reports 0.24.64 / sequence 11 and exact SHA. Public versioned manifest returned HTTP 200; versioned EXE and `/downloads/windows/CELIKOM-Windows-stable.exe` both returned HTTP 200 with Content-Length 85,160,055. The consumer's full HTTPS SHA verification passed. **0.24.64 is publicly published and verified.**
+- PR [#78](https://github.com/manufact-test/nomusic/pull/78) merged as `e5be65932b5bd2ad8b85ebb60dc909fabf9ad665`; PR [#79](https://github.com/manufact-test/nomusic/pull/79) merged as `6299863395412a50c608ae06e869d79fdcd5c499`. They add only read-only Floki audit coverage.
+- Residual mirror issue: `celikom-mirror-sync.service` is failed because its atomic push rejected stale branch tips. The mirror's `refs/heads/main` at commit `0719ed01bc8abd2daa81cacdb299ab38c649cabe` already contained the approved 0.24.64 record, so this release completed. Resolve mirror sync before the next release; do not disturb the current public 0.24.64 feed.
+
+## Owner device — one-time bootstrap required
+
+- Owner-installed version remains **0.24.62.0**. Its old 125 MB installed-payload verifier rejects the ~144 MB Companion and UpdateSupervisor even though their hashes match. It cannot self-update to the 250 MB verifier fix.
+- One-time bootstrap to public 0.24.64 is therefore unavoidable. Do not send the installer URL or ask the owner to download/run it until the owner explicitly consents.
+- After bootstrap, verify installed app and supervisor **0.24.64.0**, account/session retention and normal startup. Then verify subsequent OTA behavior without Stop or interrupting Yandex playback.
+
 ## Next actions — preserve the existing gates
 
 1. Open [the signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml), run it with version `0.24.64`, sequence `11`, and `publish_to_production=true`. Complete the existing `windows-stable-production` environment approval. Do not bypass the gate.
