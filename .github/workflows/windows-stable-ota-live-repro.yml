@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "windows-companion/w15/Celikom.Companion.Tests/**"
+      - "windows-companion/w15/Celikom.Companion/StableUpdate*.cs"
+      - "windows-companion/w15/Celikom.Companion/MainWindow.StableUpdate.cs"
+      - "windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj"
       - ".github/workflows/windows-stable-ota-live-repro.yml"
   workflow_dispatch:
 
