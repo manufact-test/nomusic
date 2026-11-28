@@ -3,7 +3,7 @@
 Дата: 2026-11-28  
 Репозиторий: `manufact-test/nomusic`  
 Рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
-Код: BETA36 NAV56 (CI/device verification pending)
+Код: BETA36 NAV56 (owner APK delivered; phone diagnostic pending)
 
 ## Что уже проверено
 
@@ -14,9 +14,8 @@
 - LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY, но LIVE_RENDERER_ALT_SOURCE_READ_SAME=NONE; NO_ROUTE_CURRENT_PERIOD=FEW, DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW. В диагностике также есть TCA_CREATOR_WRAPPER_NOT_FLOW=FEW и TCA_CREATOR_WRAPPER_NO_ALBUM=FEW.
 - **NAV56 / BETA36 code change:** live lookup теперь сохраняет exact creator/source proof через firstOpenSourceCommitted после успешного first-open arm. После commit он не переопрашивает ограниченные wrapperBirths/BETA/Flow registries; до commit строгая creator-проверка остаётся. Audio route/admission/codec не менялись.
 - Добавлен JVM regression fixture: committed DataSource должен разрешаться после очистки creator history; rejected first-open не получает этот обход.
-- BETA35 build `517905c`, CI `46148935304` PASS; owner draft `celikom-a1-owner-46148935304-1`. JVM `46147441043` PASS. ARM13 только запуск, NOT_AUDIO.
 - **BETA36 NAV56 CI:** validation run `46153378323` PASS; export-enabled run `46154387456` PASS. JVM + publisher-first ARM13 PASS; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO` — это не акустическая проверка. `owner_phone_touched=false`; signer verified, `UPDATE_EXISTING` matches installed owner cert.
-- Owner-only draft: `https://github.com/manufact-test/nomusic/releases/tag/untagged-51969331ea5269f59bc6`. APK `CELIKOM-A1-RAMIL-AU-BETA36-HONOR50-20261128.apk`, 71,606,252 bytes, SHA-256 `e632bbb881d5eb63dc774f4bd8de379ab4ad93d7603751d22009f32d55294ba0`. Source commit `07ee94b19199173b962517427815c0dbcd7e9e89`. Acoustic replacement remains unproven.
+- Owner-only draft: [BETA36 APK](https://github.com/manufact-test/nomusic/releases/download/untagged-51969331ea5269f59bc6/CELIKOM-A1-RAMIL-AU-BETA36-HONOR50-20261128.apk) · [release and files](https://github.com/manufact-test/nomusic/releases/tag/untagged-51969331ea5269f59bc6). Size 71,606,252 bytes; SHA-256 `e632bbb881d5eb63dc774f4bd8de379ab4ad93d7603751d22009f32d55294ba0`. Source commit `07ee94b19199173b962517427815c0dbcd7e9e89`. Acoustic replacement remains unproven.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -31,11 +30,11 @@ Read-only анализ подписанного Yandex 2025, CI run `46144076359
 
 ## Следующий шаг
 
-1. Проверить push-triggered CI для NAV56: JVM regression, publisher-first ARM13 и сборка собственного модуля. До PASS APK владельцу не выдавать.
-2. После PASS сделать owner-only BETA36 APK с постоянной подписью и установить update поверх BETA35, не удаляя CELIKOM.
-3. На телефоне проверить один трек и экспорт. Главный показатель — LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS.
-4. Если он появился, связь активного o96 → committed DataSource → renderer подтверждена; следующий этап — только renderer → decoder. Если не появился, исследовать точное соответствие DataSource текущему MediaPeriod. Holder/NAV55 заново не проверять.
-5. Не возвращать MP3 override, не менять publisher codec request и не собирать APK только ради новых счётчиков.
+1. На Honor 50 установить BETA36 поверх BETA35. Не удалять CELIKOM и не очищать данные.
+2. Воспроизвести проблемный трек («Ау», 00:43–00:54) и, если возможно, второй проблемный трек. Экспортировать диагностику CELIKOM и передать её в следующий чат.
+3. В диагностике проверить `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` и связанные события текущего MediaPeriod/DataSource.
+4. Если событие появилось — переходить к проверке renderer → decoder. Если нет — исследовать точное соответствие DataSource активному MediaPeriod. Holder/NAV55 заново не проверять.
+5. NAV56 CI и APK уже готовы: не повторять CI, не собирать новую версию и не менять MP3/AAC override или publisher codec request без причины из диагностики.
 
 ## Не трогать
 
