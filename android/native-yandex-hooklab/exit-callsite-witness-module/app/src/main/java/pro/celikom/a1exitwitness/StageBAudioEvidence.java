@@ -124,6 +124,10 @@ final class StageBAudioEvidence {
         // objects may be collected after first OPEN; this bit remains bound to
         // the current weak sourceInstance and resets on every lineage rebind.
         boolean factorySourceIdentityBound;
+        // NAV53: the first exact DataSource accepted at native first-open is
+        // the committed source for this descriptor generation. Later sibling
+        // products must not overwrite the live renderer identity.
+        boolean firstOpenSourceCommitted;
     }
     private static final class TrackAlbumLink {
         WeakReference<Object> track;
@@ -1715,6 +1719,7 @@ final class StageBAudioEvidence {
             link.factoryResult=null;
             link.sourceInstance=null;
             link.factorySourceIdentityBound=false;
+            link.firstOpenSourceCommitted=false;
             link.sourceOpened=false;
             link.sourceReadAfterOpen=false;
             link.sourceAlbumReadAfterOpen=false;
@@ -1955,6 +1960,15 @@ final class StageBAudioEvidence {
         return match;
     }
 
+    private boolean hasLiveFirstOpenSource(NativeTrackSourceLink link) {
+        if(link==null || !link.firstOpenSourceCommitted)return false;
+        if(link.sourceInstance==null || link.sourceInstance.get()==null) {
+            link.firstOpenSourceCommitted=false;
+            return false;
+        }
+        return true;
+    }
+
     synchronized void onExoDescriptorBuilt(Object source) {
         if (source == null) return;
         // Identity comparisons never invoke vendor equals, hashCode or toString.
@@ -1985,14 +1999,19 @@ final class StageBAudioEvidence {
         if (link!=null && factoryResult!=null) {
             // findByDescriptor already verified exact Java identity. A strong
             // pin here prevents GC between this handoff and source first OPEN.
-            // It is bounded by the existing lineage/birth tables.
-            link.firstOpenDescriptorPin=link.sourceEverTouched?null:descriptor;
-            link.factoryResult=new WeakReference<>(factoryResult);
-            link.sourceInstance=null;
-            link.factorySourceIdentityBound=false;
-            link.sourceOpened=false;
-            link.sourceReadAfterOpen=false;
-            link.sourceAlbumReadAfterOpen=false;
+            // Once first-open committed a DataSource, a later factory callback
+            // on this descriptor is a sibling, not a new selected lineage.
+            if(hasLiveFirstOpenSource(link)) {
+                link.firstOpenDescriptorPin=null;
+            } else {
+                link.firstOpenDescriptorPin=link.sourceEverTouched?null:descriptor;
+                link.factoryResult=new WeakReference<>(factoryResult);
+                link.sourceInstance=null;
+                link.factorySourceIdentityBound=false;
+                link.sourceOpened=false;
+                link.sourceReadAfterOpen=false;
+                link.sourceAlbumReadAfterOpen=false;
+            }
             if (link.albumInstance!=null && link.albumInstance.get()!=null)
                 mark(trackFactoryAlbumLinks);
             mark(trackDescriptorFactoryLinks);
@@ -2042,14 +2061,19 @@ final class StageBAudioEvidence {
                 else exactFactorySourceBirths.add(
                     new ExactFactorySourceBirth(source,factoryObject,link));
             }
-            link.sourceInstance=new WeakReference<>(source);
-            link.factorySourceIdentityBound=true;
-            link.sourceOpened=false;
-            link.sourceEverTouched=wasSourceTouched(source);
-            if(link.sourceEverTouched || exactFactoryBirthsSaturated)
-                link.firstOpenDescriptorPin=null;
-            link.sourceReadAfterOpen=false;
-            link.sourceAlbumReadAfterOpen=false;
+            // Keep recording exact factory births for every sibling, but do
+            // not let a later product replace the source committed at first
+            // open. A descriptor rebind is the only reset boundary.
+            if(!hasLiveFirstOpenSource(link)) {
+                link.sourceInstance=new WeakReference<>(source);
+                link.factorySourceIdentityBound=true;
+                link.sourceOpened=false;
+                link.sourceEverTouched=wasSourceTouched(source);
+                if(link.sourceEverTouched || exactFactoryBirthsSaturated)
+                    link.firstOpenDescriptorPin=null;
+                link.sourceReadAfterOpen=false;
+                link.sourceAlbumReadAfterOpen=false;
+            }
             trackSourceReadInspectionBudget.set(0);
             hasTrackSourceLink=true;
             if (link.albumInstance!=null && link.albumInstance.get()!=null)
@@ -2235,6 +2259,7 @@ final class StageBAudioEvidence {
         // actually about to open (without ever rewinding a touched source).
         link.sourceInstance=new WeakReference<>(source);
         link.factorySourceIdentityBound=true;
+        link.firstOpenSourceCommitted=true;
         link.sourceOpened=false;
         link.sourceEverTouched=false;
         link.sourceReadAfterOpen=false;

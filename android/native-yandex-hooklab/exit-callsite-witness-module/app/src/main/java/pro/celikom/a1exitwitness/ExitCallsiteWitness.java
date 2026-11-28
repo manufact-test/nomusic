@@ -81,10 +81,11 @@ public final class ExitCallsiteWitness extends XposedModule {
     private static final String DIAGNOSTIC_BUILD = "NAV_V45_CURRENT_MEDIAITEM_LOGICAL_ID_READONLY";
     // BETA25 added first-open rejection evidence; all gates remain fail-closed.
     // BETA31 preserves a committed alternate cursor across source supersession.
-    // BETA32 aligns MP3 negotiation only for the owner-enabled exact API/allowlist.
+    // BETA33 pins the exact first-open DataSource against later factory siblings.
+    // BETA32's request-only MP3 override is rolled back; publisher codec requests stay unchanged.
     // Export only if publisher-first native ARM13 and JVM gates both pass.
     // BETA27 retains the exact descriptor until the first source touch.
-    private static final String BETA_BUILD = "A1_TRACKID_BETA32_MP3_CODEC_ALIGNMENT_20261128";
+    private static final String BETA_BUILD = "A1_TRACKID_BETA33_NAV53_FIRST_OPEN_SOURCE_PIN_20261128";
     private static final Object DIAGNOSTIC_FILE_LOCK = new Object();
     private static final long MAX_DIAGNOSTIC_FILE_BYTES = 64L * 1024L;
     private static volatile Context diagnosticContext;
@@ -3910,10 +3911,11 @@ public final class ExitCallsiteWitness extends XposedModule {
                                             NativeTrackIdBetaPolicy.Step.ISSUER_HANDLER_ARGS_PRESENT);
                                         STAGE_B_AUDIO.onPublisherAnnotatedTrackId(
                                             values[known.trackArgumentIndex]);
-                                        // BETA32: the exact alternate DataSource route is now armable/readable.
-                                        // Prefer MP3 only for owner-enabled exact FileInfoApi and the three
-                                        // explicit trial track IDs. The helper verifies the @Query("trackId")
-                                        // and @Query("codecs") positions and changes only the codecs argument.
+                                        // BETA33: preserve the original publisher codec request.
+                                        // BETA32's request-only MP3 override did not produce an observed
+                                        // MPEG decoder configuration in the fresh phone TXT, and the
+                                        // owner reported Yandex refusing to play «Ау». The helper is
+                                        // deliberately fail-closed until codec and source are aligned.
                                         NativeOwnerControlPlane owner=nativeOwnerControl;
                                         if (NativeIssuerCodecPreference
                                                 .preferMp3ForOwnedFileInfo(

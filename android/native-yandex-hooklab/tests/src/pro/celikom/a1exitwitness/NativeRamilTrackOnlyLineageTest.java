@@ -250,6 +250,14 @@ public final class NativeRamilTrackOnlyLineageTest {
             "OPENED_ORIGINAL_SOURCE_CANNOT_BE_ARMED");
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "LIVE_RENDERER_RESOLVES_EXACT_BETA_DATASOURCE_AFTER_READ");
+        Object laterSiblingDataSource=new Object();
+        stage.onExoSourceInstanceCreated(laterSiblingDataSource,factory);
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "NAV53_FIRST_OPEN_SOURCE_PIN_SURVIVES_LATER_FACTORY_PRODUCT");
+        check(stage.exactFreshCreatorOrBetaAtFirstOpen(laterSiblingDataSource)==null,
+            "NAV53_LATER_SIBLING_CANNOT_REPLACE_OR_REARM_COMMITTED_SOURCE");
+        check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
+            "NAV53_REJECTED_SIBLING_DOES_NOT_REBIND_LIVE_SOURCE");
         clearWeakFactoryWitnesses(stage,wrapper);
         check(stage.linkedSourceInstanceForCreatorOrBeta(wrapper)==dataSource,
             "LIVE_RENDERER_SOURCE_IDENTITY_SURVIVES_WEAK_DESCRIPTOR_FACTORY_LOSS");
