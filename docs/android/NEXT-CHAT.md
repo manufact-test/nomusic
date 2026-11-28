@@ -13,7 +13,9 @@
 - Счётчики собраны по процессу. Не приписывать AAC/MPEG или отдельные чтения конкретной песне без связи по объектам.
 - **Патч observer `80f42ed`**: при renderer read из `up1` извлекается внутренний `wh6`; его identity сверяется с объектами select и attach. Альтернативный DataSource read и renderer stream теперь атрибутируются только при совпадении обеих ссылок. Аудиомеханизм NAV54 не менялся.
 - Добавлены JVM positive/negative tests для wrapped `wh6`.
-- CI: clone-only differential `46146347294` PASS, но это не product/acoustic pass. Publisher-first ARM13 `46146347357` и observer JVM `46146347367` ещё выполняются.
+- CI: clone-only differential `46146347294` PASS, но не product/acoustic pass. Publisher-first ARM13 `46146347357` PASS: `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO` — музыка не запускалась, renderer counters не получены.
+- Observer JVM `46147441043` PASS: wrapped-wh6 positive/negative identity tests passed.
+- APK не экспортировалась: owner artifact gate требует постоянную проверенную подпись и разрешённый режим установки. Не обходить gate.
 
 ## Что выяснили по оригинальному Яндексу
 
@@ -28,13 +30,13 @@ Read-only анализ подписанного Yandex 2025, CI run `46144076359
 
 ## Следующий шаг
 
-Проверить результаты CI после observer-патча `80f42ed`:
-- `HOLDER_OTHER_WH6_AT_READ` и `HOLDER_OTHER_LO96_AT_READ` должны учитывать внутренний объект `wh6` из `up1`.
-- `HOLDER_OTHER_SELECT_SAME_AT_READ` и `HOLDER_OTHER_ATTACH_SAME_AT_READ` подтверждают, что это тот же объект, который выбрали и подключили.
-- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь этого period с тем же DataSource и renderer stream.
-- Renderer → decoder пока не доказано. После подтверждения этой связки искать только этот последний переход.
+JVM-проверка патча `80f42ed` пройдена. Для runtime proof нужен запуск реального трека на телефоне с этой версией observer:
+- `HOLDER_OTHER_WH6_AT_READ` — внутренний объект `wh6` из `up1` действительно виден при read.
+- `HOLDER_OTHER_LO96_AT_READ` вместе с `HOLDER_OTHER_SELECT_SAME_AT_READ` и `HOLDER_OTHER_ATTACH_SAME_AT_READ` подтверждает, что выбранный/подключённый объект имеет точный класс `o96` и это та же ссылка.
+- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` + `PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH` подтверждают связь с DataSource альтернативных байтов и renderer stream.
+- Renderer → decoder пока не доказано. После подтверждения предыдущих связей искать только этот последний переход.
 
-Не возвращаться к MP3/AAC, не повторять NAV51–NAV54 и не экспортировать APK ради счётчиков. Аудиомеханизм NAV54 не менять.
+Для owner APK нужен настроенный persistent signer и разрешённый install mode; CI сейчас блокирует экспорт disposable signer. Не обходить защиту и не собирать APK ради счётчиков. NAV54 audio route не менять.
 
 ## Не трогать
 
