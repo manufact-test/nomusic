@@ -1100,7 +1100,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onFileInfoResult()", code)
         self.assertIn("STAGE_B_AUDIO.onDirectDownloadInfoResult()", code)
         self.assertIn("installExactNativeExoSourceWitness(loader)", code)
-        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated(chain.getArg(1),result)", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFactoryCreated( chain.getArg(1),result)", normalized)
         self.assertIn("STAGE_B_AUDIO.onExoDescriptorBuilt(result)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeExoDescriptorBuiltForCurrentWrapper(result)", code)
         self.assertIn("STAGE_B_AUDIO.onNativeTrackFlowEmission(chain.getArg(0))", code)
