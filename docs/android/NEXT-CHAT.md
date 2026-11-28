@@ -73,7 +73,7 @@ HEAD ветки до этого обновления документации: `
 - Main JVM job `jvm-issuer-proxy-contract`, run `46138985741`: **PASS**. Включает Stage B Python tests, `NativeRamilTrackOnlyLineageTest`, Exo byte-route и `NativeExoFactoryProductWitnessTest` (24 assertions).
 - Отдельный `exact native renderer observer JVM regressions`, run `46138985796`: **PASS**.
 - Owner build/export ARM13, run `46138985741`: **IN_PROGRESS** на момент обновления.
-- Отдельный clone-alone ARM13, run `46138985739`: **IN_PROGRESS** на момент обновления.
+- Отдельный clone-alone ARM13, run `46138985739`: **PASS** по техническому gate. Его verdict `CLONE_ONLY_STABLE_DIFFERENTIAL_NOT_PRODUCT_PASS` — это диагностический clone-alone прогон, не product acceptance; owner handset не затрагивался.
 - BETA34 APK ещё не доставлен. Не считать сборку готовой, пока оба ARM13 job не завершились успешно.
 
 ## Следующее действие
@@ -91,4 +91,4 @@ HEAD ветки до этого обновления документации: `
 - Не считать `DATASOURCE_ARMED`, `AUDIO_READ` или CI SUCCESS доказательством слышимой подмены.
 - Не трогать второй плеер, сервер, каталог, Windows, stable Android, OTA и `main`.
 
-**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; owner build/export и clone-alone ARM13 ещё выполняются. APK пока не доставлен. После успешных ARM13 проверок — одна установка BETA34 и проверка звука владельцем.
+**Текущий статус:** BETA34 NAV54 functional fix committed; JVM PASS; clone-alone ARM13 technical gate PASS (not product pass); owner build/export ещё выполняется. APK пока не доставлен.
