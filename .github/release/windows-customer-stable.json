@@ -1,5 +1,10 @@
 {
   "schema": 1,
   "channel": "customer-stable",
-  "approved": null
+  "approved": {
+    "version": "0.24.63",
+    "sequence": 10,
+    "sha256": "3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f",
+    "owner_accepted": true
+  }
 }
