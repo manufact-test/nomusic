@@ -1,8 +1,8 @@
-# ACTIVE CELIKOM WINDOWS — finish protected 0.24.64 customer OTA promotion (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — verify approved 0.24.64 customer OTA publication (28 November 2026)
 
 ## Read first
 
-1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact root cause, merged code fix, workflow repair, CI evidence and current publication state.
+1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact root cause, merged code fixes, 0.24.64 signed package, protected approval and recovery status.
 2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — original failed owner retest and constraints.
 3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored immutable 0.24.62 public route.
 4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — previous successful 0.24.63 / sequence 10 publication.
@@ -12,31 +12,24 @@
 ## Actual state
 
 - Repository: `manufact-test/nomusic`; working branch: `main`.
-- Windows release/workflow repair merge: PR [#76](https://github.com/manufact-test/nomusic/pull/76), commit `c1f59b7fd5789e0a828f5a48ce0b118a2bb6ceba`.
 - Installed app: **0.24.62.0**.
-- Public stable: **0.24.63**, sequence **10**. Its package, manifest and approval record remain unchanged.
-- Root cause: Companion (144,412,407 bytes) and UpdateSupervisor (144,445,634 bytes) exceeded the old 125,000,000-byte installed-payload verification/launch ceiling despite correct signed SHA-256. PR [#75](https://github.com/manufact-test/nomusic/pull/75) raised installed-payload defaults to 250,000,000 bytes; installer download cap remains 125,000,000 bytes.
-- Live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) passed for both public 0.24.62 and 0.24.63, including all four payload hashes, default verifier/launch handle and fresh LKG bootstrap.
-- First manual promotion attempt [46141150754](https://github.com/manufact-test/nomusic/actions/runs/46141150754) failed closed before signing because `CELIKOM_STABLE_PUBLISHER` was unset. No protected approval, server mutation or public publication occurred.
-- W194/W195 confirm Floki is the existing public customer OTA source. PR #76 adds a `publish_target` dropdown defaulting to **floki**, records the customer approval only after the existing protected approval and exact signed transfer checks, and verifies exact public HTTPS bytes and installer hashes.
-- PR #76 generic CI [46142163668](https://github.com/manufact-test/nomusic/actions/runs/46142163668) and Windows integration CI [46142163775](https://github.com/manufact-test/nomusic/actions/runs/46142163775) — SUCCESS.
-- Post-merge main generic CI [46142412039](https://github.com/manufact-test/nomusic/actions/runs/46142412039) and Windows integration [46142412032](https://github.com/manufact-test/nomusic/actions/runs/46142412032) — SUCCESS.
-- Publisher static gates [46142412042](https://github.com/manufact-test/nomusic/actions/runs/46142412042) remain in progress without starting a job step; the new workflow contract test passed in PR generic CI and Windows integration CI. Check the static gate if it starts before publication.
-- Versioned binaries on main are **0.24.64.0**; signed release identity is **0.24.64 / sequence 11**. The earlier owner candidate artifact from run 46140222345 is not used by the corrected flow.
-- **0.24.64 is not published.** The customer approval record `.github/release/windows-customer-stable.json` still says 0.24.63 / sequence 10.
+- Previous public stable: **0.24.63 / sequence 10**.
+- Root cause fix PR [#75](https://github.com/manufact-test/nomusic/pull/75) merged: installed Companion and UpdateSupervisor verification ceiling raised from 125 MB to 250 MB; signed installer download cap remains 125 MB. Live Windows OTA matrix [46139959359](https://github.com/manufact-test/nomusic/actions/runs/46139959359) passed for both public 0.24.62 and 0.24.63.
+- PR [#76](https://github.com/manufact-test/nomusic/pull/76) merged as `c1f59b7fd5789e0a828f5a48ce0b118a2bb6ceba`: explicit Floki route, protected customer approval record and public HTTPS verifier.
+- 0.24.64 run [46143048815](https://github.com/manufact-test/nomusic/actions/runs/46143048815) built and signed **0.24.64 / sequence 11**. Package SHA-256: `5245f2bec09ea4a1c8d732b30dde8ef84da4b6f827a45d9e0629a436abc4a5ff`; size 85,162,732 bytes.
+- GitHub confirms the owner approved `windows-stable-production`. Floki private spool stage succeeded.
+- The release job then failed because a redundant `gh api` command was unavailable on the runner. Public promotion and the original workflow's `verify_customer_stable` job were skipped.
+- PR [#77](https://github.com/manufact-test/nomusic/pull/77) merged as `1950228c8db05a7375820b69902417b8d01d9fd4`: removed the unavailable CLI call and retained the authenticated Python GitHub API approval check. Generic CI [46146131136](https://github.com/manufact-test/nomusic/actions/runs/46146131136) and Windows integration CI [46146131169](https://github.com/manufact-test/nomusic/actions/runs/46146131169) — SUCCESS.
+- No rebuild/re-sign. After rechecking the protected approval and successful signed/staged artifact, the existing `.github/release/windows-customer-stable.json` record was advanced to **0.24.64 / sequence 11**, SHA above, `owner_accepted=true`, in commit `bcc4aade47174a0445e41775bf62397718c426d9`.
+- **Public HTTPS publication is not yet independently verified.** Existing Floki customer consumer timer runs every 120 seconds. It must verify the signed immutable package, publish the public latest pair/version files/stable installer, verify public HTTPS bytes and full installer SHA-256, then write `accepted.json` with `https_verified=true`.
 
 ## Next actions
 
-1. Confirm post-merge main CI, Windows integration CI and publisher static gates are green.
-2. Open [the existing signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml) from `main`. Run with:
-   - Version: `0.24.64`
-   - Sequence: `11`
-   - Publish target: **floki**
-   - `publish_to_production=true`
-3. Complete the existing protected `windows-stable-production` approval. Do not bypass it.
-4. Wait for Floki signed-spool promotion, the explicit `windows-customer-stable.json` approval update and job `verify_customer_stable`. Do not call it published until the exact public latest pair, immutable manifest/signature and full installer hashes pass.
-5. The installed 0.24.62 binary contains the old size ceiling and cannot self-update to the fix. A **one-time 0.24.64 bootstrap install is unavoidable**. Do not send an EXE or ask the owner to install until the owner explicitly consents.
-6. After consent and bootstrap, verify normal OTA: background download while Yandex plays, verified package persists after close, automatic installation at the next ordinary CELIKOM launch, and no Stop or playback interruption.
+1. Continue from the existing approved and staged 0.24.64 artifact. **Do not rebuild or re-sign it.**
+2. Verify Floki root spool/customer consumers processed the main approval record: `celikom-windows-customer-stable.timer/service`, `accepted.json` exact version/sequence/SHA and `https_verified=true`, public latest pair, immutable manifest/signature and full installer SHA-256. If not accepted, diagnose only Floki mirror sync/root spool consumer/customer consumer.
+3. Do not claim 0.24.64 is public until exact public HTTPS verification passes.
+4. Only after publication is verified, request the owner's explicit consent for the unavoidable one-time 0.24.64 bootstrap install. Do not send an EXE or ask the owner to install without consent.
+5. After consent and bootstrap, verify normal OTA: background download while Yandex plays, verified package persists after close, automatic installation at the next ordinary CELIKOM launch, and no Stop or playback interruption.
 
 ## Required UX and boundaries
 
