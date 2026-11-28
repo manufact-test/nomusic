@@ -511,11 +511,6 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
       !networkRecoveryPending && nextActive && currentTrackId &&
       !adapter.hasMappedTrack(currentTrackId)
         ? deferredRecovery.check() : false;
-    if (approvalRevalidationStarted || deferredRecoveryScheduled) {
-      initialCurrentSourceCheck = null;
-      if (currentCatchup?.id === currentTrackId)
-        currentCatchup.attempted = true;
-    }
     const transitionChanged = previousActive !== nextActive || originChanged;
     const transitionGeneration = transitionChanged
       ? ++stateTransitionGeneration : stateTransitionGeneration;
@@ -527,6 +522,11 @@ import { createDeferredTrackRecovery } from "./deferred-track-recovery.mjs";
           ? { generation: transitionGeneration, startedAt: Date.now() }
           : null;
       if (!nextActive) currentCatchup = null;
+    }
+    if (approvalRevalidationStarted || deferredRecoveryScheduled) {
+      initialCurrentSourceCheck = null;
+      if (currentCatchup?.id === currentTrackId)
+        currentCatchup.attempted = true;
     }
 
     // ORIGINAL songs are transparent: a VPN/entitlement state transition
