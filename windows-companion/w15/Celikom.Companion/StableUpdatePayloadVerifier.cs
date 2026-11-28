@@ -10,6 +10,7 @@ namespace Celikom.Companion;
 /// </summary>
 public static class StableUpdatePayloadVerifier
 {
+    private const long DefaultInstalledPayloadMaxBytes = 250_000_000;
     /// <summary>
     /// Opens the exact SHA-256-verified image while denying write and delete
     /// sharing. Callers keep this handle alive through Process.Start so a
@@ -17,7 +18,7 @@ public static class StableUpdatePayloadVerifier
     /// </summary>
     public static FileStream OpenVerifiedReadHandle(
         string path, string expectedSha256, long? expectedSize = null,
-        long maxBytes = 125_000_000)
+        long maxBytes = DefaultInstalledPayloadMaxBytes)
     {
         if (string.IsNullOrWhiteSpace(path) ||
             expectedSha256 is not { Length: 64 } ||
@@ -77,7 +78,7 @@ public static class StableUpdatePayloadVerifier
     }
 
     public static bool MatchesFile(string path, string expectedSha256,
-        long maxBytes = 125_000_000)
+        long maxBytes = DefaultInstalledPayloadMaxBytes)
     {
         if (string.IsNullOrWhiteSpace(path) ||
             expectedSha256 is not { Length: 64 } ||
