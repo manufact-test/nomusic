@@ -1,23 +1,22 @@
 #!/bin/bash
 set -Eeuo pipefail
-umask 077
-export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-echo A1_FLOKI_RUNNER_READONLY_AUDIT_BEGIN
-for spec in "celikom-ci-runner.service celikom-floki-ci01" "celikom-ci-runner2.service celikom-floki-ci02"; do
-  read -r unit container <<< "$spec"
-  echo "RUNNER_UNIT $unit"
-  systemctl show "$unit" --property MainPID,Result,NRestarts,ExecMainStatus,ActiveState,SubState,StateChangeTimestamp --no-pager
-  echo "RUNNER_CONTAINER $container"
-  if docker inspect "$container" >/dev/null 2>&1; then
-    docker inspect --format 'status={{.State.Status}} running={{.State.Running}} restarts={{.RestartCount}} started={{.State.StartedAt}}' "$container"
-    for proc in Runner.Listener Runner.Worker; do
-      count=$(docker exec "$container" sh -c "ps -eo comm= | grep -c '^$proc$' || true" 2>/dev/null || echo unavailable)
-      echo "RUNNER_PROCESS $container $proc $count"
-    done
-  else
-    echo "RUNNER_CONTAINER_MISSING $container"
-  fi
-  echo "RUNNER_RECENT_EVENT_COUNTS $unit"
-  journalctl -u "$unit" --since '-30 minutes' --no-pager -o cat 2>/dev/null | grep -Eo 'JOB_COMPLETED|JOB_ABORTED|WORKER_FAILURE|ERROR_GENERIC|Worker process started|JobDispatcher' | sort | uniq -c || true
-done
-echo A1_FLOKI_RUNNER_READONLY_AUDIT_DONE
+# Existing private spool producer, using the ACTUAL successful isolated build run.
+python3 <<'PY'
+from pathlib import Path
+import subprocess,json,runpy,stat
+a=json.loads("{\"version\":\"0.4.97\",\"source_commit\":\"c3057ec8cd6f39d56591fe05b5a8f1f3420a6f8b\",\"run_id\":\"46125600649\",\"attempt\":\"1\",\"name\":\"celikom-extension-0.4.97.zip\",\"size\":2507737,\"sha256\":\"79d2f37b73d38802a0fe38ea538185049628eb74968045b88d52e885ddadd429\"}")
+location=json.loads("{\"directory\":\"/home/runner/celikom-build-spool/.work-extension97-owner.1CL11SSS\",\"node\":\"/home/runner/_work/_tool/node/24.22.3/x64/bin/node\",\"source\":\"c3057ec8cd6f39d56591fe05b5a8f1f3420a6f8b\"}")
+assert location["directory"].startswith("/home/runner/celikom-build-spool/.work-extension97-owner.")
+assert location["source"]==a["source_commit"]
+uid=str(Path("/srv/celikom/ci-runner/runner/celikom-build-spool").stat().st_uid)
+assert uid!="0"
+args=["docker","exec","--user",uid,"--workdir",location["directory"],"celikom-floki-ci01",location["node"],".github/scripts/floki-private-build-spool.mjs",location["directory"],"/home/runner/celikom-build-spool",a["source_commit"],a["run_id"],a["attempt"],"--extension-only"]
+r=subprocess.run(args,capture_output=True,text=True,timeout=60)
+print(r.stdout[-2000:],end="")
+assert r.returncode==0,"EXISTING_PRIVATE_PRODUCER_FAILED"
+p=Path("/usr/local/lib/celikom-extension-release/consumer.py")
+st=p.lstat();assert stat.S_ISREG(st.st_mode) and st.st_uid==0 and not st.st_mode & 0o022
+trusted=runpy.run_path(str(p));data=trusted["verify_spool"](a)
+assert len(data)==a["size"]
+print("EXTENSION_097_INDEPENDENT_PRIVATE_SPOOL_VERIFIED",json.dumps(a,sort_keys=True))
+PY
