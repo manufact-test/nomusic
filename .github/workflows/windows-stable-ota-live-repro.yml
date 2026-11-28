@@ -1,0 +1,49 @@
+name: CELIKOM Windows live signed OTA reproduction
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "windows-companion/w15/Celikom.Companion.Tests/**"
+      - "windows-companion/w15/Celikom.Companion/StableUpdate*.cs"
+      - "windows-companion/w15/Celikom.Companion/MainWindow.StableUpdate.cs"
+      - "windows-companion/w15/Celikom.Companion/Celikom.Companion.csproj"
+      - ".github/workflows/windows-stable-ota-live-repro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celikom-windows-live-ota-repro-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-ota-repro:
+    name: live-ota-repro-${{ matrix.install_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        install_version: ["0.24.62", "0.24.63"]
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      CELIKOM_STABLE_OTA_LIVE_REPRO: "1"
+      CELIKOM_LIVE_INSTALL_VERSION: ${{ matrix.install_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Run existing Windows contracts and exact live .NET OTA validation
+        shell: pwsh
+        run: |
+          dotnet run --project windows-companion/w15/Celikom.Companion.Tests/Celikom.Companion.Tests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "W196_DOTNET_LIVE_OTA_REPRO_FAILED" }
