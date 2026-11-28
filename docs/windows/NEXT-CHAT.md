@@ -2,13 +2,9 @@
 
 ## Read first
 
-1. `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` — exact OTA verifier fix, public 0.24.64 publication, completed one-time bootstrap and next OTA requirements.
-2. `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md` — why 0.24.62 failed before download; historical evidence only. Do not repeat its diagnostics or Stop tests.
-3. `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md` — restored immutable 0.24.62 bootstrap route; repair alone did not fix the client.
-4. `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md` — 0.24.63 publication history.
-5. `docs/windows/W193-SIGNED-02463-OTA-CUTOVER-HANDOFF-2026-11-28.md` — W192 Stop-cancellation and renderer-unavailable UI guard, plus release history.
-6. `docs/windows/W191-WINDOWS-REPAIR-AND-APPROVAL-GATED-OTA-20261127.md` — Windows repairs merged to main and release safeguards.
-7. `docs/windows/W189-OWNER-UI-STATE-LATENCY-RESTORE-AND-STABLE-OTA-20261127.md` — original UI defects and owner acceptance checklist.
+- Read this `NEXT-CHAT.md` only. It is the current handoff and contains the active state and next actions.
+- Consult `docs/windows/W197-OTA-INSTALLED-PAYLOAD-SIZE-CAP-FIX-2026-11-28.md` only when exact OTA/release evidence is needed.
+- W196/W195/W194/W193/W191/W189 are historical records. Open a specific one only when a reported issue requires its exact evidence; do not reread the whole history by default.
 
 ## Actual state
 
