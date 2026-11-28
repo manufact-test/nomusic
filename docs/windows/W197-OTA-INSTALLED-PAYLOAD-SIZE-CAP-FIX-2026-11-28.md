@@ -42,6 +42,25 @@ Main was bumped to app/Supervisor **0.24.64.0**, stable release **0.24.64**, seq
 
 The candidate build's production Hostinger and Floki publish jobs were **SKIPPED**. Public `latest.json`, the immutable 0.24.63 manifest and package remain unchanged at sequence 10. **0.24.64 is not published yet.**
 
+## Protected publication workflow repair (28 November 2026)
+
+The first manual 0.24.64 promotion attempt, [Actions 46141150754](https://github.com/manufact-test/nomusic/actions/runs/46141150754), failed closed in `prepare` before signing or publication because repository variable `CELIKOM_STABLE_PUBLISHER` was empty. No protected production approval, server mutation, or public feed change occurred.
+
+The target was then resolved from the actual release path, not guessed:
+- W194 promoted 0.24.63 through the existing Floki signed spool and updated `.github/release/windows-customer-stable.json`.
+- W195 confirms the public customer feed is served from Floki's `/srv/celikom-releases/public/windows-customer-stable`.
+- The Floki customer consumer reads the explicit `windows-customer-stable.json` approval record; staging to the local Floki stable feed alone does not publish the customer feed.
+
+PR [#76](https://github.com/manufact-test/nomusic/pull/76) merged as `c1f59b7fd5789e0a828f5a48ce0b118a2bb6ceba`:
+- Manual workflow now has `publish_target`, default **floki**; the unset repository variable is no longer a blocker.
+- After the existing `windows-stable-production` approval and signed-spool stage, the Floki job verifies the recorded approval, pinned P-256 key, signed manifest, sequence/version and installer SHA-256, then updates the explicit customer approval record with `owner_accepted=true`.
+- The customer approval update is monotonic and idempotent.
+- A post-promotion job waits for the customer timer and verifies exact public latest bytes, immutable manifest/signature and full installer SHA-256 at both public installer URLs.
+
+PR CI: generic [46142163668](https://github.com/manufact-test/nomusic/actions/runs/46142163668) and Windows integration [46142163775](https://github.com/manufact-test/nomusic/actions/runs/46142163775) — SUCCESS. Post-merge main checks [46142412039](https://github.com/manufact-test/nomusic/actions/runs/46142412039), [46142412032](https://github.com/manufact-test/nomusic/actions/runs/46142412032) and publisher static gates [46142412042](https://github.com/manufact-test/nomusic/actions/runs/46142412042) were running at the last update.
+
+Current public approval record remains **0.24.63 / sequence 10**. The previous owner candidate artifact from run 46140222345 is not used by the corrected flow; the next manual run rebuilds the exact signed package from current main. **0.24.64 remains unpublished until that run passes its protected gate and public HTTPS verification.**
+
 ## Next actions — preserve the existing gates
 
 1. Open [the signed stable release workflow](https://github.com/manufact-test/nomusic/actions/workflows/windows-stable-signed-release.yml), run it with version `0.24.64`, sequence `11`, and `publish_to_production=true`. Complete the existing `windows-stable-production` environment approval. Do not bypass the gate.
