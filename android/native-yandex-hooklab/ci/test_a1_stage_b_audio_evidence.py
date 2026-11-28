@@ -1151,7 +1151,7 @@ class StageBAudioEvidenceTest(unittest.TestCase):
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpen(chain.getThisObject())", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenAttempt(", code)
         self.assertIn("STAGE_B_AUDIO.onExoFirstOpenHookEnter()", code)
-        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult(armed,chain.getThisObject())", code)
+        self.assertIn("STAGE_B_AUDIO.onExoFirstOpenDeferredArmResult( armed,chain.getThisObject());", " ".join(code.split()))
         self.assertIn("NATIVE_EARLY_ADMISSION.exportLines()", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceClose(", code)
         self.assertIn("STAGE_B_AUDIO.onExoSourceInstanceOpenFailure(", code)
