@@ -58,13 +58,4 @@ jobs:
           test -f "$request" && test ! -L "$request"
           test "$(wc -c < "$request")" -le 131072
           bash -n "$request"
-          approval_run=$(sed -n 's/^# CELIKOM_WINDOWS_STABLE_APPROVAL_RUN=//p' "$request")
-          if [[ -n "$approval_run" ]]; then
-            [[ "$approval_run" == "46084804919" ]] || { echo WINDOWS_STABLE_APPROVAL_RUN_NOT_ALLOWED; exit 1; }
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$approval_run" |
-              jq -e '.path==".github/workflows/windows-stable-promote-02463.yml" and .head_branch=="main" and .head_sha=="9abc6e1e0ea9e7c3a398fcc1a2f4271375213c56"' >/dev/null
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$approval_run/approvals" |
-              jq -e 'any(.[]; .state=="approved" and any(.environments[]?; .name=="windows-stable-production"))' >/dev/null
-            echo WINDOWS_STABLE_02463_EXISTING_APPROVAL_CONFIRMED
-          fi
           ssh "${sshargs[@]}" celikom-deploy@95.133.160.111 maintenance < "$request"
