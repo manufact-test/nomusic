@@ -81,6 +81,8 @@ jobs:
         run: node --test .github/scripts/tests/windows-stable-owner-package-contract.test.mjs
       - name: Validate protected Windows customer stable promotion
         run: python3 .github/scripts/tests/windows-stable-customer-promotion.test.py
+      - name: Validate Floki Windows customer feed read-only audit
+        run: bash -n .github/scripts/floki-windows-owner-readonly-inventory.sh
 
       - name: Validate Stage 6 restricted library workflow
         run: |
