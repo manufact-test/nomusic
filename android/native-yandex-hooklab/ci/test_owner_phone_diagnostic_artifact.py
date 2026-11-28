@@ -92,7 +92,7 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
 
 
     def test_output_name_is_explicitly_owner_consented_trial(self):
-        self.assertIn("RAMIL-AU-BETA35", OUTPUT_NAME)
+        self.assertEqual(OUTPUT_NAME, "CELIKOM-A1-RAMIL-AU-BETA35-HONOR50-20261128.apk")
         self.assertIn("HONOR50", OUTPUT_NAME)
 
     def test_delivery_keeps_native_success_gate_and_owner_draft(self):
@@ -104,6 +104,8 @@ class OwnerPhoneDiagnosticArtifactTests(unittest.TestCase):
         self.assertIn("if: success() &&", block)
         self.assertIn("inputs.export_diagnostic_apk", block)
         self.assertIn("Verify NAV55 wrapped wh6 identity bridge, NAV54 nested-factory birth ordering and NAV53 first-open pin remain fail-closed", raw)
+        self.assertIn("CELIKOM-A1-RAMIL-AU-BETA35-HONOR50-20261128.apk", raw)
+        self.assertNotIn("CELIKOM-A1-RAMIL-AU-BETA34-HONOR50-20261128.apk", raw)
         self.assertIn("NativeRendererStreamEvidenceTest.java", raw)
         self.assertIn("pro.celikom.a1exitwitness.NativeRendererStreamEvidenceTest", raw)
         self.assertIn("NativeRamilTrackOnlyLineageTest", raw)
