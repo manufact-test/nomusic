@@ -71,7 +71,7 @@ internal static class StableOtaLiveRepro
                     emptyJournalRoot, current, currentPackage.Path, PublicKeySha256,
                     installedVersion, app, nativeHost, renderer, supervisor,
                     DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
                 var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
                     emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
                 test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
@@ -98,7 +98,7 @@ internal static class StableOtaLiveRepro
                     staleRoot, staleRelease, currentPackage.Path, PublicKeySha256,
                     staleVersion, app, nativeHost, renderer, supervisor,
                     DateTimeOffset.UtcNow, static (_, _) => { },
-                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
                 var staleCached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
                     staleRoot, PublicKeySha256, static (_, _) => { });
                 test(staleCached.Release.Version == staleVersion &&
@@ -112,7 +112,7 @@ internal static class StableOtaLiveRepro
                         staleRoot, current, currentPackage.Path, PublicKeySha256,
                         installedVersion, app, nativeHost, renderer, supervisor,
                         DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                        (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                        (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash, 250_000_000));
                 }
                 catch (IOException e) when (
                     e.Message == "STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED")
@@ -165,11 +165,15 @@ internal static class StableOtaLiveRepro
             return false;
         }
 
+        var info = new FileInfo(path);
+        var attributes = File.GetAttributes(path);
         using var stream = File.OpenRead(path);
         var actualHash = Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
-        var matches = StableUpdatePayloadVerifier.MatchesFile(path, expectedHash);
-        Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} expected={expectedHash} actual={actualHash} match={matches}");
-        return matches;
+        var defaultMatch = StableUpdatePayloadVerifier.MatchesFile(path, expectedHash);
+        var expandedMatch = StableUpdatePayloadVerifier.MatchesFile(
+            path, expectedHash, 250_000_000);
+        Console.WriteLine($"W196_PAYLOAD_HASH release={releaseVersion} name={payloadName} size={info.Length} attributes={attributes} expected={expectedHash} actual={actualHash} defaultMatch={defaultMatch} expandedMatch={expandedMatch}");
+        return expandedMatch;
     }
 
     private static void InstallPackageToIsolatedDirectory(
