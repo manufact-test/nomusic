@@ -941,6 +941,38 @@ public final class NativeRendererStreamEvidenceTest {
             "NAV57_ENABLED_NEVER_PROMOTES_AUDIBLE_SOURCE");
     }
 
+    private static void testNav57EnabledRendererJoinsAlternateSourceToCurrentPeriod() {
+        NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
+        nav47Setup(e);
+        Object uid=new Object(),wrapper=new Object(),renderer=new Object(),stream=new Object();
+        FakeSource source=new FakeSource();
+        Nav41Id id=new Nav41Id(uid,-1,5);
+        FakePeriod selectedPeriod=new FakePeriod(source);
+        Nav41Holder holder=new Nav41Holder(id,stream);
+        holder.nested=selectedPeriod; // exact direct publisher MediaPeriod
+        Nav41Engine engine=new Nav41Engine(holder,id);
+        NativeRendererStreamEvidence.TrackPlayerScope player=e.enterTrackPlayerSource(wrapper);
+        try {e.onNativePlayerSourceSetter(source);}
+        finally {e.exitTrackPlayerSource(player);}
+        e.setPublisherMediaPeriodInterface(FakePublisherPeriodInterface.class);
+        e.onHookRegistration("HOLDER_SELECT_PHASE",true);
+        e.onExactHolderSelectPhase(holder,false);
+        e.onExactHolderSelectPhase(holder,true);
+        e.setAlternateSourceReadEvidence(w -> w==wrapper ? 1 : -2);
+        nav41Attach(e,engine,holder,renderer,stream);
+        e.onRendererTypeStateRead(renderer,stream,1,1,-4,Boolean.FALSE);
+        String[] out=e.exportLines();
+        check(contains(out,"origin=LIVE_QUEUE_SLOT_B_TYPE1_NOT2_PERIOD_ID_SAME;error=ONE"),
+            "NAV57_ENABLED_EXACT_PERIOD_ID_MATCH");
+        check(contains(out,
+            "origin=LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS;error=ONE"),
+            "NAV57_ENABLED_ALTERNATE_SOURCE_IS_CURRENT_PERIOD_SOURCE");
+        check(contains(out,"origin=ENGINE_HOLDER_TYPE1_STATE2;error=NONE"),
+            "NAV57_ENABLED_NOT_STARTED");
+        check(contains(out,"origin=PERIOD_ADAPTER_STARTED_NON_EOS_SOURCE_MATCH;error=NONE"),
+            "NAV57_ENABLED_NOT_AUDIBLE_PROOF");
+    }
+
     private static void testNav57EnabledRendererChangedSlotFailsClosed() {
         NativeRendererStreamEvidence e=new NativeRendererStreamEvidence();
         setUpNav29(e);
@@ -3586,6 +3618,7 @@ public final class NativeRendererStreamEvidenceTest {
         testNav28WrongOrUnavailableSlotNeverClaimsMatch();
         testNav29SameSelectedWrapperSourceToLivePeriod();
         testNav57EnabledRendererStillResolvesLivePeriodSource();
+        testNav57EnabledRendererJoinsAlternateSourceToCurrentPeriod();
         testNav57EnabledRendererChangedSlotFailsClosed();
         testNav29RejectsOtherSourceOrChangedQueueSlot();
         testNav29RejectsUnscopedAndConflictingWrapper();
