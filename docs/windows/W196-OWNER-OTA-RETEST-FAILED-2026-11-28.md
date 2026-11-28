@@ -67,3 +67,19 @@ Repair the Windows updater as a focused workstream; do not touch the audio basel
 - Keep public 0.24.63 / sequence 10 latest and signature unchanged.
 - No manual installer detour unless the owner explicitly approves it after the automatic path is proven unrecoverable.
 - No audio/runtime/Android/extension changes.
+
+## Owner clarification and next-chat execution contract (28 November 2026)
+
+The owner explicitly clarified the requested work after the failed retest:
+
+- The goal is still to deliver the **already published 0.24.63 / sequence 10** to the existing installed **0.24.62.0**. Do not present this as a request to create another user-facing test version or a new update channel.
+- Do not ask the owner to press Stop, close Yandex, repeat a launch, or send duplicate diagnostics as a substitute for engineering. The current diagnostic is already sufficient to establish that the client fails before any successful update download.
+- The owner expects engineering changes to be completed and validated, then merged into the existing GitHub `main` workflow so the installed product can receive the resulting signed release through the existing protected approval mechanism. A short-lived internal code branch/PR is acceptable for safe development; it is **not** a new customer channel or a new product version for the owner to install manually.
+- First priority remains recovering delivery of the already published 0.24.63 without changing its immutable package or sequence. Do not jump straight to a new release or rebuild 0.24.63.
+- If the investigation proves a client-code change is unavoidable, make it on a short-lived branch from current `main`, add deterministic tests, merge the validated change to `main`, and only then prepare a new monotonically higher signed release using the existing protected GitHub approval. Read the authoritative release floor before selecting a version/sequence; 0.24.63 / 10 must remain immutable.
+- Critical bootstrap question: if the installed 0.24.62 updater itself cannot fetch/install a later package, a fix inside a future binary does not automatically reach that installed client. Prove whether the failure can be repaired through the existing public route/metadata or whether a separate bootstrap is technically unavoidable. Do not conceal this dependency and do not perform a manual EXE installation without the owner's explicit approval.
+- Compare the exact updater implementation in 0.24.62 source commit `0364309006bd3451778f01390398fe0f52e5a20c` with the already-published 0.24.63 source commit `9c6721fdb273fc0850213b79d339b0f47d3e83b0`. Reproduce the same signed manifest/package validation using the actual Windows/.NET code path; identify the precise failing stage before editing.
+- Keep the agreed UX: background download and verification while CELIKOM is in use; never interrupt Yandex playback; never require Stop; persist a verified pending package; install automatically at the next ordinary CELIKOM launch after the owner has naturally closed CELIKOM/Yandex.
+- No changes to W174 audio files, Android, browser extension, or unrelated backend. No more broad diagnostics-only loops. Keep user-facing updates short and action-oriented.
+
+**State at handoff:** this continuation updated documentation only. No Windows runtime/updater source has been modified yet. The next engineer must continue the actual OTA repair, not report this documentation update as a code fix.
