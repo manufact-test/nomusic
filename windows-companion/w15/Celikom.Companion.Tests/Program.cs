@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -3222,6 +3223,8 @@ try
         "owner export never leaks native crypto or signed URLs");
     Test(!snapshot.Contains(expectedAccess) && !snapshot.Contains(expectedRefresh) &&
         !snapshot.Contains("test@example.com"), "diagnostics exclude credentials and email");
+    if (Environment.GetEnvironmentVariable("CELIKOM_STABLE_OTA_LIVE_REPRO") == "1")
+        await StableOtaLiveRepro.RunAsync(Test, folder);
     Console.WriteLine("W15_NATIVE_CONTRACT_PASS " + checks);
 }
 finally
