@@ -1,6 +1,6 @@
 # W194 — Windows 0.24.63 public stable OTA published (2026-11-28)
 
-> **W195 update (2026-11-28):** The owner device was confirmed on 0.24.62.0. Its first-run updater bootstrap failed because the public customer version store lacked the installed 0.24.62 immutable manifest/signature/installer. The exact signed 0.24.62 bootstrap/rollback package has now been copied from Floki's private immutable store to the existing public versioned route and verified over HTTPS. Public latest remains 0.24.63 / sequence 10 unchanged. See `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md`. Only owner-device auto-update acceptance remains.
+> **W196 update (2026-11-28):** W195 restored the exact signed 0.24.62 immutable bootstrap files to the existing public route, but the owner retested and the installed app still reports 0.24.62.0 with `STABLE_UPDATE_CHECK_FAILED` and `STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE`. The route repair was not sufficient; the client failure stage remains unknown. Public latest remains 0.24.63 / sequence 10 unchanged. Follow `docs/windows/W196-OWNER-OTA-RETEST-FAILED-2026-11-28.md`; do not ask the owner to repeat the same test.
 
 
 ## Result
@@ -42,9 +42,9 @@ The existing public route was already present when checked. A separate route-cut
 - Existing Floki maintenance workflow was restored unchanged.
 - No Windows runtime, audio source, Android runtime, browser-extension runtime or server/API code was changed as part of this release operation.
 
-## Remaining owner acceptance — installed-device OTA
+## Owner acceptance — installed-device OTA (failed; see W196)
 
-**Public publication is verified; installed-device auto-update is not yet verified.**
+**Public publication is verified; installed-device auto-update has been attempted and failed.** The owner relaunched the existing 0.24.62 installation after W195. It remained on 0.24.62.0 and logged the two generic updater failures. The old procedure below is historical; do not ask the owner to repeat it. Continue the engineering investigation in W196.
 
 The owner's exact currently installed Windows version remains unknown. The next test must use the existing installed CELIKOM, not a manually downloaded EXE:
 
