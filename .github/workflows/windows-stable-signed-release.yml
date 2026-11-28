@@ -23,8 +23,17 @@ on:
         required: false
         default: ''
         type: string
+      publish_target:
+        description: Verified Windows customer OTA route. Floki serves the existing public customer-stable feed.
+        required: true
+        default: floki
+        type: choice
+        options:
+          - floki
+          - hostinger
+          - both
       publish_to_production:
-        description: Promote the signed release to the selected Hostinger and/or Floki targets; affects installations following stable and requires protected approval
+        description: Promote the signed release to the selected target; affects installations following stable and requires protected approval
         required: true
         default: false
         type: boolean
@@ -54,7 +63,7 @@ jobs:
       RELEASE_VERSION: ${{ inputs.version || '0.24.64' }}
       RELEASE_SEQUENCE: ${{ inputs.sequence || '11' }}
       RELEASE_EXPIRES: ${{ inputs.expires_at || '' }}
-      CELIKOM_STABLE_PUBLISHER: ${{ vars.CELIKOM_STABLE_PUBLISHER }}
+      CELIKOM_STABLE_PUBLISHER: ${{ inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -207,7 +216,7 @@ jobs:
     needs: prepare
     # The Floki root consumer promotes its local stable feed and owner download.
     # The read-only route audit determines whether those paths are public or mirrored.
-    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'floki' || vars.CELIKOM_STABLE_PUBLISHER == 'both') && needs.prepare.result == 'success'
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'floki' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both') && needs.prepare.result == 'success'
     permissions:
       contents: write
     uses: ./.github/workflows/windows-stable-floki-private-stage.yml
@@ -218,7 +227,7 @@ jobs:
 
   publish:
     needs: prepare
-    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && (vars.CELIKOM_STABLE_PUBLISHER == 'hostinger' || vars.CELIKOM_STABLE_PUBLISHER == 'both')
+    if: github.ref == 'refs/heads/main' && inputs.publish_to_production == true && ((inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'hostinger' || (inputs.publish_target || vars.CELIKOM_STABLE_PUBLISHER || 'floki') == 'both')
     permissions:
       contents: read
     concurrency:
