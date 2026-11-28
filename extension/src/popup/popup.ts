@@ -162,7 +162,10 @@ function checkFileDuration(){
   if(uploadButton)uploadButton.disabled=true;
   durationNote.hidden=false;durationNote.dataset.kind="warning";durationNote.textContent="Проверяем длительность файла…";
   durationPromise=withDeadline(()=>file.arrayBuffer(),10000).then(bytes=>{
-    if(/\.m4a$/i.test(file.name))return {durationMs:inspectM4a(bytes).durationMs,file};
+    if(/\.m4a$/i.test(file.name)){
+      try{return {durationMs:inspectM4a(bytes).durationMs,file};}
+      catch{return {durationMs:null,file,serverValidation:true};}
+    }
     const inspected=inspectMp3(bytes);
     return inspected ? {durationMs:inspected.durationMs,file:inspected.changed?new Blob([inspected.bytes],{type:"audio/mpeg"}):file} : {durationMs:null,file,serverValidation:true};
   }).catch(()=>null).then(result=>{

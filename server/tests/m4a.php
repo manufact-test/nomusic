@@ -18,11 +18,12 @@ expect($ms !== null,'Real AAC fixture');
 $upload=new UploadService($pdo,$storage,31457280,static fn($p)=>is_file($p));
 $fields=['service'=>'yandex','track_id'=>'799461','duration_ms'=>(string)$ms,'artist'=>'Synthetic','title'=>'M4A regression','album'=>'','declaration'=>'1','request_id'=>'10000000-0000-4000-8000-000000046001'];
 $file=['error'=>UPLOAD_ERR_OK,'tmp_name'=>$path,'name'=>'fixture.M4A','size'=>filesize($path)];
+$prepared=(new Celikom\Application\M4aNormalizer())->prepare($path);$expectedPath=$prepared['path'];
 $result=$upload->upload($fields,$file,hash('sha256','m4a-isolated-test'));$id=$result['replacement_id'];
 expect($result['status']==='pending','M4A requires moderation');
 $q=$pdo->prepare('SELECT a.* FROM audio_assets a JOIN track_replacements r ON r.audio_asset_id=a.id WHERE r.id=?');$q->execute([$id]);$asset=$q->fetch(PDO::FETCH_ASSOC);
 expect($asset['mime_type']==='audio/mp4' && str_ends_with($asset['storage_key'],'.m4a'),'Original M4A stored');
-expect(hash_equals($asset['sha256'],hash_file('sha256',$path)),'No transcoding');
+expect(hash_equals($asset['sha256'],hash_file('sha256',$expectedPath)),'Canonical M4A stored without transcoding');
 $catalog=new PdoCatalogRepository($pdo);$resolver=new ResolveService($catalog,$storage,new AudioTokenService(str_repeat('m4a-test-key-',4),600));
 expect(!$resolver->resolve('yandex','799461',null,true)['found'],'Pending M4A hidden');
 $again=$upload->upload($fields,$file,hash('sha256','m4a-isolated-test'));expect($again['duplicate'],'M4A retry idempotent');
@@ -35,7 +36,7 @@ $resolved=$resolver->resolve('yandex','799461',null,true);expect($resolved['foun
 $auth=['Authorization'=>'Bearer '.str_repeat('m4a-test-',8)];$config['test_api_token']=str_repeat('m4a-test-',8);$config['api_enabled']=true;$config['audio_signing_key']=str_repeat('m4a-test-key-',4);
 parse_str(parse_url($resolved['audio_url'],PHP_URL_QUERY),$query);
 $app=new Celikom\Application($config);$response=$app->handle('GET','/api/v1/audio/'.$id,$query,['Range'=>'bytes=0-1023']);
-expect($response->status===206 && $response->headers['Content-Type']==='audio/mp4' && bytes($response)===substr(file_get_contents($path),0,1024),'Signed M4A Range serves exact source bytes');
+expect($response->status===206 && $response->headers['Content-Type']==='audio/mp4' && bytes($response)===substr(file_get_contents($expectedPath),0,1024),'Signed M4A Range serves exact canonical bytes');
 // Remove only this test's rows before the legacy database suite resets its fixtures.
 $pdo->prepare('DELETE FROM upload_submissions WHERE replacement_id=?')->execute([$id]);
 $pdo->prepare('DELETE FROM track_replacements WHERE id=?')->execute([$id]);
@@ -43,3 +44,5 @@ $pdo->prepare('DELETE FROM tracks WHERE service=? AND service_track_id=?')->exec
 $pdo->prepare('DELETE FROM audio_assets WHERE id=?')->execute([$asset['id']]);
 $storage->delete($asset['storage_key']);
 fwrite(STDOUT,"PASS M4A upload, moderation, duplicate, duration gate, backward compatibility and signed Range\n");
+
+unlink($expectedPath);

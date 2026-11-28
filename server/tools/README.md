@@ -27,3 +27,22 @@ PHP-FPM runs as `www-data`. The directory must remain non-writable by that user 
 - `tools/LICENSE.LGPLv2.1`: `root:www-data`, mode `0640`
 
 Do not make the tools directory group-writable. The validator opens only the two existing lock files, invokes a fixed argument array with no shell, limits decoding to one thread and 15 seconds, and allows only the local file protocol. The build package prepares executable/lock modes; the deploy step must set the ownership/group above after extraction.
+
+## M4A container normalization (0.4.98)
+
+`m4a-normalizer` is a separate static build from the same pinned FFmpeg source
+commit/archive as the MP3 validator. Build with `bash build-m4a-normalizer.sh
+/path/to/ffmpeg-source.tar.gz`; archive SHA256 is verified by the script.
+Only MOV demuxing, AAC decoding/parser, packet-copy IPOD muxing, a null sink
+and file protocol are enabled. No network and no AAC encoder/transcoding.
+Checksum: `m4a-normalizer.sha256`. The MP3 validator is unchanged.
+
+Authenticated M4A uploads are canonicalized with packet copy and metadata/cover
+removal, structurally inspected as single-track AAC-LC, then completely decoded
+to a null sink. Fragmented/ordinary M4A and ordinary container metadata use
+the same demux/remux path; metadata names are not individually whitelisted.
+External track references and absolute aliases are disabled explicitly.
+Both processes share the existing two MP3 admission lock slots and have
+15-second time limits, bounded stderr/allocation/output, no shell/network.
+
+References: https://ffmpeg.org/ffmpeg-formats.html (MOV demuxer, IPOD/MOV muxer).

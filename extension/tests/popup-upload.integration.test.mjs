@@ -725,15 +725,33 @@ test('unknown MP3 preflight reaches authoritative server validation and retains 
  } finally {FakeXHR.response=null;}
 });
 
-test('unreadable MP3 and invalid M4A still stop before any upload',async()=>{
+test('unreadable MP3 and M4A still stop before any upload',async()=>{
  const id='944530634';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
  find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
  for(const file of [
   {name:'unreadable.mp3',size:2000,arrayBuffer:async()=>{throw new Error('read failed');}},
-  Object.assign(new Blob([new Uint8Array(2000)],{type:'audio/mp4'}),{name:'invalid.m4a'})
+  {name:'unreadable.m4a',size:2000,arrayBuffer:async()=>{throw new Error('read failed');}}
  ]){
   find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
   const before=requests.length;await form().fire('submit');assert.equal(requests.length,before);
   assert.equal(find('[data-upload-duration]').dataset.kind,'error');
  }
+});
+
+
+test('readable fragmented M4A is delegated intact and server rejection is visible',async()=>{
+ const id='944530635';current={track:{...selected.track,id}};version='none';pendingTracks.delete(id);
+ find('[data-upload-panel]').hidden=true;await find("[data-action='add']").fire('click');
+ const fixtures=JSON.parse(await readFile(new URL('./fixtures/m4a-normalization.json',import.meta.url),'utf8'));
+ const source=Buffer.from(fixtures.find(x=>x.name==='fragmented').source,'base64');
+ const file=Object.assign(new Blob([source],{type:'audio/mp4'}),{name:'fragmented.m4a'});
+ find('[data-upload-file]').files=[file];find('[data-upload-rights]').checked=true;
+ FakeXHR.response={status:415,body:{error:'invalid_m4a'}};
+ try{
+  const before=requests.length;await form().fire('submit');assert.equal(requests.length,before+1);
+  assert.match(find('[data-upload-duration]').textContent,/Проверим файл при отправке/);
+  assert.deepEqual(await requests.at(-1).body.get('file').arrayBuffer(),await file.arrayBuffer());
+  assert.equal(pendingTracks.has(id),false);assert.equal(result().hidden,true);
+  assert.equal(find('[data-upload-status]').dataset.kind,'error');
+ }finally{FakeXHR.response=null;}
 });

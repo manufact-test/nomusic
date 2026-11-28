@@ -80,7 +80,10 @@ final class UploadService
         $mime = $isM4a ? 'audio/mp4' : 'audio/mpeg';
         $extension = $isM4a ? 'm4a' : 'mp3';
         if ($isM4a) {
-            $measuredDuration = (new M4aInspector())->durationMs($path);
+            $prepared = (new M4aNormalizer())->prepare($path);
+            $preparedPath = $prepared['path'];
+            $path = $preparedPath; $size = $prepared['size'];
+            $measuredDuration = $prepared['duration_ms'];
         } else {
             $prepared = (new Mp3Normalizer())->prepare($path);
             $preparedPath = $prepared['path'];
