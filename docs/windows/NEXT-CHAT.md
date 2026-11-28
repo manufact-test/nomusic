@@ -1,17 +1,20 @@
-# ACTIVE CELIKOM WINDOWS — W194: 0.24.63 public OTA published; owner-device test pending (28 November 2026)
+# ACTIVE CELIKOM WINDOWS — W195: repair 0.24.62 bootstrap route; owner-device OTA retest pending (28 November 2026)
 
-**READ FIRST:** `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md`. W194 supersedes the pending-publication status in W193. W193 remains the route-audit and signed-release evidence.
+**READ FIRST:** `docs/windows/W195-02462-BOOTSTRAP-ROUTE-REPAIR-2026-11-28.md`, then `docs/windows/W194-02463-PUBLIC-OTA-PUBLISHED-2026-11-28.md`.
 
-**User workflow:** test/private candidate -> owner acceptance -> main -> protected GitHub publication approval -> real in-app auto-update. CI is validation, not a separate release channel. No new test feed or manual installer detour.
+**Current owner installation:** CELIKOM **0.24.62.0** (confirmed by W54 diagnostic generated 2026-11-28 09:48:27 UTC). It had `STABLE_UPDATE_CHECK_FAILED` and `STABLE_ROLLBACK_BOOTSTRAP_UNAVAILABLE` at startup.
 
-**Published:** CELIKOM Windows **0.24.63.0**, signed version 0.24.63, sequence 10. Original build [46083334539](https://github.com/manufact-test/nomusic/actions/runs/46083334539) SUCCESS. Exact existing artifact was reused; no rebuild/re-sign. Protected publication [46084804919](https://github.com/manufact-test/nomusic/actions/runs/46084804919) SUCCESS; owner approval recorded. Public latest manifest/signature and versioned files match the signed artifact; public EXE was downloaded over HTTPS and full SHA256 verified: `3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f`.
+**Root cause fixed:** the public customer feed served approved 0.24.63 / sequence 10, but the public immutable version store lacked the installed 0.24.62 manifest, detached signature and installer required by the old client's own-version bootstrap/LKG check. The signed 0.24.62 package existed in Floki's private immutable store.
 
-**Floki state:** existing signed root consumer promoted local current to `versions/0.24.63`; owner HTTPS receipt is `https_verified=True`. Immutable 0.24.55 and 0.24.62 versions remain preserved. The existing public stable route is already configured and serves the exact 0.24.63 package. A redundant route-cutover attempt stopped at its duplicate-route guard before changing Nginx. Temporary one-off helpers were removed.
+**Repair completed:** copied only signed 0.24.62 manifest/signature/installer into the existing public versioned customer route. P-256 signature and full installer SHA256 verified over HTTPS. Public `latest.json` and signature remained byte-identical at 0.24.63 / sequence 10; acceptance record unchanged; no Nginx or runtime changes. [W195 Floki repair run 46132668967](https://github.com/manufact-test/nomusic/actions/runs/46132668967) SUCCESS.
 
-**Remaining task:** verify actual in-app auto-update on the owner's existing Windows installation. The installed version is still unconfirmed. Ask the owner to fully close and normally relaunch CELIKOM (no manual EXE download), allow the in-app update if offered, then send a fresh diagnostic. Confirm app/supervisor 0.24.63.0, update discovery/download/signature verification/safe-point install/restart and account retention separately. Audio playback remains a separate acceptance check.
+**Important correction:** checked-in P-256 trust constants being empty is intentional. The protected release workflow derives the public key from the private Environment secret and embeds the production origin/public pin into the actual release binaries with `.github/scripts/windows-stable-trust-embed.mjs`. Do not fill the checked-in placeholders or weaken trust.
 
-**Hard boundaries:** do not touch Android, browser-extension runtime, W174 audio baseline, Yandex profile or server/API backend. Do not rebuild/re-sign 0.24.63. Do not ask for manual EXE installation. If the installed app fails to discover the update after normal restart, inspect a fresh diagnostic from that exact installation.
+**Next action — owner device only:** ask the owner to fully close and relaunch the existing CELIKOM 0.24.62 normally, with no manual EXE download/install. The automatic updater does not require a manual download prompt. It should authenticate the installed 0.24.62 manifest, discover/download 0.24.63 in the background, and wait for a safe point before installation. If Yandex is playing, it may wait; the owner can stop CELIKOM integration and close Yandex when ready, then leave CELIKOM open to complete its own update. Request a fresh diagnostic after relaunch. Confirm bootstrap/check failures disappear, update is discovered/downloaded, app + Supervisor become 0.24.63.0, account/session survives, and app reopens normally. Audio playback is a separate acceptance check.
 
+**Hard boundaries:** do not rebuild/re-sign 0.24.63; do not touch Android, browser-extension runtime, W174 audio baseline, Yandex profile, or server/API backend. No manual installer detour.
+
+---
 ---
 ---
 
