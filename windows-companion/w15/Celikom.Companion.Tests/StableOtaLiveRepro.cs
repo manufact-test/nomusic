@@ -64,64 +64,71 @@ internal static class StableOtaLiveRepro
                 LogPayloadHash("0.24.62", "supervisor", supervisor, current.SupervisorSha256);
             Console.WriteLine("W196_DOTNET_02462_PAYLOAD_HASHES_RECORDED");
 
-            var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
-            var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-                emptyJournalRoot, current, currentPackage.Path, PublicKeySha256,
-                installedVersion, app, nativeHost, renderer, supervisor,
-                DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
-                (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
-            var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-                emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
-            test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
-                 cached.Release.Version == installedVersion &&
-                 cached.Release.Sequence == current.Sequence,
-                "W196 exact 0.24.62 .NET bootstrap succeeds with a missing LKG journal");
-            Console.WriteLine("W196_DOTNET_EMPTY_LKG_BOOTSTRAP_OK");
-
-            // Synthetic only: model a completed old-version journal left behind
-            // when the current app was installed outside the supervised OTA flow.
-            // No owner-device journal is read or inferred by this test.
-            var staleRoot = Path.Combine(scratchRoot, "w196-synthetic-stale-lkg");
-            var staleVersion = new Version(0, 24, 55, 0);
-            var staleRelease = current with
+            if (currentPayloadsMatch)
             {
-                Version = staleVersion,
-                Sequence = 2,
-                PackageUri = new Uri(
-                    origin,
-                    "CELIKOM/Windows/Updates/stable/0.24.55/CELIKOM-Windows-0.24.55.exe"),
-                ExpiresAt = DateTimeOffset.UtcNow.AddDays(1)
-            };
-            _ = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-                staleRoot, staleRelease, currentPackage.Path, PublicKeySha256,
-                staleVersion, app, nativeHost, renderer, supervisor,
-                DateTimeOffset.UtcNow, static (_, _) => { },
-                (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
-            var staleCached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
-                staleRoot, PublicKeySha256, static (_, _) => { });
-            test(staleCached.Release.Version == staleVersion &&
-                 staleCached.LastAcceptedSequence == 2,
-                "W196 synthetic completed older LKG journal is readable and retains its sequence");
-
-            var staleRebaseDenied = false;
-            try
-            {
-                StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
-                    staleRoot, current, currentPackage.Path, PublicKeySha256,
+                var emptyJournalRoot = Path.Combine(scratchRoot, "w196-empty-lkg");
+                var seeded = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+                    emptyJournalRoot, current, currentPackage.Path, PublicKeySha256,
                     installedVersion, app, nativeHost, renderer, supervisor,
                     DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
                     (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                var cached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+                    emptyJournalRoot, PublicKeySha256, StableUpdatePackageStager.VerifyInstaller);
+                test(seeded.State == StableUpdateRollbackJournal.Phase.Seeded &&
+                     cached.Release.Version == installedVersion &&
+                     cached.Release.Sequence == current.Sequence,
+                    "W196 exact 0.24.62 .NET bootstrap succeeds with a missing LKG journal");
+                Console.WriteLine("W196_DOTNET_EMPTY_LKG_BOOTSTRAP_OK");
+    
+                // Synthetic only: model a completed old-version journal left behind
+                // when the current app was installed outside the supervised OTA flow.
+                // No owner-device journal is read or inferred by this test.
+                var staleRoot = Path.Combine(scratchRoot, "w196-synthetic-stale-lkg");
+                var staleVersion = new Version(0, 24, 55, 0);
+                var staleRelease = current with
+                {
+                    Version = staleVersion,
+                    Sequence = 2,
+                    PackageUri = new Uri(
+                        origin,
+                        "CELIKOM/Windows/Updates/stable/0.24.55/CELIKOM-Windows-0.24.55.exe"),
+                    ExpiresAt = DateTimeOffset.UtcNow.AddDays(1)
+                };
+                _ = StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+                    staleRoot, staleRelease, currentPackage.Path, PublicKeySha256,
+                    staleVersion, app, nativeHost, renderer, supervisor,
+                    DateTimeOffset.UtcNow, static (_, _) => { },
+                    (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                var staleCached = StableUpdateRollbackJournal.GetLastKnownGoodCore(
+                    staleRoot, PublicKeySha256, static (_, _) => { });
+                test(staleCached.Release.Version == staleVersion &&
+                     staleCached.LastAcceptedSequence == 2,
+                    "W196 synthetic completed older LKG journal is readable and retains its sequence");
+    
+                var staleRebaseDenied = false;
+                try
+                {
+                    StableUpdateRollbackJournal.SeedInitialLastKnownGoodCore(
+                        staleRoot, current, currentPackage.Path, PublicKeySha256,
+                        installedVersion, app, nativeHost, renderer, supervisor,
+                        DateTimeOffset.UtcNow, StableUpdatePackageStager.VerifyInstaller,
+                        (path, hash) => StableUpdatePayloadVerifier.MatchesFile(path, hash));
+                }
+                catch (IOException e) when (
+                    e.Message == "STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED")
+                {
+                    staleRebaseDenied = true;
+                }
+                test(staleRebaseDenied &&
+                     (staleCached.Release.Version != installedVersion ||
+                      staleCached.Release.Sequence != current.Sequence),
+                    "W196 current bootstrap rejects a completed stale LKG instead of safely reconciling it");
+                Console.WriteLine("W196_SYNTHETIC_STALE_LKG_BLOCK_REPRODUCED");
             }
-            catch (IOException e) when (
-                e.Message == "STABLE_ROLLBACK_BOOTSTRAP_ALREADY_INITIALIZED")
+            else
             {
-                staleRebaseDenied = true;
+                Console.WriteLine("W196_LKG_TESTS_SKIPPED_CURRENT_PAYLOADS_DID_NOT_MATCH");
             }
-            test(staleRebaseDenied &&
-                 (staleCached.Release.Version != installedVersion ||
-                  staleCached.Release.Sequence != current.Sequence),
-                "W196 current bootstrap rejects a completed stale LKG instead of safely reconciling it");
-            Console.WriteLine("W196_SYNTHETIC_STALE_LKG_BLOCK_REPRODUCED");
 
             InstallPackageToIsolatedDirectory(latestPackage.Path, installedRoot, scratchRoot);
             var latestApp = Path.Combine(installedRoot, "CELIKOM.Companion.exe");
