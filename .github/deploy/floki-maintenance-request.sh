@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
-[[ "$(id -u)" == 0 ]]
+[[ "$(id -u)" == 0 ]] || { echo W195_ROOT_REQUIRED; exit 1; }
 
 ROOT=/srv/celikom-releases/windows/stable
 CUSTOMER=/srv/celikom-releases/public/windows-customer-stable
@@ -17,17 +17,23 @@ EXPECTED_PACKAGE_SHA=5daad26eefeacca7b3f1a08c7d6fe0c07bc50e73ae9d601b5a7d71f4be1
 EXPECTED_PACKAGE_SIZE=85156133
 EXPECTED_LATEST_SHA=3315b43e5af8c789f77fe643478b27f466bb4d5c76a591d34ce15143e2b2515f
 
-[[ "$(sha256sum "$PIN" | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]]
-[[ "$(git hash-object "$TOOLS/windows-stable-existing-latest.mjs")" == bb4d19672d45bdd0393497c3b33280308d67ef32 ]]
-[[ "$(readlink "$ROOT/current")" == versions/0.24.63 ]]
-for f in "$SOURCE/manifest.json" "$SOURCE/manifest.json.sig" "$SOURCE/CELIKOM-Windows-0.24.62.exe"; do
-  [[ -f "$f" && ! -L "$f" ]]
-  [[ "$(stat -c '%u' "$f")" == 0 ]]
-  [[ ! -w "$f" ]]
-done
-[[ "$(stat -c '%s' "$SOURCE/CELIKOM-Windows-0.24.62.exe")" == "$EXPECTED_PACKAGE_SIZE" ]]
+[[ "$(sha256sum "$PIN" | cut -d' ' -f1)" == 46b36bb222154316f2229c35cf65e6c953e0b6524dfb0aad8de05949dc143a95 ]] || { echo W195_PIN_PREFLIGHT_FAILED; exit 1; }
+[[ "$(git hash-object "$TOOLS/windows-stable-existing-latest.mjs")" == bb4d19672d45bdd0393497c3b33280308d67ef32 ]] || { echo W195_TRUSTED_VERIFIER_PREFLIGHT_FAILED; exit 1; }
+[[ "$(readlink "$ROOT/current")" == versions/0.24.63 ]] || { echo W195_LOCAL_CURRENT_NOT_02463; exit 1; }
+python3 - "$SOURCE" "$EXPECTED_PACKAGE_SIZE" <<'PY'
+import stat,sys
+from pathlib import Path
+d=Path(sys.argv[1])
+s=d.lstat()
+assert stat.S_ISDIR(s.st_mode) and s.st_uid==0 and not s.st_mode&0o022
+for name in ("manifest.json","manifest.json.sig","CELIKOM-Windows-0.24.62.exe"):
+    p=d/name
+    x=p.lstat()
+    assert stat.S_ISREG(x.st_mode) and x.st_uid==0 and not x.st_mode&0o022
+assert (d/"CELIKOM-Windows-0.24.62.exe").stat().st_size==int(sys.argv[2])
+print("W195_LOCAL_02462_FILES_ROOT_OWNED_AND_IMMUTABLE")
+PY
 printf '%s  %s\n' "$EXPECTED_PACKAGE_SHA" "$SOURCE/CELIKOM-Windows-0.24.62.exe" | sha256sum -c
-
 python3 - "$SOURCE/manifest.json" "$EXPECTED_PACKAGE_SHA" "$EXPECTED_PACKAGE_SIZE" <<'PY'
 import json,sys
 m=json.load(open(sys.argv[1],encoding="utf-8"))
@@ -44,9 +50,9 @@ CELIKOM_STABLE_PUBLIC_KEY_DER_BASE64=$(base64 -w0 "$PIN")
 node "$TOOLS/windows-stable-existing-latest.mjs" "$SOURCE/manifest.json" "$SOURCE/manifest.json.sig"
 
 for d in "$CUSTOMER" "$CUSTOMER/versions"; do
-  [[ -d "$d" && ! -L "$d" && "$(stat -c '%u' "$d")" == 0 ]]
+  [[ -d "$d" && ! -L "$d" && "$(stat -c '%u' "$d")" == 0 ]] || { echo W195_CUSTOMER_PUBLIC_ROOT_INVALID; exit 1; }
 done
-[[ "$(stat -c '%a' "$CUSTOMER/versions")" == 755 ]]
+[[ "$(stat -c '%a' "$CUSTOMER/versions")" == 755 ]] || { echo W195_CUSTOMER_VERSIONS_MODE_INVALID; exit 1; }
 
 tmp=$(mktemp -d /root/celikom-w195-02462-bootstrap.XXXXXXXX)
 cleanup() { rm -rf -- "$tmp"; }
