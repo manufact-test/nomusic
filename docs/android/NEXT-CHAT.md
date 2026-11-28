@@ -1,43 +1,45 @@
-# CELIKOM Android A1 — актуальное состояние
+# CELIKOM Android A1 — NEXT CHAT
 
-Дата: 2026-11-28  
-Репозиторий: `manufact-test/nomusic`  
-Рабочая ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`  
-Код: BETA36 NAV56 (owner APK delivered; phone diagnostic pending)
+Репозиторий: `manufact-test/nomusic`
+Ветка: `experiment/android-a1-metrica-init-state-observer-arm13-20261112`
 
-## Что уже проверено
+## Текущая версия
+- На телефоне проверена BETA36 NAV56 — слышимой подмены нет.
+- Готовится BETA37 NAV57. Не устанавливать старую BETA36 повторно; дождаться owner-only APK из CI run `46163744419`.
 
-- **BETA32 MP3 override — НЕ РАБОТАЕТ:** ломал воспроизведение. Не повторять MP3/AAC override без новой доказанной причины.
-- **NAV54 работает до чтения альтернативных байтов:** BETA34 и BETA35: FIRST_OPEN_CANDIDATE_ACCEPTED=ONE, DATASOURCE_ARMED=ONE, AUDIO_OPEN=ONE, AUDIO_READ=MANY. Сохранять.
-- **BETA35 NAV55 на Honor 50 — слышимой подмены НЕТ.** Диагностика `CELIKOM-A1-Diagnostics-1795873462104.txt` относится к этому тесту, но её встроенный маркер `A1_TRACKID_BETA34_NAV54_NESTED_FACTORY_BIRTH_ORDER_20261128` устарел: проверенный исходник BETA35 (`44e917754c32a06ef73ba63435e0cbf1efef5a36`) ещё содержал старую строку BETA34. Не считать этот маркер доказательством запуска BETA34.
-- NAV55 подтвердил точный класс **o96**, интерфейс wh6 и тот же объект при select, attach и read. Фактический путь прямой (LIVE_PERIOD_DIRECT_HOLDER_LO96_SOURCE_PRESENT=MANY), не up1. Повторять проверку holder не нужно.
-- LIVE_PERIOD_TRACK_WRAPPER_SOURCE_MATCH=MANY, но LIVE_RENDERER_ALT_SOURCE_READ_SAME=NONE; NO_ROUTE_CURRENT_PERIOD=FEW, DATASOURCE_UNRESOLVED_CURRENT_PERIOD=FEW. В диагностике также есть TCA_CREATOR_WRAPPER_NOT_FLOW=FEW и TCA_CREATOR_WRAPPER_NO_ALBUM=FEW.
-- **NAV56 / BETA36 code change:** live lookup теперь сохраняет exact creator/source proof через firstOpenSourceCommitted после успешного first-open arm. После commit он не переопрашивает ограниченные wrapperBirths/BETA/Flow registries; до commit строгая creator-проверка остаётся. Audio route/admission/codec не менялись.
-- Добавлен JVM regression fixture: committed DataSource должен разрешаться после очистки creator history; rejected first-open не получает этот обход.
-- **BETA36 NAV56 CI:** validation run `46153378323` PASS; export-enabled run `46154387456` PASS. JVM + publisher-first ARM13 PASS; verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`, `stage_a=NO_GO` — это не акустическая проверка. `owner_phone_touched=false`; signer verified, `UPDATE_EXISTING` matches installed owner cert.
-- Owner-only draft: [BETA36 APK](https://github.com/manufact-test/nomusic/releases/download/untagged-51969331ea5269f59bc6/CELIKOM-A1-RAMIL-AU-BETA36-HONOR50-20261128.apk) · [release and files](https://github.com/manufact-test/nomusic/releases/tag/untagged-51969331ea5269f59bc6). Size 71,606,252 bytes; SHA-256 `e632bbb881d5eb63dc774f4bd8de379ab4ad93d7603751d22009f32d55294ba0`. Source commit `07ee94b19199173b962517427815c0dbcd7e9e89`. Acoustic replacement remains unproven.
+## Что установлено
+- BETA36 диагностика: `CELIKOM-A1-Diagnostics-1795880627662.txt`.
+- First-open: кандидат принят; deferred arm принят; `DATASOURCE_ARMED=ONE`.
+- Альтернативный DataSource реально открывался и отдавал байты: `AUDIO_OPEN=ONE`, `AUDIO_READ=MANY`.
+- Но связь этих байтов с текущим MediaPeriod не была зафиксирована: `LIVE_PERIOD_SOURCE_LOOKUP_CALL=NONE`.
+- Renderer read наблюдался при state != 2; `ENGINE_HOLDER_TYPE1_STATE2=NONE`. Старый код прекращал source lookup до чтения текущего PeriodID/MediaPeriod.
+- NAV55 уже подтвердил прямой `Lo96` MediaPeriod в select/attach/read. Не повторять holder-аудит.
+- NAV56 сохраняет exact first-open DataSource после очистки creator history. Не переделывать этот путь.
+- BETA35 диагностика имела устаревший маркер BETA34; не путать её с BETA34.
 
-## Что выяснили по оригинальному Яндексу
+## NAV57 — изменение
+- Source lookup теперь запускается и на renderer read при state != STATE_STARTED.
+- Проверяется точный текущий PeriodID (UID + оба индекса) вместе с текущим SLOT_B и source identity.
+- Это read-only source correlation. Не считать её доказательством audible PCM.
+- STATE_STARTED/decoder evidence остаётся отдельным строгим условием.
+- MP3/AAC override и audio route не менялись. Не повторять BETA32 codec override без нового доказательства.
 
-Read-only анализ подписанного Yandex 2025, CI run `46144076359`: **PASS**.
-
-- Точный `DataSource.open`: 18 прямых вызывающих методов.
-- Точный `DataSource.read`: 23 прямых вызывающих метода.
-- Ни один из них и ни один найденный upstream-метод не подтвердился как ExoPlayer Loadable.
-- Связь этих вызовов с `Lo96` / `MediaPeriod` не доказана. Активный renderer/source link статически не установлен.
-- Отдельно найден статический путь `Lp96` → `Lo96` → `Lwh6` / `Lup1` → native holder. Это только структура оригинального кода, не доказательство, что именно этот period активен на телефоне.
-- Анализатор исправлен: повторные callsite больше не считаются отдельными рёбрами. Получено 856 289 уникальных связей; 6 regression tests PASS.
+## Проверки
+- JVM regression tests: PASS.
+- Полный BETA36 ARM13 publisher-first side-by-side 75s gate: PASS, verdict `METRICA_READONLY_NATIVE_MAIN_75S_PASS_NOT_AUDIO`.
+- BETA37 JVM contract: PASS.
+- BETA37 ARM13 publisher-first side-by-side gate: CI run `46163744419`, сейчас выполняется. Clone-only differential `CLONE_ONLY_MASTER_KEY_INIT_OR_MAIN_NO_GO` — отдельный диагностический NO_GO, не product acceptance; publisher intentionally absent.
 
 ## Следующий шаг
+1. Дождаться успешного BETA37 ARM13 gate и owner-only draft APK.
+2. Установить BETA37 поверх BETA36, не удалять приложение и не очищать данные.
+3. Проверить Ramil / 10AGE — «Ау», album `38902809`, track `144530503`, 00:43–00:54.
+4. Сохранить диагностику CELIKOM.
 
-1. На Honor 50 установить BETA36 поверх BETA35. Не удалять CELIKOM и не очищать данные.
-2. Воспроизвести проблемный трек («Ау», 00:43–00:54) и, если возможно, второй проблемный трек. Экспортировать диагностику CELIKOM и передать её в следующий чат.
-3. В диагностике проверить `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` и связанные события текущего MediaPeriod/DataSource.
-4. Если событие появилось — переходить к проверке renderer → decoder. Если нет — исследовать точное соответствие DataSource активному MediaPeriod. Holder/NAV55 заново не проверять.
-5. NAV56 CI и APK уже готовы: не повторять CI, не собирать новую версию и не менять MP3/AAC override или publisher codec request без причины из диагностики.
+В новой диагностике проверить:
+- `LIVE_QUEUE_SLOT_B_TYPE1_NOT2_READ_MATCH`
+- `LIVE_QUEUE_SLOT_B_TYPE1_NOT2_PERIOD_ID_SAME`
+- `LIVE_PERIOD_SOURCE_LOOKUP_CALL` / `LIVE_PERIOD_SOURCE_LOOKUP_RESOLVED`
+- `LIVE_RENDERER_ALT_SOURCE_READ_SAME_CURRENT_PERIOD_NON_EOS` или `..._EOS_UNKNOWN`
 
-## Не трогать
-
-`main`, Windows, сервер, каталог, авторизацию, OTA и второй плеер. Работать только в указанной Android experiment-ветке.
-
-Исторические BETA-документы — архив. Для продолжения читать сначала только этот файл; к архиву обращаться лишь при конкретной необходимости.
+Если альтернативный read связан с текущим MediaPeriod — следующий этап decoder/format, без повторного DataSource-аудита. Если нет — исправлять только конкретное несовпадение source identity.
